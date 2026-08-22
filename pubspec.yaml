@@ -1,0 +1,60 @@
+name: dorduncu
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.5.6
+  cloud_firestore: ^6.7.1
+  cloud_functions: ^6.3.5
+  firebase_app_check: ^0.4.5+2
+  firebase_storage: ^13.0.0
+
+  image_picker: ^1.2.0
+  file_picker: ^10.3.2
+
+  intl: ^0.20.2
+
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
+  geolocator: 14.0.2
+
+  shared_preferences: ^2.5.5
+  http: ^1.6.0
+  url_launcher: ^6.3.2
+  flutter_markdown: ^0.7.7+1
+  photo_view: ^0.15.0
+  syncfusion_flutter_pdfviewer: ^31.1.17
+  async: ^2.13.1
+  package_info_plus: ^9.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  generate: true
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/legal/tr/
+    - assets/legal/en/
+    - assets/legal/de/
+    - assets/data/turkey_locations.json
+    - assets/branding/dort_logo_white_orange.png

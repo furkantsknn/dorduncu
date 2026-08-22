@@ -1,0 +1,434 @@
+{
+  "@@locale": "en",
+  "appName": "Dördüncü",
+  "loading": "Loading...",
+  "pleaseWait": "Please wait...",
+  "continueButton": "Continue",
+  "save": "Save",
+  "cancel": "Cancel",
+  "close": "Close",
+  "select": "Select",
+  "confirm": "Confirm",
+  "delete": "Delete",
+  "edit": "Edit",
+  "send": "Send",
+  "retry": "Try Again",
+  "back": "Back",
+  "next": "Next",
+  "skip": "Skip",
+  "yes": "Yes",
+  "no": "No",
+  "ok": "OK",
+  "search": "Search",
+  "all": "All",
+  "optional": "Optional",
+  "requiredField": "This field is required.",
+  "unknownError": "An unexpected error occurred.",
+  "connectionError": "Connection Error",
+  "checkInternetConnection": "Check your internet connection and try again.",
+  "operationFailed": "The operation could not be completed.",
+  "operationSuccessful": "The operation was completed successfully.",
+  "login": "Log In",
+  "logout": "Log Out",
+  "loggingOut": "Logging Out...",
+  "logoutAccount": "Log Out",
+  "phoneNumber": "Phone Number",
+  "phoneNumberHint": "5XX XXX XX XX",
+  "phoneNumberRequired": "Enter your phone number.",
+  "invalidPhoneNumber": "Enter a valid phone number.",
+  "sendSmsCode": "Send SMS Code",
+  "smsVerification": "SMS Verification",
+  "verificationCode": "Verification Code",
+  "verificationCodeHint": "6-digit code",
+  "verificationCodeRequired": "Enter the verification code.",
+  "invalidVerificationCode": "The verification code is incorrect.",
+  "expiredVerificationCode": "The verification code has expired.",
+  "verify": "Verify",
+  "resendCode": "Resend Code",
+  "resendCodeAfter": "Resend in {seconds} seconds",
+  "@resendCodeAfter": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "smsCodeSent": "The verification code was sent to your phone.",
+  "smsCodeCouldNotBeSent": "The verification code could not be sent.",
+  "verificationFailed": "Phone verification could not be completed.",
+  "tooManyRequests": "You have made too many attempts. Please try again later.",
+  "sessionNotFound": "User session could not be found.",
+  "sessionEnded": "Session Ended",
+  "sessionEndedOnAnotherDevice": "Your session on this device ended because your account was opened on another device.",
+  "createProfile": "Create Profile",
+  "profile": "Profile",
+  "editProfile": "Edit Profile",
+  "profileInformation": "Profile Information",
+  "profilePhoto": "Profile Photo",
+  "profilePhotoOptional": "Profile photo is optional",
+  "selectProfilePhoto": "Select Profile Photo",
+  "profilePhotoCouldNotBeSelected": "The profile photo could not be selected.",
+  "selectAvatar": "Select a 3D avatar",
+  "name": "First Name",
+  "surname": "Last Name",
+  "birthDate": "Date of Birth",
+  "selectBirthDate": "Select your date of birth",
+  "gender": "Gender",
+  "female": "Female",
+  "male": "Male",
+  "other": "Other",
+  "city": "City",
+  "district": "District",
+  "aboutMe": "About Me",
+  "aboutMeOptional": "About Me (optional)",
+  "enterName": "Enter your first name.",
+  "enterSurname": "Enter your last name.",
+  "enterCity": "Enter your city.",
+  "enterDistrict": "Enter your district.",
+  "selectGender": "Select your gender.",
+  "minimumAgeRequired": "You must be at least 18 years old to register.",
+  "minimumAgeRegistrationMessage": "Only people who are at least 18 years old can register for Dördüncü.",
+  "profileCreated": "Your profile was created successfully.",
+  "profileCreationFailed": "An error occurred while creating the profile: {error}",
+  "@profileCreationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVerification": "Player Verification",
+  "verificationStatus": "My Verification Status",
+  "verifiedAccount": "Your account is verified.",
+  "verificationPending": "Your documents are being reviewed. The result will be shown in your account.",
+  "verificationRejected": "Your verification application was rejected. You can submit your documents again later.",
+  "verificationNotCompleted": "You have not completed player verification yet.",
+  "verificationOptionalDescription": "This step is optional. Once your documents are approved, you will receive a verified player badge.",
+  "identityFront": "Front of ID",
+  "identityBack": "Back of ID",
+  "takeSelfie": "Take a Selfie",
+  "selfieReady": "Selfie ready",
+  "selfieCouldNotBeTaken": "The selfie could not be taken.",
+  "criminalRecordDocument": "Criminal Record Document",
+  "selectDocument": "Tap to select a document",
+  "documentSelectionFailed": "An error occurred while selecting the document.",
+  "selectedFileCouldNotBeAccessed": "The selected file could not be accessed.",
+  "supportedDocumentTypes": "You can upload PDF, JPG or PNG files. The maximum file size is 10 MB.",
+  "uploadDocumentsAndContinue": "Upload Documents and Continue",
+  "skipForNow": "Skip for Now",
+  "requiredVerificationDocuments": "You must add the front and back of your ID, a criminal record document and a selfie.",
+  "documentsUploadFailed": "An error occurred while uploading the documents: {error}",
+  "@documentsUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "gamesAndSports": "Your Games and Sports",
+  "selectGamesAndSportsDescription": "Select the games you want to join and specify your level for each one.",
+  "selectAtLeastOneGame": "Select at least one game or sport.",
+  "selectedBranchCount": "Selected categories: {count}",
+  "@selectedBranchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "beginner": "Beginner",
+  "intermediate": "Intermediate",
+  "advanced": "Advanced",
+  "expert": "Expert",
+  "home": "Home",
+  "events": "Events",
+  "event": "Event",
+  "explore": "Explore",
+  "exploreOnMap": "Explore on Map",
+  "exploreEventsOnMap": "Explore events on the map",
+  "eventsForYou": "Events for You",
+  "seeAll": "See All",
+  "showInCity": "Show in City",
+  "nearMe": "Near Me",
+  "whatDoYouWantToPlayToday": "What would you like to play today?",
+  "eventsCouldNotBeLoaded": "An error occurred while loading the events.",
+  "noEventsInCategory": "There are no events in this category yet.",
+  "joinEvent": "Join Event",
+  "join": "Join",
+  "apply": "Apply",
+  "applied": "Applied",
+  "applicationSent": "Your application was sent to the event owner.",
+  "eventApplicationFailed": "An error occurred while applying for the event.",
+  "eventApplicationFailedWithError": "An error occurred while applying for the event: {error}",
+  "@eventApplicationFailedWithError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginRequiredForApplication": "You must log in to apply for an event.",
+  "profileRequiredForApplication": "You must complete your player profile and receive the Player Badge before applying for events.",
+  "eventOwner": "Event Owner",
+  "eventCreatedByYou": "You Created This Event",
+  "joinedEvent": "You Joined the Event",
+  "participantCount": "Participating players: {count}",
+  "@participantCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "favorites": "Favorites",
+  "addToFavorites": "Add to Favorites",
+  "removeFromFavorites": "Remove from Favorites",
+  "removedFromFavorites": "Removed from favorites.",
+  "noFavoriteEvents": "You do not have any favorite events yet.",
+  "favoritesCouldNotBeLoaded": "Favorites could not be loaded.",
+  "messages": "Messages",
+  "message": "Message",
+  "notifications": "Notifications",
+  "notification": "Notification",
+  "notificationCenter": "Notification Center",
+  "noNotifications": "You do not have any notifications yet.",
+  "notificationsCouldNotBeLoaded": "Notifications could not be loaded.",
+  "markAsRead": "Mark as Read",
+  "markAsUnread": "Mark as Unread",
+  "deleteNotification": "Delete Notification",
+  "wallet": "Wallet",
+  "settings": "Settings",
+  "language": "Language",
+  "selectLanguage": "Select Language",
+  "turkish": "Türkçe",
+  "english": "English",
+  "german": "Deutsch",
+  "theme": "Theme",
+  "darkTheme": "Dark Theme",
+  "lightTheme": "Light Theme",
+  "systemTheme": "System Theme",
+  "support": "Support",
+  "supportCenter": "Support Center",
+  "newSupportRequest": "New Support Request",
+  "mySupportRequests": "My Support Requests",
+  "supportRequestDetail": "Request Details",
+  "recoverMyAccount": "Recover My Account",
+  "frequentlyAskedQuestions": "Frequently Asked Questions",
+  "contactUs": "Contact Us",
+  "supportRequest": "Support Request",
+  "supportSubject": "Subject",
+  "supportDescription": "Description",
+  "supportCategory": "Category",
+  "supportPriority": "Priority",
+  "supportStatus": "Status",
+  "supportAttachments": "Attachments",
+  "addAttachment": "Add File",
+  "submitSupportRequest": "Submit Support Request",
+  "supportRequestCreated": "Your support request was created successfully.",
+  "supportRequestCouldNotBeCreated": "The support request could not be created.",
+  "noSupportRequests": "You do not have any support requests yet.",
+  "supportRequestsCouldNotBeLoaded": "Support requests could not be loaded.",
+  "adminReply": "Support Team Reply",
+  "writeReply": "Write your reply",
+  "sendReply": "Send Reply",
+  "openStatus": "Open",
+  "reviewingStatus": "Under Review",
+  "waitingUserStatus": "Waiting for User Response",
+  "resolvedStatus": "Resolved",
+  "rejectedStatus": "Rejected",
+  "closedStatus": "Closed",
+  "lowPriority": "Low",
+  "normalPriority": "Normal",
+  "highPriority": "High",
+  "urgentPriority": "Urgent",
+  "supportSecurityWarning": "For your security, the support team will never ask for your SMS verification code or password.",
+  "accountStatus": "Account Status",
+  "accountSuspended": "Account Suspended",
+  "accountSuspendedDescription": "Your account has been temporarily suspended. You cannot use the application until the review is complete.",
+  "accountBanned": "Account Banned",
+  "accountBannedDescription": "Your account has been banned for violating the terms of use.",
+  "accountDeletionPending": "Account Deletion Pending",
+  "accountDeletionPendingDescription": "A deletion request has been created for your account. You cannot use the application until the process is complete.",
+  "accountDeleted": "Account Deleted",
+  "accountDeletedDescription": "This account has been deleted and can no longer be used.",
+  "contactSupportForAccountStatus": "If you believe this is a mistake, you can submit a request to our support team.",
+  "logoutFailed": "Could not log out. Check your internet connection and try again.",
+  "createEvent": "Create Event",
+  "eventInformation": "Event information",
+  "locationInformation": "Location information",
+  "descriptionSection": "Description",
+  "category": "Category",
+  "gameOrSport": "Game / sport",
+  "searchedPlayer": "Players wanted",
+  "preferredMemberType": "Preferred member type",
+  "neighborhoodStreet": "Neighborhood / district / street",
+  "eventDetails": "Event details",
+  "districtsLoading": "Loading districts...",
+  "selectFromCityDistricts": "Select from {city} districts",
+  "@selectFromCityDistricts": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "selectDistrictFirst": "Select a district first",
+  "startTypingNeighborhoodHint": "Start typing: Nişantepe",
+  "searchDistrictsInCity": "Search districts in {city}",
+  "@searchDistrictsInCity": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "districtNotFound": "District not found.",
+  "profileInfoLoadFailed": "Could not load profile information: {error}",
+  "@profileInfoLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "districtsLoadFailed": "Could not load districts. Check your internet connection.",
+  "enableLocationServices": "You must turn on your phone's location services.",
+  "locationPermissionDenied": "Location permission was denied. You can select manually on the map.",
+  "locationOutsideActiveCity": "The location you selected appears to be outside {city}. Change your active city from the home screen and try again.",
+  "@locationOutsideActiveCity": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "locationSelectedCompleteAddress": "Location selected. You can complete any missing fields from the list.",
+  "mapCouldNotOpen": "Could not open map: {error}",
+  "@mapCouldNotOpen": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cannotSelectPastDateTime": "You cannot select a past date and time.",
+  "eventDurationMinOneHour": "Event duration must be at least 1 hour.",
+  "eventDurationMaxSixHours": "Event duration can be at most 6 hours.",
+  "eventDurationThirtyMinuteSteps": "Start and end times must be selected in 30-minute intervals.",
+  "plusRequiredForMultiplePlayers": "Plus membership is required for 2 or more players.",
+  "normalMembersTomorrowOnly": "Normal members can create events for tomorrow at the latest.",
+  "sessionNotFoundPleaseLogin": "Session not found. You must log in again.",
+  "addressNotFoundOnMap": "Address not found on the map. Write the neighborhood, street, or venue name more clearly or select on the map.",
+  "eventCreateFailedWithCode": "Could not create event ({code}): {message}",
+  "@eventCreateFailedWithCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "eventCreateFailed": "Could not create event: {error}",
+  "@eventCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "myLocation": "My location",
+  "searchOnMap": "Search on map",
+  "publishEvent": "Publish event",
+  "livePriceSummary": "Live price summary",
+  "duration": "Duration",
+  "durationFactor": "Duration factor",
+  "basePricePerPlayer": "Base price per person",
+  "totalFee": "Total fee",
+  "durationRangeHint": "Duration must be between 1 and 6 hours in 30-minute intervals.",
+  "plusMemberBenefits": "Plus member: You can select multiple players and future dates.",
+  "normalMemberLimits": "Normal member: You can create an event for 1 player and at most tomorrow.",
+  "startTimeLabel": "Start {time}",
+  "@startTimeLabel": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "endTimeLabel": "End {time}",
+  "@endTimeLabel": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "activeCity": "Active city",
+  "mapSelectionOptional": "Map selection is not required.",
+  "meetingPointSelected": "Meeting point selected; district and neighborhood were filled automatically.",
+  "mustSelectDistrict": "You must select a district",
+  "neighborhoodRequired": "Neighborhood / district information is required",
+  "durationHours": "{count} hours",
+  "@durationHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutesOnly": "{count} minutes",
+  "@durationMinutesOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours} hours {minutes} minutes",
+  "@durationHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "currencyAmount": "{amount} TL",
+  "@currencyAmount": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsSection": "Notifications",
+  "messageNotifications": "Message notifications",
+  "eventNotifications": "Event notifications",
+  "applicationNotifications": "Application notifications",
+  "campaignNotifications": "Campaign notifications",
+  "documents": "Documents",
+  "termsOfUse": "Terms of Use",
+  "privacyPolicy": "Privacy Policy",
+  "communityRules": "Community Rules",
+  "account": "Account",
+  "changePhoneNumber": "Change phone number",
+  "changePhoneNumberDescription": "Verify your new phone number with an SMS code.",
+  "createAccountDeletionRequest": "Create account deletion request",
+  "accountDeletionRequestDescription": "After the request, you will be signed out and your account will be reviewed.",
+  "loginRequiredForAccountDeletion": "You must log in to create an account deletion request.",
+  "accountDeletionRequestTitle": "Account deletion request",
+  "accountDeletionFirstConfirmation": "Your account will not be deleted immediately. Your request will be recorded, and you will not be able to use your account until the process is complete.",
+  "giveUp": "Cancel",
+  "continueAction": "Continue",
+  "finalConfirmation": "Final confirmation",
+  "accountDeletionFinalConfirmation": "After the deletion request is created, you will be signed out and will not be able to access the app until the process is complete.",
+  "createRequest": "Create request",
+  "accountDeletionRequestCouldNotBeCreated": "The account deletion request could not be created.",
+  "legalTermsBody": "Dördüncü helps users create and join sports and gaming events. Users are responsible for the accuracy of the information they provide, their behavior at events, and compliance with applicable rules. Membership and payment terms will be presented separately before payment and wallet features are enabled.",
+  "privacyPolicyBody": "Profile information, selected games, events, and in-app communications are processed to provide the service. Identity and verification documents should be used only for the verification process; access rules and retention periods must be configured separately before production. Users may request account deletion.",
+  "communityRulesBody": "Be respectful. Harassment, threats, discrimination, fraud, and misleading events are prohibited. Do not apply to events you cannot attend; notify the organizer promptly if you need to cancel. Report users who pose a safety risk through the support channel."
+}

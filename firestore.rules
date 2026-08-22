@@ -1,0 +1,639 @@
+rules_version = '2';
+
+    service cloud.firestore {
+      match /databases/{database}/documents {
+      match /badge_products/{badgeId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+
+      match /plus_products/{productId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+
+            function signedIn() {
+          return request.auth != null;
+        }
+
+        function isOwner(uid) {
+          return signedIn() && request.auth.uid == uid;
+        }
+
+
+
+    function isAdmin() {
+      return signedIn() &&
+        (
+          request.auth.token.admin == true ||
+          request.auth.token.role == "admin" ||
+          request.auth.token.role == "super_admin" ||
+          request.auth.token.role == "moderator"
+        );
+    }
+
+        function eventData(eventId) {
+          return get(
+            /databases/$(database)/documents/events/$(eventId)
+          ).data;
+        }
+
+        function isEventOwner(eventId) {
+          return signedIn() &&
+            eventData(eventId).olusturanUid == request.auth.uid;
+        }
+
+        function isSelectedPlayer(eventId) {
+          return signedIn() &&
+            request.auth.uid in eventData(eventId).selectedPlayerIds;
+        }
+
+        function isChatMember(eventId) {
+          return signedIn() &&
+            (
+              isEventOwner(eventId) ||
+              isSelectedPlayer(eventId) ||
+              request.auth.uid in eventData(eventId).chatMemberUids
+            );
+        }
+
+        function eventApplicationFieldsOnly() {
+          return request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              'basvuranOyuncuIds',
+              'basvuruSayisi',
+              'updatedAt'
+            ]);
+        }
+
+        function isApplyingToEvent() {
+          return eventApplicationFieldsOnly() &&
+            !(request.auth.uid in resource.data.basvuranOyuncuIds) &&
+            request.auth.uid in request.resource.data.basvuranOyuncuIds &&
+            request.resource.data.basvuranOyuncuIds
+              .hasAll(resource.data.basvuranOyuncuIds) &&
+            request.resource.data.basvuranOyuncuIds.size() ==
+              resource.data.basvuranOyuncuIds.size() + 1 &&
+            request.resource.data.basvuruSayisi ==
+              resource.data.basvuruSayisi + 1 &&
+            request.resource.data.updatedAt == request.time;
+        }
+
+        function isWithdrawingApplication() {
+          return eventApplicationFieldsOnly() &&
+            request.auth.uid in resource.data.basvuranOyuncuIds &&
+            !(request.auth.uid in request.resource.data.basvuranOyuncuIds) &&
+            resource.data.basvuranOyuncuIds
+              .hasAll(request.resource.data.basvuranOyuncuIds) &&
+            request.resource.data.basvuranOyuncuIds.size() ==
+              resource.data.basvuranOyuncuIds.size() - 1 &&
+            request.resource.data.basvuruSayisi ==
+              resource.data.basvuruSayisi - 1 &&
+            request.resource.data.basvuruSayisi >= 0 &&
+            request.resource.data.updatedAt == request.time;
+        }
+
+        function validBankAccountData(data) {
+          return data.keys().hasOnly([
+              'bankName',
+              'iban',
+              'accountHolderName',
+              'isDefault',
+              'createdAt',
+              'updatedAt'
+            ]) &&
+            data.keys().hasAll([
+              'bankName',
+              'iban',
+              'accountHolderName',
+              'isDefault',
+              'createdAt',
+              'updatedAt'
+            ]) &&
+            data.bankName is string &&
+            data.bankName.size() >= 2 &&
+            data.bankName.size() <= 100 &&
+            data.iban is string &&
+            data.iban.matches('^TR[0-9]{24}$') &&
+            data.accountHolderName is string &&
+            data.accountHolderName.size() >= 3 &&
+            data.accountHolderName.size() <= 120 &&
+            data.isDefault is bool &&
+            data.createdAt is timestamp &&
+            data.updatedAt is timestamp;
+        }
+
+        function validNewBankAccount() {
+          return validBankAccountData(request.resource.data) &&
+            request.resource.data.createdAt == request.time &&
+            request.resource.data.updatedAt == request.time;
+        }
+
+        function validBankAccountUpdate() {
+          return validBankAccountData(request.resource.data) &&
+            request.resource.data.createdAt == resource.data.createdAt &&
+            request.resource.data.updatedAt == request.time;
+        }
+
+    function validNewUser(uid) {
+      return request.resource.data.keys().hasOnly([
+          'uid',
+          'ad',
+          'soyad',
+          'profilAdi',
+          'telefon',
+          'dogumTarihi',
+          'yas',
+          'cinsiyet',
+          'sehir',
+          'ilce',
+          'hakkimda',
+          'profilFotografi',
+          'avatarUrl',
+          'latitude',
+          'longitude',
+          'puan',
+          'plus',
+          'accountStatus',
+          'lastLoginAt',
+          'lastLoginPlatform',
+          'lastLoginAppVersion',
+          'lastDeviceId',
+          'activeSessionId',
+          'verified',
+          'verificationStatus',
+          'verificationSkipped',
+          'oyunlar',
+          'gameIds',
+          'gameSkills',
+          'onboardingCompleted',
+          'olusturmaTarihi',
+          'guncellemeTarihi'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'uid',
+          'ad',
+          'soyad',
+          'profilAdi',
+          'telefon',
+          'dogumTarihi',
+          'yas',
+          'cinsiyet',
+          'sehir',
+          'ilce',
+          'hakkimda',
+          'profilFotografi',
+          'avatarUrl',
+          'latitude',
+          'longitude',
+          'puan',
+          'plus',
+          'accountStatus',
+          'lastLoginAt',
+          'lastLoginPlatform',
+          'lastLoginAppVersion',
+          'lastDeviceId',
+          'activeSessionId',
+          'verified',
+          'verificationStatus',
+          'verificationSkipped',
+          'oyunlar',
+          'gameIds',
+          'gameSkills',
+          'onboardingCompleted',
+          'olusturmaTarihi',
+          'guncellemeTarihi'
+        ]) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.plus == false &&
+        request.resource.data.verified == false &&
+        request.resource.data.accountStatus == 'active' &&
+        request.resource.data.puan == 0 &&
+        request.resource.data.latitude == 0 &&
+        request.resource.data.longitude == 0 &&
+        request.resource.data.onboardingCompleted == true &&
+        request.resource.data.verificationSkipped is bool &&
+        request.resource.data.verificationStatus in ['pending', 'none'] &&
+        (
+          (
+            request.resource.data.verificationStatus == 'pending' &&
+            request.resource.data.verificationSkipped == false
+          ) ||
+          (
+            request.resource.data.verificationStatus == 'none' &&
+            request.resource.data.verificationSkipped == true
+          )
+        ) &&
+        request.resource.data.lastLoginAt == request.time &&
+        request.resource.data.olusturmaTarihi == request.time &&
+        request.resource.data.guncellemeTarihi == request.time;
+    }
+
+    function userEditableFieldsOnly() {
+      return request.resource.data
+        .diff(resource.data)
+        .affectedKeys()
+        .hasOnly([
+          'profilFotografi',
+          'avatarUrl',
+          'hakkimda',
+          'oyunlar',
+          'gameIds',
+          'gameSkills',
+          'favoriEtkinlikler',
+          'aktifSehir',
+          'bildirimAyarlari',
+          'telefon',
+          'phoneNumber',
+          'phoneChangedAt',
+          'guncellemeTarihi',
+          'updatedAt',
+          'lastSeenAt',
+          'lastLoginAt',
+          'lastLoginPlatform',
+          'lastLoginAppVersion',
+          'lastDeviceId',
+          'activeSessionId'
+        ]);
+    }
+
+    match /public_profiles/{uid} {
+      allow read: if signedIn();
+      allow create, update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      allow create: if
+        isOwner(uid) &&
+        validNewUser(uid);
+
+      allow update: if
+        isAdmin() ||
+        (
+          isOwner(uid) &&
+          userEditableFieldsOnly()
+        );
+
+allow update: if isOwner(uid) &&
+  request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly([
+      'accountStatus',
+      'deletionRequestedAt',
+      'deletionRequestStatus',
+      'activeSessionId',
+      'updatedAt',
+      'guncellemeTarihi'
+    ]) &&
+  request.resource.data.accountStatus == 'deletionRequested';
+      allow delete: if isAdmin();
+
+match /friends/{friendUid} {
+  allow read: if isOwner(uid);
+  allow create, delete: if isOwner(uid) || isAdmin();
+  allow update: if false;
+}
+
+match /friend_requests/{requestId} {
+  allow read: if isOwner(uid);
+
+  allow create: if signedIn();
+
+  allow delete: if
+    isOwner(uid) ||
+    isAdmin();
+
+  allow update: if false;
+}
+         match /owned_badges/{badgeId} {
+           allow read: if signedIn();
+           allow create, update, delete: if false;
+         }
+          match /notifications/{notificationId} {
+  allow read, update, delete: if isOwner(uid) || isAdmin();
+  allow create: if isOwner(uid) || isAdmin();
+}
+
+match /admin_actions/{actionId} {
+  allow read: if isOwner(uid) || isAdmin();
+  allow create, update, delete: if isAdmin();
+}
+
+match /point_transactions/{transactionId} {
+  allow read: if isOwner(uid) || isAdmin();
+  allow create, update, delete: if isAdmin();
+}
+          match /management_decisions/{decisionId} {
+            allow read: if isOwner(uid) || isAdmin();
+            allow create, update, delete: if isAdmin();
+          }
+        }
+
+        match /events/{eventId} {
+          /*
+           * Bu koleksiyon herkese açık etkinlik listesini beslediği için oturum
+           * açmış kullanıcılar belgeyi okuyabilir.
+           *
+           * Firestore kuralları aynı belge içindeki bazı alanları gizleyemez.
+           * Açık adres ve gerçek koordinatları kurallarla gerçekten korumak için
+           * bu alanların ayrı bir özel belgeye taşınması gerekir:
+           *
+           * events/{eventId}/private/location
+           *
+           * O özel belge yalnızca etkinlik sahibi, seçilen oyuncular ve admin
+           * tarafından okunmalıdır.
+           */
+          allow read: if signedIn();
+
+          allow create: if signedIn() &&
+            request.resource.data.olusturanUid == request.auth.uid;
+
+          allow update: if signedIn() &&
+            (
+              resource.data.olusturanUid == request.auth.uid ||
+              isAdmin() ||
+              isApplyingToEvent() ||
+              isWithdrawingApplication()
+            );
+
+          allow delete: if signedIn() &&
+            (
+              resource.data.olusturanUid == request.auth.uid ||
+              isAdmin()
+            );
+
+          match /private/{privateDocumentId} {
+            allow read: if signedIn() &&
+              (
+                isEventOwner(eventId) ||
+                isSelectedPlayer(eventId) ||
+                isAdmin()
+              );
+
+            allow create, update, delete: if signedIn() &&
+              (
+                isEventOwner(eventId) ||
+                isAdmin()
+              );
+          }
+
+          match /applications/{playerId} {
+            allow read: if signedIn() &&
+              (
+                request.auth.uid == playerId ||
+                isEventOwner(eventId) ||
+                isAdmin()
+              );
+
+            allow create: if signedIn() &&
+              request.auth.uid == playerId &&
+              request.resource.data.playerId == request.auth.uid &&
+              request.resource.data.eventId == eventId;
+
+            allow update, delete: if signedIn() &&
+              (
+                request.auth.uid == playerId ||
+                isEventOwner(eventId) ||
+                isAdmin()
+              );
+              match /admin_actions/{actionId} {
+  allow read: if isAdmin();
+  allow create: if isAdmin();
+  allow update, delete: if false;
+}
+          }
+
+          match /messages/{messageId} {
+            allow read: if isChatMember(eventId);
+
+            allow create: if isChatMember(eventId) &&
+              request.resource.data.senderUid == request.auth.uid;
+
+            allow update, delete: if signedIn() &&
+              (
+                resource.data.senderUid == request.auth.uid ||
+                isAdmin()
+              );
+          }
+        }
+
+    match /wallets/{uid} {
+  allow read: if isOwner(uid) || isAdmin();
+  allow create, update: if isAdmin();
+  allow delete: if isAdmin();
+
+  match /transactions/{transactionId} {
+    allow read: if isOwner(uid) || isAdmin();
+    allow create: if isAdmin();
+    allow update, delete: if false;
+  }
+
+      match /withdrawals/{withdrawalId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update, delete: if false;
+      }
+
+      match /bank_accounts/{accountId} {
+            allow read: if isOwner(uid) || isAdmin();
+
+            allow create: if
+              (isOwner(uid) || isAdmin()) &&
+              validNewBankAccount();
+
+            allow update: if
+              (isOwner(uid) || isAdmin()) &&
+              validBankAccountUpdate();
+
+            allow delete: if isOwner(uid) || isAdmin();
+          }
+        }
+
+    match /payments/{paymentId} {
+
+      allow read: if signedIn() &&
+        (
+          resource.data.customerUid == request.auth.uid ||
+          request.auth.uid in resource.data.playerUids ||
+          isAdmin()
+        );
+
+      allow create, update, delete: if false;
+    }
+
+        match /complaints/{complaintId} {
+          allow create: if signedIn() &&
+            request.resource.data.reporterUid == request.auth.uid;
+
+          allow read: if signedIn() &&
+            (
+              resource.data.reporterUid == request.auth.uid ||
+              isAdmin()
+            );
+
+          allow update, delete: if isAdmin();
+        }
+
+        match /refundRequests/{requestId} {
+          allow create: if signedIn() &&
+            request.resource.data.userUid == request.auth.uid;
+
+          allow read: if signedIn() &&
+            (
+              resource.data.userUid == request.auth.uid ||
+              isAdmin()
+            );
+
+          allow update, delete: if isAdmin();
+        }
+
+        match /cancellationRequests/{requestId} {
+          allow create: if signedIn() &&
+            request.resource.data.userUid == request.auth.uid;
+
+          allow read: if signedIn() &&
+            (
+              resource.data.userUid == request.auth.uid ||
+              isAdmin()
+            );
+
+          allow update, delete: if isAdmin();
+        }
+
+        match /support_requests/{requestId} {
+          allow create: if signedIn() &&
+
+            request.resource.data.keys().hasOnly([
+              'userId',
+              'phoneNumber',
+              'category',
+              'message',
+              'accountStatus',
+              'status',
+              'createdAt',
+              'updatedAt'
+            ]) &&
+
+            request.resource.data.keys().hasAll([
+              'userId',
+              'phoneNumber',
+              'category',
+              'message',
+              'accountStatus',
+              'status',
+              'createdAt',
+              'updatedAt'
+            ]) &&
+
+            request.resource.data.userId == request.auth.uid &&
+
+            request.resource.data.userId is string &&
+
+            request.resource.data.phoneNumber is string &&
+
+            request.resource.data.category is string &&
+
+            request.resource.data.category in [
+              'Hesabım askıya alındı',
+              'Hesabım engellendi',
+              'Giriş yapamıyorum',
+              'Hesap silme işlemi',
+              'Diğer'
+            ] &&
+
+            request.resource.data.message is string &&
+            request.resource.data.message.size() >= 10 &&
+            request.resource.data.message.size() <= 1000 &&
+
+            request.resource.data.accountStatus is string &&
+
+            request.resource.data.status == 'open';
+
+          allow read: if signedIn() &&
+            (
+              resource.data.userId == request.auth.uid ||
+              isAdmin()
+            );
+
+          allow update, delete: if isAdmin();
+        }
+
+        match /verification_requests/{uid} {
+          allow create: if isOwner(uid) &&
+            request.resource.data.keys().hasOnly([
+              'uid',
+              'ad',
+              'soyad',
+              'telefon',
+              'dogumTarihi',
+              'identityFrontUrl',
+              'identityBackUrl',
+              'criminalRecordUrl',
+              'selfieUrl',
+              'status',
+              'createdAt'
+            ]) &&
+            request.resource.data.keys().hasAll([
+              'uid',
+              'ad',
+              'soyad',
+              'telefon',
+              'dogumTarihi',
+              'identityFrontUrl',
+              'identityBackUrl',
+              'criminalRecordUrl',
+              'selfieUrl',
+              'status',
+              'createdAt'
+            ]) &&
+            request.resource.data.uid == request.auth.uid &&
+            request.resource.data.status == 'pending' &&
+            request.resource.data.createdAt == request.time;
+
+          allow read: if isOwner(uid) || isAdmin();
+
+          allow update, delete: if isAdmin();
+        }
+        match /accountDeletionRequests/{uid} {
+          allow create: if isOwner(uid) &&
+            request.resource.data.status == 'pending';
+
+          allow read: if isOwner(uid) || isAdmin();
+
+          allow update, delete: if false;
+        }
+        match /login_history/{logId} {
+
+          allow read: if isAdmin();
+
+          allow create, update, delete: if false;
+        }
+
+        match /audit_logs/{logId} {
+
+          allow read: if isAdmin();
+
+          allow create, update, delete: if false;
+        }
+        match /system_settings/{documentId} {
+  allow read, write: if isAdmin();
+}
+
+match /marketProducts/{productId} {
+  allow read: if signedIn();
+  allow create, update, delete: if isAdmin();
+}
+
+match /admin_system_actions/{actionId} {
+  allow read, create: if isAdmin();
+  allow update, delete: if false;
+}
+
+match /notifications/{notificationId} {
+  allow read, create, update, delete: if isAdmin();
+}
+
+      }
+    }

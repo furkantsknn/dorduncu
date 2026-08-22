@@ -1,0 +1,434 @@
+{
+  "@@locale": "tr",
+  "appName": "Dördüncü",
+  "loading": "Yükleniyor...",
+  "pleaseWait": "Lütfen bekleyin...",
+  "continueButton": "Devam Et",
+  "save": "Kaydet",
+  "cancel": "İptal",
+  "close": "Kapat",
+  "select": "Seç",
+  "confirm": "Onayla",
+  "delete": "Sil",
+  "edit": "Düzenle",
+  "send": "Gönder",
+  "retry": "Tekrar Dene",
+  "back": "Geri",
+  "next": "İleri",
+  "skip": "Atla",
+  "yes": "Evet",
+  "no": "Hayır",
+  "ok": "Tamam",
+  "search": "Ara",
+  "all": "Tümü",
+  "optional": "İsteğe bağlı",
+  "requiredField": "Bu alan zorunludur.",
+  "unknownError": "Beklenmeyen bir hata oluştu.",
+  "connectionError": "Bağlantı Hatası",
+  "checkInternetConnection": "İnternet bağlantını kontrol edip tekrar dene.",
+  "operationFailed": "İşlem tamamlanamadı.",
+  "operationSuccessful": "İşlem başarıyla tamamlandı.",
+  "login": "Giriş Yap",
+  "logout": "Çıkış Yap",
+  "loggingOut": "Oturum Kapatılıyor...",
+  "logoutAccount": "Oturumu Kapat",
+  "phoneNumber": "Telefon Numarası",
+  "phoneNumberHint": "5XX XXX XX XX",
+  "phoneNumberRequired": "Telefon numaranı gir.",
+  "invalidPhoneNumber": "Geçerli bir telefon numarası gir.",
+  "sendSmsCode": "SMS Kodu Gönder",
+  "smsVerification": "SMS Doğrulama",
+  "verificationCode": "Doğrulama Kodu",
+  "verificationCodeHint": "6 haneli kod",
+  "verificationCodeRequired": "Doğrulama kodunu gir.",
+  "invalidVerificationCode": "Doğrulama kodu hatalı.",
+  "expiredVerificationCode": "Doğrulama kodunun süresi doldu.",
+  "verify": "Doğrula",
+  "resendCode": "Kodu Yeniden Gönder",
+  "resendCodeAfter": "{seconds} saniye sonra yeniden gönder",
+  "@resendCodeAfter": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "smsCodeSent": "Doğrulama kodu telefonuna gönderildi.",
+  "smsCodeCouldNotBeSent": "Doğrulama kodu gönderilemedi.",
+  "verificationFailed": "Telefon doğrulaması tamamlanamadı.",
+  "tooManyRequests": "Çok fazla deneme yaptın. Lütfen daha sonra tekrar dene.",
+  "sessionNotFound": "Kullanıcı oturumu bulunamadı.",
+  "sessionEnded": "Oturum Sonlandırıldı",
+  "sessionEndedOnAnotherDevice": "Hesabın başka bir cihazda açıldığı için bu cihazdaki oturumun sona erdi.",
+  "createProfile": "Profil Oluştur",
+  "profile": "Profil",
+  "editProfile": "Profili Düzenle",
+  "profileInformation": "Profil Bilgileri",
+  "profilePhoto": "Profil Fotoğrafı",
+  "profilePhotoOptional": "Profil fotoğrafı isteğe bağlıdır",
+  "selectProfilePhoto": "Profil Fotoğrafı Seç",
+  "profilePhotoCouldNotBeSelected": "Profil fotoğrafı seçilemedi.",
+  "selectAvatar": "3D avatar seç",
+  "name": "Ad",
+  "surname": "Soyad",
+  "birthDate": "Doğum tarihi",
+  "selectBirthDate": "Doğum tarihini seç",
+  "gender": "Cinsiyet",
+  "female": "Kadın",
+  "male": "Erkek",
+  "other": "Diğer",
+  "city": "Şehir",
+  "district": "İlçe",
+  "aboutMe": "Hakkımda",
+  "aboutMeOptional": "Hakkımda (isteğe bağlı)",
+  "enterName": "Adını gir.",
+  "enterSurname": "Soyadını gir.",
+  "enterCity": "Şehir bilgisini gir.",
+  "enterDistrict": "İlçe bilgisini gir.",
+  "selectGender": "Cinsiyet seçimini yap.",
+  "minimumAgeRequired": "Kayıt olabilmek için 18 yaşını doldurmuş olmalısın.",
+  "minimumAgeRegistrationMessage": "Dördüncü uygulamasına yalnızca 18 yaşını doldurmuş kişiler kayıt olabilir.",
+  "profileCreated": "Profilin başarıyla oluşturuldu.",
+  "profileCreationFailed": "Profil oluşturulurken bir hata oluştu: {error}",
+  "@profileCreationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVerification": "Oyuncu Doğrulama",
+  "verificationStatus": "Doğrulama Durumum",
+  "verifiedAccount": "Hesabın doğrulanmış durumda.",
+  "verificationPending": "Belgelerin inceleniyor. Sonuçlandığında hesabında gösterilecek.",
+  "verificationRejected": "Doğrulama başvurun reddedildi. Belgelerini daha sonra yeniden gönderebilirsin.",
+  "verificationNotCompleted": "Oyuncu doğrulamasını henüz tamamlamadın.",
+  "verificationOptionalDescription": "Bu adım isteğe bağlıdır. Belgelerin onaylandığında doğrulanmış oyuncu rozeti kazanırsın.",
+  "identityFront": "Kimlik Ön Yüzü",
+  "identityBack": "Kimlik Arka Yüzü",
+  "takeSelfie": "Selfie Çek",
+  "selfieReady": "Selfie hazır",
+  "selfieCouldNotBeTaken": "Selfie çekilemedi.",
+  "criminalRecordDocument": "Adli Sicil Belgesi",
+  "selectDocument": "Belge seçmek için dokun",
+  "documentSelectionFailed": "Belge seçilirken bir hata oluştu.",
+  "selectedFileCouldNotBeAccessed": "Seçilen dosyaya erişilemedi.",
+  "supportedDocumentTypes": "PDF, JPG veya PNG yükleyebilirsin. Dosya boyutu en fazla 10 MB olabilir.",
+  "uploadDocumentsAndContinue": "Belgeleri Yükle ve Devam Et",
+  "skipForNow": "Şimdilik Atla",
+  "requiredVerificationDocuments": "Kimlik ön yüzü, kimlik arka yüzü, adli sicil belgesi ve selfie eklemelisin.",
+  "documentsUploadFailed": "Belgeler yüklenirken bir hata oluştu: {error}",
+  "@documentsUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "gamesAndSports": "Oyun ve Sporların",
+  "selectGamesAndSportsDescription": "Katılmak istediğin oyunları seç ve her biri için seviyeni belirt.",
+  "selectAtLeastOneGame": "En az bir oyun veya spor seç.",
+  "selectedBranchCount": "Seçili branş: {count}",
+  "@selectedBranchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "beginner": "Başlangıç",
+  "intermediate": "Orta",
+  "advanced": "İleri",
+  "expert": "Uzman",
+  "home": "Ana Sayfa",
+  "events": "Etkinlikler",
+  "event": "Etkinlik",
+  "explore": "Keşfet",
+  "exploreOnMap": "Haritada Keşfet",
+  "exploreEventsOnMap": "Etkinlikleri haritada keşfet",
+  "eventsForYou": "Senin için etkinlikler",
+  "seeAll": "Tümünü gör",
+  "showInCity": "Şehirde göster",
+  "nearMe": "Yakınımda",
+  "whatDoYouWantToPlayToday": "Bugün ne oynamak istersin?",
+  "eventsCouldNotBeLoaded": "Etkinlikler yüklenirken bir hata oluştu.",
+  "noEventsInCategory": "Bu kategori için henüz etkinlik yok.",
+  "joinEvent": "Etkinliğe Katıl",
+  "join": "Katıl",
+  "apply": "Başvur",
+  "applied": "Başvurdun",
+  "applicationSent": "Başvurun etkinlik sahibine gönderildi.",
+  "eventApplicationFailed": "Etkinliğe başvururken bir hata oluştu.",
+  "eventApplicationFailedWithError": "Etkinliğe başvururken bir hata oluştu: {error}",
+  "@eventApplicationFailedWithError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginRequiredForApplication": "Etkinliğe başvurmak için giriş yapmalısın.",
+  "profileRequiredForApplication": "Etkinliklere başvurmak için oyuncu profilini tamamlayıp Oyuncu Rozeti almalısın.",
+  "eventOwner": "Etkinlik Sahibi",
+  "eventCreatedByYou": "Etkinliği Sen Oluşturdun",
+  "joinedEvent": "Etkinliğe Katıldın",
+  "participantCount": "Katılan oyuncu: {count}",
+  "@participantCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "favorites": "Favoriler",
+  "addToFavorites": "Favorilere Ekle",
+  "removeFromFavorites": "Favoriden kaldır",
+  "removedFromFavorites": "Favorilerden kaldırıldı.",
+  "noFavoriteEvents": "Henüz favori etkinliğin yok.",
+  "favoritesCouldNotBeLoaded": "Favoriler yüklenemedi.",
+  "messages": "Mesajlar",
+  "message": "Mesaj",
+  "notifications": "Bildirimler",
+  "notification": "Bildirim",
+  "notificationCenter": "Bildirim Merkezi",
+  "noNotifications": "Henüz bildirimin yok.",
+  "notificationsCouldNotBeLoaded": "Bildirimler yüklenemedi.",
+  "markAsRead": "Okundu olarak işaretle",
+  "markAsUnread": "Okunmadı olarak işaretle",
+  "deleteNotification": "Bildirimi sil",
+  "wallet": "Cüzdan",
+  "settings": "Ayarlar",
+  "language": "Dil",
+  "selectLanguage": "Dil Seç",
+  "turkish": "Türkçe",
+  "english": "English",
+  "german": "Deutsch",
+  "theme": "Tema",
+  "darkTheme": "Koyu Tema",
+  "lightTheme": "Açık Tema",
+  "systemTheme": "Sistem Teması",
+  "support": "Destek",
+  "supportCenter": "Destek Merkezi",
+  "newSupportRequest": "Yeni Destek Talebi",
+  "mySupportRequests": "Destek Taleplerim",
+  "supportRequestDetail": "Talep Detayı",
+  "recoverMyAccount": "Hesabımı Geri Al",
+  "frequentlyAskedQuestions": "Sık Sorulan Sorular",
+  "contactUs": "Bize Ulaşın",
+  "supportRequest": "Destek Talebi",
+  "supportSubject": "Konu",
+  "supportDescription": "Açıklama",
+  "supportCategory": "Kategori",
+  "supportPriority": "Öncelik",
+  "supportStatus": "Durum",
+  "supportAttachments": "Ekler",
+  "addAttachment": "Dosya Ekle",
+  "submitSupportRequest": "Destek Talebini Gönder",
+  "supportRequestCreated": "Destek talebin başarıyla oluşturuldu.",
+  "supportRequestCouldNotBeCreated": "Destek talebi oluşturulamadı.",
+  "noSupportRequests": "Henüz destek talebin yok.",
+  "supportRequestsCouldNotBeLoaded": "Destek talepleri yüklenemedi.",
+  "adminReply": "Destek Ekibi Yanıtı",
+  "writeReply": "Yanıtını yaz",
+  "sendReply": "Yanıt Gönder",
+  "openStatus": "Açık",
+  "reviewingStatus": "İnceleniyor",
+  "waitingUserStatus": "Kullanıcı Yanıtı Bekleniyor",
+  "resolvedStatus": "Çözüldü",
+  "rejectedStatus": "Reddedildi",
+  "closedStatus": "Kapatıldı",
+  "lowPriority": "Düşük",
+  "normalPriority": "Normal",
+  "highPriority": "Yüksek",
+  "urgentPriority": "Acil",
+  "supportSecurityWarning": "Güvenliğin için destek ekibi senden SMS doğrulama kodunu veya şifreni istemez.",
+  "accountStatus": "Hesap Durumu",
+  "accountSuspended": "Hesap Askıya Alındı",
+  "accountSuspendedDescription": "Hesabın geçici olarak askıya alındı. İnceleme tamamlanana kadar uygulamayı kullanamazsın.",
+  "accountBanned": "Hesap Engellendi",
+  "accountBannedDescription": "Hesabın kullanım kurallarının ihlali nedeniyle engellendi.",
+  "accountDeletionPending": "Hesap Silme İşlemi Bekliyor",
+  "accountDeletionPendingDescription": "Hesabın için silme talebi oluşturulmuş. İşlem tamamlanana kadar uygulamayı kullanamazsın.",
+  "accountDeleted": "Hesap Silindi",
+  "accountDeletedDescription": "Bu hesap silinmiş ve artık kullanılamaz.",
+  "contactSupportForAccountStatus": "Bu durumun hatalı olduğunu düşünüyorsan destek ekibimize talep gönderebilirsin.",
+  "logoutFailed": "Oturum kapatılamadı. İnternet bağlantını kontrol edip tekrar dene.",
+  "createEvent": "Etkinlik Oluştur",
+  "eventInformation": "Etkinlik bilgileri",
+  "locationInformation": "Konum bilgisi",
+  "descriptionSection": "Açıklama",
+  "category": "Kategori",
+  "gameOrSport": "Oyun / spor",
+  "searchedPlayer": "Aranan oyuncu",
+  "preferredMemberType": "Tercih edilen üye tipi",
+  "neighborhoodStreet": "Semt / mahalle / cadde",
+  "eventDetails": "Etkinlik ayrıntıları",
+  "districtsLoading": "İlçeler yükleniyor...",
+  "selectFromCityDistricts": "{city} ilçelerinden seç",
+  "@selectFromCityDistricts": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "selectDistrictFirst": "Önce ilçe seç",
+  "startTypingNeighborhoodHint": "Yazmaya başla: Nişantepe",
+  "searchDistrictsInCity": "{city} ilçelerinde ara",
+  "@searchDistrictsInCity": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "districtNotFound": "İlçe bulunamadı.",
+  "profileInfoLoadFailed": "Profil bilgisi yüklenemedi: {error}",
+  "@profileInfoLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "districtsLoadFailed": "İlçeler yüklenemedi. İnternet bağlantını kontrol et.",
+  "enableLocationServices": "Telefonun konum servisini açmalısın.",
+  "locationPermissionDenied": "Konum izni verilmedi. Haritadan elle seçim yapabilirsin.",
+  "locationOutsideActiveCity": "Seçtiğin konum {city} dışında görünüyor. Ana ekrandan aktif şehri değiştirip tekrar dene.",
+  "@locationOutsideActiveCity": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "locationSelectedCompleteAddress": "Konum seçildi. Adres servisinin bulamadığı alanı listeden tamamlayabilirsin.",
+  "mapCouldNotOpen": "Harita açılamadı: {error}",
+  "@mapCouldNotOpen": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cannotSelectPastDateTime": "Geçmiş tarih ve saat seçemezsin.",
+  "eventDurationMinOneHour": "Etkinlik süresi en az 1 saat olmalıdır.",
+  "eventDurationMaxSixHours": "Etkinlik süresi en fazla 6 saat olabilir.",
+  "eventDurationThirtyMinuteSteps": "Başlangıç ve bitiş saatleri 30 dakikalık aralıklarla seçilmelidir.",
+  "plusRequiredForMultiplePlayers": "2 veya daha fazla oyuncu için Plus üyelik gerekir.",
+  "normalMembersTomorrowOnly": "Normal üyeler en fazla yarın için etkinlik oluşturabilir.",
+  "sessionNotFoundPleaseLogin": "Oturum bulunamadı. Yeniden giriş yapmalısın.",
+  "addressNotFoundOnMap": "Adres haritada bulunamadı. Mahalle, cadde veya mekan adını daha açık yaz ya da haritadan seç.",
+  "eventCreateFailedWithCode": "Etkinlik oluşturulamadı ({code}): {message}",
+  "@eventCreateFailedWithCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "eventCreateFailed": "Etkinlik oluşturulamadı: {error}",
+  "@eventCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "myLocation": "Konumum",
+  "searchOnMap": "Haritada ara",
+  "publishEvent": "Etkinliği yayınla",
+  "livePriceSummary": "Canlı fiyat özeti",
+  "duration": "Süre",
+  "durationFactor": "Süre katsayısı",
+  "basePricePerPlayer": "Kişi başı taban fiyat",
+  "totalFee": "Toplam ücret",
+  "durationRangeHint": "Süre 1 ile 6 saat arasında ve 30 dakikalık aralıklarla olmalıdır.",
+  "plusMemberBenefits": "Plus üye: Birden fazla oyuncu ve ileri tarih seçebilirsin.",
+  "normalMemberLimits": "Normal üye: 1 oyuncu ve en fazla yarın için etkinlik oluşturabilirsin.",
+  "startTimeLabel": "Başlangıç {time}",
+  "@startTimeLabel": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "endTimeLabel": "Bitiş {time}",
+  "@endTimeLabel": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "activeCity": "Aktif şehir",
+  "mapSelectionOptional": "Haritadan seçim zorunlu değildir.",
+  "meetingPointSelected": "Buluşma noktası seçildi; ilçe ve semt otomatik dolduruldu.",
+  "mustSelectDistrict": "İlçe seçmelisin",
+  "neighborhoodRequired": "Semt / mahalle bilgisi gerekli",
+  "durationHours": "{count} saat",
+  "@durationHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutesOnly": "{count} dakika",
+  "@durationMinutesOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours} saat {minutes} dakika",
+  "@durationHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "currencyAmount": "{amount} TL",
+  "@currencyAmount": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsSection": "Bildirimler",
+  "messageNotifications": "Mesaj bildirimleri",
+  "eventNotifications": "Etkinlik bildirimleri",
+  "applicationNotifications": "Başvuru bildirimleri",
+  "campaignNotifications": "Kampanya bildirimleri",
+  "documents": "Belgeler",
+  "termsOfUse": "Kullanım Koşulları",
+  "privacyPolicy": "Gizlilik Politikası",
+  "communityRules": "Topluluk Kuralları",
+  "account": "Hesap",
+  "changePhoneNumber": "Telefon numarasını değiştir",
+  "changePhoneNumberDescription": "Yeni telefon numaranı SMS koduyla doğrula.",
+  "createAccountDeletionRequest": "Hesap silme talebi oluştur",
+  "accountDeletionRequestDescription": "Talep sonrası oturumun kapanır ve hesabın incelemeye alınır.",
+  "loginRequiredForAccountDeletion": "Hesap silme talebi oluşturmak için giriş yapmalısın.",
+  "accountDeletionRequestTitle": "Hesap silme talebi",
+  "accountDeletionFirstConfirmation": "Hesabın hemen silinmez. Silme talebin kaydedilir ve işlem tamamlanana kadar hesabını kullanamazsın.",
+  "giveUp": "Vazgeç",
+  "continueAction": "Devam et",
+  "finalConfirmation": "Son onay",
+  "accountDeletionFinalConfirmation": "Silme talebi oluşturulduktan sonra oturumun kapatılacak ve işlem tamamlanana kadar uygulamaya erişemeyeceksin.",
+  "createRequest": "Talebi oluştur",
+  "accountDeletionRequestCouldNotBeCreated": "Hesap silme talebi oluşturulamadı.",
+  "legalTermsBody": "Dördüncü, kullanıcıların spor ve oyun etkinlikleri oluşturmasına ve bu etkinliklere katılmasına yardımcı olur. Kullanıcılar verdikleri bilgilerin doğruluğundan, etkinliklerdeki davranışlarından ve yürürlükteki kurallara uymaktan sorumludur. Ödeme ve cüzdan özellikleri etkinleştirilmeden önce ayrıca üyelik ve ödeme koşulları sunulacaktır.",
+  "privacyPolicyBody": "Profil bilgileri, seçilen oyunlar, etkinlikler ve uygulama içi iletişim hizmeti sunmak amacıyla işlenir. Kimlik ve doğrulama belgeleri yalnızca doğrulama süreci için kullanılmalı; erişim kuralları ve saklama süreleri üretim öncesinde ayrıca yapılandırılmalıdır. Kullanıcı hesap silme talebinde bulunabilir.",
+  "communityRulesBody": "Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir."
+}

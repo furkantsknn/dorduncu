@@ -1,0 +1,288 @@
+import 'package:flutter/services.dart';
+
+import 'legal_document.dart';
+import 'legal_versions.dart';
+
+class LegalService {
+  LegalService._();
+
+  static final Map<String, String> _documentCache =
+  <String, String>{};
+
+  static const List<String> supportedLanguageCodes =
+  <String>[
+    'tr',
+    'en',
+    'de',
+  ];
+
+  static String normalizeLanguageCode(
+      String? languageCode,
+      ) {
+    final String normalized =
+        languageCode?.trim().toLowerCase() ?? 'tr';
+
+    if (normalized.startsWith('en')) {
+      return 'en';
+    }
+
+    if (normalized.startsWith('de')) {
+      return 'de';
+    }
+
+    return 'tr';
+  }
+
+  static LegalDocumentDefinition getDocument(
+      LegalDocumentType type,
+      ) {
+    return LegalVersions.byType(type);
+  }
+
+  static LegalDocumentDefinition getDocumentByCode(
+      String documentCode,
+      ) {
+    return LegalVersions.byCode(documentCode);
+  }
+
+  static String getAssetPath({
+    required LegalDocumentType type,
+    required String? languageCode,
+  }) {
+    final LegalDocumentDefinition document =
+    getDocument(type);
+
+    final String normalizedLanguageCode =
+    normalizeLanguageCode(languageCode);
+
+    return document.assetPathForLanguageCode(
+      normalizedLanguageCode,
+    );
+  }
+
+  static Future<String> loadDocument({
+    required LegalDocumentType type,
+    required String? languageCode,
+  }) async {
+    final LegalDocumentDefinition document =
+    getDocument(type);
+
+    return loadDocumentDefinition(
+      document: document,
+      languageCode: languageCode,
+    );
+  }
+
+  static Future<String> loadDocumentByCode({
+    required String documentCode,
+    required String? languageCode,
+  }) async {
+    final LegalDocumentDefinition document =
+    getDocumentByCode(documentCode);
+
+    return loadDocumentDefinition(
+      document: document,
+      languageCode: languageCode,
+    );
+  }
+
+  static Future<String> loadDocumentDefinition({
+    required LegalDocumentDefinition document,
+    required String? languageCode,
+  }) async {
+    final String normalizedLanguageCode =
+    normalizeLanguageCode(languageCode);
+
+    final String requestedAssetPath =
+    document.assetPathForLanguageCode(
+      normalizedLanguageCode,
+    );
+
+    final String? cachedDocument =
+    _documentCache[requestedAssetPath];
+
+    if (cachedDocument != null) {
+      return cachedDocument;
+    }
+
+    try {
+      final String content = await rootBundle.loadString(
+        requestedAssetPath,
+      );
+
+      _documentCache[requestedAssetPath] = content;
+
+      return content;
+    } catch (_) {
+      if (normalizedLanguageCode == 'tr') {
+        throw LegalDocumentLoadException(
+          documentCode: document.code,
+          requestedLanguageCode:
+          normalizedLanguageCode,
+          requestedAssetPath: requestedAssetPath,
+        );
+      }
+
+      return _loadTurkishFallback(
+        document: document,
+        requestedLanguageCode:
+        normalizedLanguageCode,
+        requestedAssetPath: requestedAssetPath,
+      );
+    }
+  }
+
+  static Future<String> _loadTurkishFallback({
+    required LegalDocumentDefinition document,
+    required String requestedLanguageCode,
+    required String requestedAssetPath,
+  }) async {
+    final String fallbackAssetPath =
+    document.assetPathForLanguageCode('tr');
+
+    final String? cachedFallback =
+    _documentCache[fallbackAssetPath];
+
+    if (cachedFallback != null) {
+      return cachedFallback;
+    }
+
+    try {
+      final String fallbackContent =
+      await rootBundle.loadString(
+        fallbackAssetPath,
+      );
+
+      _documentCache[fallbackAssetPath] =
+          fallbackContent;
+
+      return fallbackContent;
+    } catch (_) {
+      throw LegalDocumentLoadException(
+        documentCode: document.code,
+        requestedLanguageCode:
+        requestedLanguageCode,
+        requestedAssetPath: requestedAssetPath,
+        fallbackAssetPath: fallbackAssetPath,
+      );
+    }
+  }
+
+  static bool isCurrentVersion({
+    required String documentCode,
+    required String acceptedVersion,
+  }) {
+    final LegalDocumentDefinition document =
+    getDocumentByCode(documentCode);
+
+    return document.version.trim() ==
+        acceptedVersion.trim();
+  }
+
+  static bool requiresNewAcceptance({
+    required String documentCode,
+    String? acceptedVersion,
+    bool accepted = false,
+    DateTime? withdrawnAt,
+  }) {
+    final LegalDocumentDefinition document =
+    getDocumentByCode(documentCode);
+
+    if (!document.requiresAcceptance) {
+      return false;
+    }
+
+    if (!accepted || withdrawnAt != null) {
+      return true;
+    }
+
+    if (acceptedVersion == null ||
+        acceptedVersion.trim().isEmpty) {
+      return true;
+    }
+
+    if (!document.requiresReacceptance) {
+      return false;
+    }
+
+    return !isCurrentVersion(
+      documentCode: documentCode,
+      acceptedVersion: acceptedVersion,
+    );
+  }
+
+  static List<LegalDocumentDefinition>
+  getMandatoryDocuments() {
+    return LegalVersions.documents
+        .where(
+          (LegalDocumentDefinition document) =>
+      document.isMandatory,
+    )
+        .toList(growable: false);
+  }
+
+  static List<LegalDocumentDefinition>
+  getOptionalDocuments() {
+    return LegalVersions.documents
+        .where(
+          (LegalDocumentDefinition document) =>
+      document.isOptional,
+    )
+        .toList(growable: false);
+  }
+
+  static List<LegalDocumentDefinition>
+  getContextualDocuments() {
+    return LegalVersions.documents
+        .where(
+          (LegalDocumentDefinition document) =>
+      document.isContextual,
+    )
+        .toList(growable: false);
+  }
+
+  static void clearCache() {
+    _documentCache.clear();
+  }
+
+  static void removeFromCache({
+    required LegalDocumentType type,
+    required String? languageCode,
+  }) {
+    final String assetPath = getAssetPath(
+      type: type,
+      languageCode: languageCode,
+    );
+
+    _documentCache.remove(assetPath);
+  }
+}
+
+class LegalDocumentLoadException implements Exception {
+  const LegalDocumentLoadException({
+    required this.documentCode,
+    required this.requestedLanguageCode,
+    required this.requestedAssetPath,
+    this.fallbackAssetPath,
+  });
+
+  final String documentCode;
+  final String requestedLanguageCode;
+  final String requestedAssetPath;
+  final String? fallbackAssetPath;
+
+  @override
+  String toString() {
+    final String fallbackInformation =
+    fallbackAssetPath == null
+        ? ''
+        : ' Türkçe yedek dosya da bulunamadı: '
+        '$fallbackAssetPath.';
+
+    return 'Hukuki belge yüklenemedi. '
+        'Belge: $documentCode, '
+        'dil: $requestedLanguageCode, '
+        'dosya: $requestedAssetPath.'
+        '$fallbackInformation';
+  }
+}

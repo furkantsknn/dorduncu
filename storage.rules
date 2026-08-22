@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        (
+          request.auth.token.admin == true ||
+          request.auth.token.role == 'admin'
+        );
+    }
+
+    function isImage() {
+      return request.resource != null &&
+        request.resource.contentType != null &&
+        request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+    }
+
+    function isVerificationDocument() {
+      return request.resource != null &&
+        request.resource.contentType != null &&
+        (
+          request.resource.contentType.matches(
+            'image/(jpeg|jpg|png|webp)'
+          ) ||
+          request.resource.contentType == 'application/pdf'
+        );
+    }
+
+    match /profile_photos/{userId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update: if isOwner(userId) &&
+        request.resource.size > 0 &&
+        request.resource.size <= 5 * 1024 * 1024 &&
+        isImage();
+
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /verification_documents/{userId}/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+
+      allow create: if isOwner(userId) &&
+        request.resource.size > 0 &&
+        request.resource.size <= 10 * 1024 * 1024 &&
+        isVerificationDocument();
+
+      allow update: if isAdmin() &&
+        request.resource.size > 0 &&
+        request.resource.size <= 10 * 1024 * 1024 &&
+        isVerificationDocument();
+
+      allow delete: if isAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

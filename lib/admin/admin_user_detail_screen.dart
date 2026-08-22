@@ -1,0 +1,849 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'admin_wallet_transactions_screen.dart';
+import 'admin_point_transactions_screen.dart';
+import 'admin_wallet_adjustment_screen.dart';
+import 'admin_account_status_screen.dart';
+import 'admin_membership_management_screen.dart';
+import 'admin_user_actions_screen.dart';
+
+class AdminUserDetailScreen extends StatelessWidget {
+  const AdminUserDetailScreen({
+    super.key,
+    required this.userId,
+  });
+
+  final String userId;
+
+  DocumentReference<Map<String, dynamic>> get _userReference {
+    return FirebaseFirestore.instance.collection('users').doc(userId);
+  }
+
+  DocumentReference<Map<String, dynamic>> get _walletReference {
+    return FirebaseFirestore.instance.collection('wallets').doc(userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _userReference.snapshots(),
+      builder: (
+          BuildContext context,
+          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+          ) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Kullanıcı Detayı'),
+            ),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Kullanıcı bilgileri yüklenirken bir hata oluştu.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Kullanıcı Detayı'),
+            ),
+            body: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final DocumentSnapshot<Map<String, dynamic>> document =
+        snapshot.data!;
+
+        final Map<String, dynamic>? data = document.data();
+
+        if (!document.exists || data == null) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Kullanıcı Detayı'),
+            ),
+            body: const Center(
+              child: Text('Kullanıcı bulunamadı.'),
+            ),
+          );
+        }
+
+        final String profileName =
+            data['profilAdi']?.toString().trim() ?? '';
+
+        final String name = data['ad']?.toString().trim() ?? '';
+
+        final String surname =
+            data['soyad']?.toString().trim() ?? '';
+
+        final String fullName = '$name $surname'.trim();
+
+        final String displayName = profileName.isNotEmpty
+            ? profileName
+            : fullName.isNotEmpty
+            ? fullName
+            : 'İsimsiz kullanıcı';
+
+        final String phone =
+            data['telefon']?.toString().trim() ??
+                data['phoneNumber']?.toString().trim() ??
+                '';
+
+        final String city =
+            data['sehir']?.toString().trim() ?? '';
+
+        final String activeCity =
+            data['aktifSehir']?.toString().trim() ?? '';
+
+        final String photoUrl =
+            data['profilFotografi']?.toString().trim() ?? '';
+
+        final bool isPlus = data['plus'] == true;
+
+        final bool isPlayer =
+            data['oyuncuRozeti'] == true ||
+                data['verified'] == true ||
+                data['verificationStatus'] == 'approved';
+
+        final String role =
+            data['role']?.toString().toLowerCase() ?? '';
+
+        final bool isAdmin =
+            data['admin'] == true ||
+                role == 'admin' ||
+                role == 'super_admin' ||
+                role == 'moderator';
+
+        final double points =
+            (data['puan'] as num?)?.toDouble() ?? 0;
+
+        final String verificationStatus =
+            data['verificationStatus']?.toString().trim() ?? 'notStarted';
+
+        final String accountStatus =
+            data['hesapDurumu']?.toString().trim() ??
+                data['accountStatus']?.toString().trim() ??
+                'active';
+
+        final DateTime? createdAt = _dateFromValue(
+          data['createdAt'] ?? data['kayitTarihi'],
+        );
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text(
+              'Kullanıcı Detayı',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            children: <Widget>[
+              _ProfileHeaderCard(
+                displayName: displayName,
+                fullName: fullName,
+                photoUrl: photoUrl,
+                isPlus: isPlus,
+                isPlayer: isPlayer,
+                isAdmin: isAdmin,
+                accountStatus: accountStatus,
+              ),
+              const SizedBox(height: 14),
+              _SectionCard(
+                title: 'Kullanıcı Bilgileri',
+                icon: Icons.person_outline,
+                children: <Widget>[
+                  _InformationRow(
+                    label: 'Kullanıcı kimliği',
+                    value: userId,
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute<bool>(
+                            builder: (BuildContext context) {
+                              return AdminAccountStatusScreen(
+                                userId: userId,
+                                currentStatus: accountStatus,
+                              );
+                            },
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.manage_accounts_outlined,
+                      ),
+                      label: const Text(
+                        'Hesap Durumunu Yönet',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (BuildContext context) {
+                              return AdminUserActionsScreen(
+                                userId: userId,
+                              );
+                            },
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.history_outlined,
+                      ),
+                      label: const Text(
+                        'Admin İşlem Geçmişini Gör',
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 24),
+                  _InformationRow(
+                    label: 'Profil adı',
+                    value: profileName.isEmpty
+                        ? 'Bilgi bulunamadı'
+                        : profileName,
+                  ),
+                  const Divider(height: 24),
+                  _InformationRow(
+                    label: 'Ad soyad',
+                    value: fullName.isEmpty
+                        ? 'Bilgi bulunamadı'
+                        : fullName,
+                  ),
+                  const Divider(height: 24),
+                  _InformationRow(
+                    label: 'Telefon',
+                    value: phone.isEmpty
+                        ? 'Bilgi bulunamadı'
+                        : phone,
+                  ),
+                  const Divider(height: 24),
+                  _InformationRow(
+                    label: 'Şehir',
+                    value: city.isEmpty
+                        ? 'Bilgi bulunamadı'
+                        : city,
+                  ),
+                  if (activeCity.isNotEmpty) ...<Widget>[
+                    const Divider(height: 24),
+                    _InformationRow(
+                      label: 'Aktif şehir',
+                      value: activeCity,
+                    ),
+                  ],
+                  if (createdAt != null) ...<Widget>[
+                    const Divider(height: 24),
+                    _InformationRow(
+                      label: 'Kayıt tarihi',
+                      value: _formatDate(createdAt),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+              _SectionCard(
+                title: 'Üyelik ve Rozetler',
+                icon: Icons.workspace_premium_outlined,
+                children: <Widget>[
+                  _StatusRow(
+                    title: 'Plus üyelik',
+                    enabled: isPlus,
+                    enabledText: 'Plus üye',
+                    disabledText: 'Normal üye',
+                  ),
+                  const Divider(height: 24),
+                  _StatusRow(
+                    title: 'Oyuncu rozeti',
+                    enabled: isPlayer,
+                    enabledText: 'Oyuncu rozeti var',
+                    disabledText: 'Oyuncu doğrulaması yok',
+                  ),
+                  const Divider(height: 24),
+                  _InformationRow(
+                    label: 'Doğrulama durumu',
+                    value: _verificationStatusTitle(
+                      verificationStatus,
+                    ),
+                  ),
+                  const Divider(height: 24),
+                  _StatusRow(
+                    title: 'Admin yetkisi',
+                    enabled: isAdmin,
+                    enabledText: 'Admin',
+                    disabledText: 'Standart kullanıcı',
+                  ),
+                  const Divider(height: 24),
+                  _InformationRow(
+                    label: 'Mevcut puan',
+                    value: points == points.roundToDouble()
+                        ? '${points.toInt()} puan'
+                        : '${points.toStringAsFixed(2)} puan',
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (BuildContext context) {
+                              return AdminMembershipManagementScreen(
+                                userId: userId,
+                              );
+                            },
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.workspace_premium_outlined,
+                      ),
+                      label: const Text(
+                        'Üyelik ve Rozetleri Yönet',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _WalletSection(
+                userId: userId,
+                walletReference: _walletReference,
+              ),
+              const SizedBox(height: 14),
+              _SectionCard(
+                title: 'Hesap Durumu',
+                icon: Icons.security_outlined,
+                children: <Widget>[
+                  _InformationRow(
+                    label: 'Mevcut durum',
+                    value: _accountStatusTitle(accountStatus),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static DateTime? _dateFromValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+
+    return null;
+  }
+
+  static String _formatDate(DateTime value) {
+    final String day = value.day.toString().padLeft(2, '0');
+    final String month = value.month.toString().padLeft(2, '0');
+    final String year = value.year.toString();
+    final String hour = value.hour.toString().padLeft(2, '0');
+    final String minute = value.minute.toString().padLeft(2, '0');
+
+    return '$day.$month.$year $hour:$minute';
+  }
+
+  static String _verificationStatusTitle(String value) {
+    switch (value.toLowerCase()) {
+      case 'pending':
+        return 'İnceleniyor';
+      case 'approved':
+        return 'Onaylandı';
+      case 'revision':
+        return 'Revizyon bekleniyor';
+      case 'rejected':
+        return 'Reddedildi';
+      default:
+        return 'Başvuru yapılmadı';
+    }
+  }
+
+  static String _accountStatusTitle(String value) {
+    switch (value.toLowerCase()) {
+      case 'blocked':
+      case 'banned':
+        return 'Engelli';
+      case 'suspended':
+        return 'Askıya alınmış';
+      case 'disabled':
+        return 'Pasif';
+      case 'deletionrequested':
+        return 'Hesap silme talebi var';
+      default:
+        return 'Aktif';
+    }
+  }
+}
+
+class _WalletSection extends StatelessWidget {
+  const _WalletSection({
+    required this.userId,
+    required this.walletReference,
+  });
+
+  final String userId;
+  final DocumentReference<Map<String, dynamic>> walletReference;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: walletReference.snapshots(),
+      builder: (
+          BuildContext context,
+          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+          ) {
+        final Map<String, dynamic> data =
+            snapshot.data?.data() ?? <String, dynamic>{};
+
+        final int available =
+            (data['availableBalanceKurus'] as num?)?.toInt() ?? 0;
+
+        final int pending =
+            (data['pendingBalanceKurus'] as num?)?.toInt() ?? 0;
+
+        final int refund =
+            (data['refundBalanceKurus'] as num?)?.toInt() ?? 0;
+
+        final int frozen =
+            (data['frozenBalanceKurus'] as num?)?.toInt() ?? 0;
+
+        final int withdrawalPending =
+            (data['withdrawalPendingKurus'] as num?)?.toInt() ?? 0;
+
+        final bool isFrozen = data['isFrozen'] == true;
+
+        return _SectionCard(
+          title: 'Cüzdan',
+          icon: Icons.account_balance_wallet_outlined,
+          children: <Widget>[
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const Center(
+                child: CircularProgressIndicator(),
+              )
+            else if (snapshot.hasError)
+              const Text(
+                'Cüzdan bilgileri alınamadı.',
+              )
+            else ...<Widget>[
+                _BalanceRow(
+                  label: 'Kullanılabilir bakiye',
+                  value: _money(available),
+                ),
+                const Divider(height: 24),
+                _BalanceRow(
+                  label: 'Bekleyen kazanç',
+                  value: _money(pending),
+                ),
+                const Divider(height: 24),
+                _BalanceRow(
+                  label: 'İade bakiyesi',
+                  value: _money(refund),
+                ),
+                const Divider(height: 24),
+                _BalanceRow(
+                  label: 'Dondurulmuş bakiye',
+                  value: _money(frozen),
+                ),
+                const Divider(height: 24),
+                _BalanceRow(
+                  label: 'Bekleyen para çekme',
+                  value: _money(withdrawalPending),
+                ),
+                const Divider(height: 24),
+                _StatusRow(
+                  title: 'Cüzdan durumu',
+                  enabled: !isFrozen,
+                  enabledText: 'Aktif',
+                  disabledText: 'Dondurulmuş',
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (BuildContext context) {
+                            return AdminWalletAdjustmentScreen(
+                              userId: userId,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.edit_note_outlined,
+                    ),
+                    label: const Text(
+                      'Bakiye veya Puan İşlemi Yap',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (BuildContext context) {
+                            return AdminWalletTransactionsScreen(
+                              userId: userId,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.receipt_long_outlined,
+                    ),
+                    label: const Text(
+                      'Cüzdan Hareketlerini Gör',
+                    ),
+                  ),
+                ),
+              ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push<void>(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (BuildContext context) {
+                        return AdminPointTransactionsScreen(
+                          userId: userId,
+                        );
+                      },
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.stars_outlined,
+                ),
+                label: const Text(
+                  'Puan Hareketlerini Gör',
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _money(int amountKurus) {
+    final double amount = amountKurus / 100;
+    return '${amount.toStringAsFixed(2)} TL';
+  }
+}
+
+class _ProfileHeaderCard extends StatelessWidget {
+  const _ProfileHeaderCard({
+    required this.displayName,
+    required this.fullName,
+    required this.photoUrl,
+    required this.isPlus,
+    required this.isPlayer,
+    required this.isAdmin,
+    required this.accountStatus,
+  });
+
+  final String displayName;
+  final String fullName;
+  final String photoUrl;
+  final bool isPlus;
+  final bool isPlayer;
+  final bool isAdmin;
+  final String accountStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 35,
+              backgroundImage:
+              photoUrl.isEmpty ? null : NetworkImage(photoUrl),
+              child: photoUrl.isEmpty
+                  ? const Icon(
+                Icons.person_outline,
+                size: 34,
+              )
+                  : null,
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    displayName,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (fullName.isNotEmpty &&
+                      fullName != displayName) ...<Widget>[
+                    const SizedBox(height: 3),
+                    Text(fullName),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: <Widget>[
+                      _HeaderLabel(
+                        text: AdminUserDetailScreen
+                            ._accountStatusTitle(accountStatus),
+                        icon: Icons.shield_outlined,
+                      ),
+                      if (isPlus)
+                        const _HeaderLabel(
+                          text: 'Plus',
+                          icon: Icons.workspace_premium_rounded,
+                        ),
+                      if (isPlayer)
+                        const _HeaderLabel(
+                          text: 'Oyuncu',
+                          icon: Icons.verified_rounded,
+                        ),
+                      if (isAdmin)
+                        const _HeaderLabel(
+                          text: 'Admin',
+                          icon: Icons.admin_panel_settings_rounded,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(icon),
+                const SizedBox(width: 9),
+                Text(
+                  title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InformationRow extends StatelessWidget {
+  const _InformationRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(
+          child: Text(label),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: SelectableText(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BalanceRow extends StatelessWidget {
+  const _BalanceRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(label),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({
+    required this.title,
+    required this.enabled,
+    required this.enabledText,
+    required this.disabledText,
+  });
+
+  final String title;
+  final bool enabled;
+  final String enabledText;
+  final String disabledText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(title),
+        ),
+        Icon(
+          enabled
+              ? Icons.check_circle_rounded
+              : Icons.remove_circle_outline,
+          size: 19,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          enabled ? enabledText : disabledText,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderLabel extends StatelessWidget {
+  const _HeaderLabel({
+    required this.text,
+    required this.icon,
+  });
+
+  final String text;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,434 @@
+{
+  "@@locale": "de",
+  "appName": "Dördüncü",
+  "loading": "Wird geladen...",
+  "pleaseWait": "Bitte warten...",
+  "continueButton": "Weiter",
+  "save": "Speichern",
+  "cancel": "Abbrechen",
+  "close": "Schließen",
+  "select": "Auswählen",
+  "confirm": "Bestätigen",
+  "delete": "Löschen",
+  "edit": "Bearbeiten",
+  "send": "Senden",
+  "retry": "Erneut versuchen",
+  "back": "Zurück",
+  "next": "Weiter",
+  "skip": "Überspringen",
+  "yes": "Ja",
+  "no": "Nein",
+  "ok": "OK",
+  "search": "Suchen",
+  "all": "Alle",
+  "optional": "Optional",
+  "requiredField": "Dieses Feld ist erforderlich.",
+  "unknownError": "Ein unerwarteter Fehler ist aufgetreten.",
+  "connectionError": "Verbindungsfehler",
+  "checkInternetConnection": "Überprüfe deine Internetverbindung und versuche es erneut.",
+  "operationFailed": "Vorgang konnte nicht abgeschlossen werden.",
+  "operationSuccessful": "Vorgang erfolgreich abgeschlossen.",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "loggingOut": "Abmeldung läuft...",
+  "logoutAccount": "Abmelden",
+  "phoneNumber": "Telefonnummer",
+  "phoneNumberHint": "5XX XXX XX XX",
+  "phoneNumberRequired": "Gib deine Telefonnummer ein.",
+  "invalidPhoneNumber": "Gib eine gültige Telefonnummer ein.",
+  "sendSmsCode": "SMS-Code senden",
+  "smsVerification": "SMS-Bestätigung",
+  "verificationCode": "Bestätigungscode",
+  "verificationCodeHint": "6-stelliger Code",
+  "verificationCodeRequired": "Gib den Bestätigungscode ein.",
+  "invalidVerificationCode": "Der Bestätigungscode ist falsch.",
+  "expiredVerificationCode": "Der Bestätigungscode ist abgelaufen.",
+  "verify": "Bestätigen",
+  "resendCode": "Code erneut senden",
+  "resendCodeAfter": "In {seconds} Sekunden erneut senden",
+  "@resendCodeAfter": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "smsCodeSent": "Der Bestätigungscode wurde an dein Telefon gesendet.",
+  "smsCodeCouldNotBeSent": "Der Bestätigungscode konnte nicht gesendet werden.",
+  "verificationFailed": "Die Telefonbestätigung konnte nicht abgeschlossen werden.",
+  "tooManyRequests": "Du hast zu viele Versuche unternommen. Bitte versuche es später erneut.",
+  "sessionNotFound": "Die Benutzersitzung wurde nicht gefunden.",
+  "sessionEnded": "Sitzung beendet",
+  "sessionEndedOnAnotherDevice": "Deine Sitzung auf diesem Gerät wurde beendet, weil dein Konto auf einem anderen Gerät geöffnet wurde.",
+  "createProfile": "Profil erstellen",
+  "profile": "Profil",
+  "editProfile": "Profil bearbeiten",
+  "profileInformation": "Profilinformationen",
+  "profilePhoto": "Profilfoto",
+  "profilePhotoOptional": "Das Profilfoto ist optional",
+  "selectProfilePhoto": "Profilfoto auswählen",
+  "profilePhotoCouldNotBeSelected": "Das Profilfoto konnte nicht ausgewählt werden.",
+  "selectAvatar": "3D-Avatar auswählen",
+  "name": "Vorname",
+  "surname": "Nachname",
+  "birthDate": "Geburtsdatum",
+  "selectBirthDate": "Geburtsdatum auswählen",
+  "gender": "Geschlecht",
+  "female": "Weiblich",
+  "male": "Männlich",
+  "other": "Andere",
+  "city": "Stadt",
+  "district": "Bezirk",
+  "aboutMe": "Über mich",
+  "aboutMeOptional": "Über mich (optional)",
+  "enterName": "Gib deinen Vornamen ein.",
+  "enterSurname": "Gib deinen Nachnamen ein.",
+  "enterCity": "Gib deine Stadt ein.",
+  "enterDistrict": "Gib deinen Bezirk ein.",
+  "selectGender": "Wähle dein Geschlecht aus.",
+  "minimumAgeRequired": "Du musst mindestens 18 Jahre alt sein, um dich zu registrieren.",
+  "minimumAgeRegistrationMessage": "Nur Personen ab 18 Jahren können sich bei Dördüncü registrieren.",
+  "profileCreated": "Dein Profil wurde erfolgreich erstellt.",
+  "profileCreationFailed": "Beim Erstellen des Profils ist ein Fehler aufgetreten: {error}",
+  "@profileCreationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVerification": "Spielerverifizierung",
+  "verificationStatus": "Mein Verifizierungsstatus",
+  "verifiedAccount": "Dein Konto ist verifiziert.",
+  "verificationPending": "Deine Dokumente werden geprüft. Das Ergebnis wird in deinem Konto angezeigt.",
+  "verificationRejected": "Dein Verifizierungsantrag wurde abgelehnt. Du kannst deine Dokumente später erneut einreichen.",
+  "verificationNotCompleted": "Du hast die Spielerverifizierung noch nicht abgeschlossen.",
+  "verificationOptionalDescription": "Dieser Schritt ist optional. Nach der Genehmigung deiner Dokumente erhältst du ein Verifiziert-Abzeichen.",
+  "identityFront": "Vorderseite des Ausweises",
+  "identityBack": "Rückseite des Ausweises",
+  "takeSelfie": "Selfie aufnehmen",
+  "selfieReady": "Selfie bereit",
+  "selfieCouldNotBeTaken": "Das Selfie konnte nicht aufgenommen werden.",
+  "criminalRecordDocument": "Führungszeugnis",
+  "selectDocument": "Tippe, um ein Dokument auszuwählen",
+  "documentSelectionFailed": "Beim Auswählen des Dokuments ist ein Fehler aufgetreten.",
+  "selectedFileCouldNotBeAccessed": "Auf die ausgewählte Datei konnte nicht zugegriffen werden.",
+  "supportedDocumentTypes": "Du kannst PDF-, JPG- oder PNG-Dateien hochladen. Die maximale Dateigröße beträgt 10 MB.",
+  "uploadDocumentsAndContinue": "Dokumente hochladen und fortfahren",
+  "skipForNow": "Vorerst überspringen",
+  "requiredVerificationDocuments": "Du musst die Vorder- und Rückseite deines Ausweises, ein Führungszeugnis und ein Selfie hinzufügen.",
+  "documentsUploadFailed": "Beim Hochladen der Dokumente ist ein Fehler aufgetreten: {error}",
+  "@documentsUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "gamesAndSports": "Deine Spiele und Sportarten",
+  "selectGamesAndSportsDescription": "Wähle die Spiele aus, an denen du teilnehmen möchtest, und gib für jedes dein Niveau an.",
+  "selectAtLeastOneGame": "Wähle mindestens ein Spiel oder eine Sportart aus.",
+  "selectedBranchCount": "Ausgewählte Kategorien: {count}",
+  "@selectedBranchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "beginner": "Anfänger",
+  "intermediate": "Mittelstufe",
+  "advanced": "Fortgeschritten",
+  "expert": "Experte",
+  "home": "Startseite",
+  "events": "Veranstaltungen",
+  "event": "Veranstaltung",
+  "explore": "Entdecken",
+  "exploreOnMap": "Auf der Karte entdecken",
+  "exploreEventsOnMap": "Veranstaltungen auf der Karte entdecken",
+  "eventsForYou": "Veranstaltungen für dich",
+  "seeAll": "Alle anzeigen",
+  "showInCity": "In der Stadt anzeigen",
+  "nearMe": "In meiner Nähe",
+  "whatDoYouWantToPlayToday": "Was möchtest du heute spielen?",
+  "eventsCouldNotBeLoaded": "Beim Laden der Veranstaltungen ist ein Fehler aufgetreten.",
+  "noEventsInCategory": "Für diese Kategorie gibt es noch keine Veranstaltungen.",
+  "joinEvent": "An Veranstaltung teilnehmen",
+  "join": "Teilnehmen",
+  "apply": "Bewerben",
+  "applied": "Beworben",
+  "applicationSent": "Deine Bewerbung wurde an den Veranstalter gesendet.",
+  "eventApplicationFailed": "Beim Bewerben für die Veranstaltung ist ein Fehler aufgetreten.",
+  "eventApplicationFailedWithError": "Beim Bewerben für die Veranstaltung ist ein Fehler aufgetreten: {error}",
+  "@eventApplicationFailedWithError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginRequiredForApplication": "Du musst dich anmelden, um dich für eine Veranstaltung zu bewerben.",
+  "profileRequiredForApplication": "Du musst dein Spielerprofil vervollständigen und das Spielerabzeichen erhalten, bevor du dich für Veranstaltungen bewerben kannst.",
+  "eventOwner": "Veranstalter",
+  "eventCreatedByYou": "Du hast diese Veranstaltung erstellt",
+  "joinedEvent": "Du nimmst an der Veranstaltung teil",
+  "participantCount": "Teilnehmende Spieler: {count}",
+  "@participantCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "favorites": "Favoriten",
+  "addToFavorites": "Zu Favoriten hinzufügen",
+  "removeFromFavorites": "Aus Favoriten entfernen",
+  "removedFromFavorites": "Aus den Favoriten entfernt.",
+  "noFavoriteEvents": "Du hast noch keine favorisierten Veranstaltungen.",
+  "favoritesCouldNotBeLoaded": "Favoriten konnten nicht geladen werden.",
+  "messages": "Nachrichten",
+  "message": "Nachricht",
+  "notifications": "Benachrichtigungen",
+  "notification": "Benachrichtigung",
+  "notificationCenter": "Benachrichtigungszentrum",
+  "noNotifications": "Du hast noch keine Benachrichtigungen.",
+  "notificationsCouldNotBeLoaded": "Benachrichtigungen konnten nicht geladen werden.",
+  "markAsRead": "Als gelesen markieren",
+  "markAsUnread": "Als ungelesen markieren",
+  "deleteNotification": "Benachrichtigung löschen",
+  "wallet": "Wallet",
+  "settings": "Einstellungen",
+  "language": "Sprache",
+  "selectLanguage": "Sprache auswählen",
+  "turkish": "Türkisch",
+  "english": "Englisch",
+  "german": "Deutsch",
+  "theme": "Design",
+  "darkTheme": "Dunkles Design",
+  "lightTheme": "Helles Design",
+  "systemTheme": "Systemdesign",
+  "support": "Support",
+  "supportCenter": "Support-Center",
+  "newSupportRequest": "Neue Supportanfrage",
+  "mySupportRequests": "Meine Supportanfragen",
+  "supportRequestDetail": "Anfragedetails",
+  "recoverMyAccount": "Mein Konto wiederherstellen",
+  "frequentlyAskedQuestions": "Häufig gestellte Fragen",
+  "contactUs": "Kontaktiere uns",
+  "supportRequest": "Supportanfrage",
+  "supportSubject": "Betreff",
+  "supportDescription": "Beschreibung",
+  "supportCategory": "Kategorie",
+  "supportPriority": "Priorität",
+  "supportStatus": "Status",
+  "supportAttachments": "Anhänge",
+  "addAttachment": "Datei hinzufügen",
+  "submitSupportRequest": "Supportanfrage senden",
+  "supportRequestCreated": "Deine Supportanfrage wurde erfolgreich erstellt.",
+  "supportRequestCouldNotBeCreated": "Die Supportanfrage konnte nicht erstellt werden.",
+  "noSupportRequests": "Du hast noch keine Supportanfragen.",
+  "supportRequestsCouldNotBeLoaded": "Supportanfragen konnten nicht geladen werden.",
+  "adminReply": "Antwort des Support-Teams",
+  "writeReply": "Antwort schreiben",
+  "sendReply": "Antwort senden",
+  "openStatus": "Offen",
+  "reviewingStatus": "Wird geprüft",
+  "waitingUserStatus": "Wartet auf Benutzerantwort",
+  "resolvedStatus": "Gelöst",
+  "rejectedStatus": "Abgelehnt",
+  "closedStatus": "Geschlossen",
+  "lowPriority": "Niedrig",
+  "normalPriority": "Normal",
+  "highPriority": "Hoch",
+  "urgentPriority": "Dringend",
+  "supportSecurityWarning": "Zu deiner Sicherheit wird das Support-Team niemals nach deinem SMS-Bestätigungscode oder Passwort fragen.",
+  "accountStatus": "Kontostatus",
+  "accountSuspended": "Konto gesperrt",
+  "accountSuspendedDescription": "Dein Konto wurde vorübergehend gesperrt. Bis zum Abschluss der Prüfung kannst du die Anwendung nicht verwenden.",
+  "accountBanned": "Konto blockiert",
+  "accountBannedDescription": "Dein Konto wurde wegen eines Verstoßes gegen die Nutzungsbedingungen blockiert.",
+  "accountDeletionPending": "Kontolöschung ausstehend",
+  "accountDeletionPendingDescription": "Für dein Konto wurde ein Löschantrag erstellt. Bis zum Abschluss des Vorgangs kannst du die Anwendung nicht verwenden.",
+  "accountDeleted": "Konto gelöscht",
+  "accountDeletedDescription": "Dieses Konto wurde gelöscht und kann nicht mehr verwendet werden.",
+  "contactSupportForAccountStatus": "Wenn du glaubst, dass dies ein Fehler ist, kannst du eine Anfrage an unser Support-Team senden.",
+  "logoutFailed": "Abmeldung fehlgeschlagen. Überprüfe deine Internetverbindung und versuche es erneut.",
+  "createEvent": "Event erstellen",
+  "eventInformation": "Eventinformationen",
+  "locationInformation": "Standortinformationen",
+  "descriptionSection": "Beschreibung",
+  "category": "Kategorie",
+  "gameOrSport": "Spiel / Sport",
+  "searchedPlayer": "Gesuchte Spieler",
+  "preferredMemberType": "Bevorzugter Mitgliedstyp",
+  "neighborhoodStreet": "Stadtteil / Viertel / Straße",
+  "eventDetails": "Eventdetails",
+  "districtsLoading": "Bezirke werden geladen...",
+  "selectFromCityDistricts": "Aus Bezirken von {city} wählen",
+  "@selectFromCityDistricts": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "selectDistrictFirst": "Zuerst Bezirk wählen",
+  "startTypingNeighborhoodHint": "Tippe los: Nişantepe",
+  "searchDistrictsInCity": "Bezirke in {city} suchen",
+  "@searchDistrictsInCity": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "districtNotFound": "Bezirk nicht gefunden.",
+  "profileInfoLoadFailed": "Profilinformationen konnten nicht geladen werden: {error}",
+  "@profileInfoLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "districtsLoadFailed": "Bezirke konnten nicht geladen werden. Überprüfe deine Internetverbindung.",
+  "enableLocationServices": "Du musst die Ortungsdienste deines Telefons aktivieren.",
+  "locationPermissionDenied": "Standortberechtigung wurde verweigert. Du kannst manuell auf der Karte auswählen.",
+  "locationOutsideActiveCity": "Der ausgewählte Standort scheint außerhalb von {city} zu liegen. Ändere deine aktive Stadt auf dem Startbildschirm und versuche es erneut.",
+  "@locationOutsideActiveCity": {
+    "placeholders": {
+      "city": {
+        "type": "String"
+      }
+    }
+  },
+  "locationSelectedCompleteAddress": "Standort ausgewählt. Fehlende Felder kannst du aus der Liste ergänzen.",
+  "mapCouldNotOpen": "Karte konnte nicht geöffnet werden: {error}",
+  "@mapCouldNotOpen": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cannotSelectPastDateTime": "Du kannst kein vergangenes Datum und keine vergangene Uhrzeit wählen.",
+  "eventDurationMinOneHour": "Die Eventdauer muss mindestens 1 Stunde betragen.",
+  "eventDurationMaxSixHours": "Die Eventdauer darf höchstens 6 Stunden betragen.",
+  "eventDurationThirtyMinuteSteps": "Start- und Endzeiten müssen in 30-Minuten-Intervallen gewählt werden.",
+  "plusRequiredForMultiplePlayers": "Für 2 oder mehr Spieler ist eine Plus-Mitgliedschaft erforderlich.",
+  "normalMembersTomorrowOnly": "Normale Mitglieder können Events höchstens für morgen erstellen.",
+  "sessionNotFoundPleaseLogin": "Sitzung nicht gefunden. Du musst dich erneut anmelden.",
+  "addressNotFoundOnMap": "Adresse konnte auf der Karte nicht gefunden werden. Schreibe den Stadtteil, die Straße oder den Ortsnamen klarer oder wähle auf der Karte aus.",
+  "eventCreateFailedWithCode": "Event konnte nicht erstellt werden ({code}): {message}",
+  "@eventCreateFailedWithCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "eventCreateFailed": "Event konnte nicht erstellt werden: {error}",
+  "@eventCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "myLocation": "Mein Standort",
+  "searchOnMap": "Auf Karte suchen",
+  "publishEvent": "Event veröffentlichen",
+  "livePriceSummary": "Live-Preisübersicht",
+  "duration": "Dauer",
+  "durationFactor": "Dauerfaktor",
+  "basePricePerPlayer": "Grundpreis pro Person",
+  "totalFee": "Gesamtgebühr",
+  "durationRangeHint": "Die Dauer muss zwischen 1 und 6 Stunden in 30-Minuten-Intervallen liegen.",
+  "plusMemberBenefits": "Plus-Mitglied: Du kannst mehrere Spieler und zukünftige Termine wählen.",
+  "normalMemberLimits": "Normales Mitglied: Du kannst ein Event für 1 Spieler und höchstens morgen erstellen.",
+  "startTimeLabel": "Start {time}",
+  "@startTimeLabel": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "endTimeLabel": "Ende {time}",
+  "@endTimeLabel": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "activeCity": "Aktive Stadt",
+  "mapSelectionOptional": "Eine Auswahl auf der Karte ist nicht erforderlich.",
+  "meetingPointSelected": "Treffpunkt ausgewählt; Bezirk und Stadtteil wurden automatisch ausgefüllt.",
+  "mustSelectDistrict": "Du musst einen Bezirk wählen",
+  "neighborhoodRequired": "Stadtteil- / Viertelinformationen sind erforderlich",
+  "durationHours": "{count} Stunden",
+  "@durationHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutesOnly": "{count} Minuten",
+  "@durationMinutesOnly": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours} Stunden {minutes} Minuten",
+  "@durationHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "currencyAmount": "{amount} TL",
+  "@currencyAmount": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsSection": "Benachrichtigungen",
+  "messageNotifications": "Nachrichtenbenachrichtigungen",
+  "eventNotifications": "Veranstaltungsbenachrichtigungen",
+  "applicationNotifications": "Bewerbungsbenachrichtigungen",
+  "campaignNotifications": "Kampagnenbenachrichtigungen",
+  "documents": "Dokumente",
+  "termsOfUse": "Nutzungsbedingungen",
+  "privacyPolicy": "Datenschutzrichtlinie",
+  "communityRules": "Community-Regeln",
+  "account": "Konto",
+  "changePhoneNumber": "Telefonnummer ändern",
+  "changePhoneNumberDescription": "Bestätige deine neue Telefonnummer mit einem SMS-Code.",
+  "createAccountDeletionRequest": "Kontolöschantrag erstellen",
+  "accountDeletionRequestDescription": "Nach dem Antrag wirst du abgemeldet und dein Konto wird geprüft.",
+  "loginRequiredForAccountDeletion": "Du musst angemeldet sein, um einen Kontolöschantrag zu erstellen.",
+  "accountDeletionRequestTitle": "Kontolöschantrag",
+  "accountDeletionFirstConfirmation": "Dein Konto wird nicht sofort gelöscht. Dein Antrag wird gespeichert und du kannst dein Konto bis zum Abschluss des Vorgangs nicht verwenden.",
+  "giveUp": "Abbrechen",
+  "continueAction": "Weiter",
+  "finalConfirmation": "Letzte Bestätigung",
+  "accountDeletionFinalConfirmation": "Nach Erstellung des Löschantrags wirst du abgemeldet und kannst bis zum Abschluss des Vorgangs nicht auf die App zugreifen.",
+  "createRequest": "Antrag erstellen",
+  "accountDeletionRequestCouldNotBeCreated": "Der Kontolöschantrag konnte nicht erstellt werden.",
+  "legalTermsBody": "Dördüncü hilft Nutzern, Sport- und Spieleveranstaltungen zu erstellen und daran teilzunehmen. Die Nutzer sind für die Richtigkeit ihrer Angaben, ihr Verhalten bei Veranstaltungen und die Einhaltung der geltenden Regeln verantwortlich. Bevor Zahlungs- und Wallet-Funktionen aktiviert werden, werden separate Mitgliedschafts- und Zahlungsbedingungen bereitgestellt.",
+  "privacyPolicyBody": "Profilinformationen, ausgewählte Spiele, Veranstaltungen und die In-App-Kommunikation werden zur Bereitstellung des Dienstes verarbeitet. Identitäts- und Verifizierungsdokumente dürfen nur für den Verifizierungsprozess verwendet werden; Zugriffsregeln und Aufbewahrungsfristen müssen vor dem Produktivbetrieb separat konfiguriert werden. Nutzer können die Löschung ihres Kontos beantragen.",
+  "communityRulesBody": "Sei respektvoll. Belästigung, Drohungen, Diskriminierung, Betrug und irreführende Veranstaltungen sind verboten. Bewirb dich nicht für Veranstaltungen, an denen du nicht teilnehmen kannst; informiere den Veranstalter rechtzeitig, wenn du absagen musst. Melde Nutzer, die ein Sicherheitsrisiko darstellen, über den Support-Kanal."
+}
