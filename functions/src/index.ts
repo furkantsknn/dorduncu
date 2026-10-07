@@ -174,12 +174,3 @@ export {
 export {
   processGooglePlayRtdn,
 } from "./commercial/googlePlayRtdn";
-
-export {
-  acceptOnlineV2InviteCall,
-  createOnlineV2TableCall,
-  heartbeatOnlineV2TableCall,
-  inviteOnlineV2FriendCall,
-  leaveOnlineV2TableCall,
-  submitOnlineV2MoveCall,
-} from "./online_v2/onlineTables";

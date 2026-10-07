@@ -33,8 +33,6 @@ import 'support_center_screen.dart';
 import '../home_v2/home_listed_event.dart';
 import '../home_v2/home_preview_flag.dart';
 import '../home_v2/home_screen_v2.dart';
-import '../online_v2/online_games_v2_config.dart';
-import '../online_v2/ui/online_play_hub.dart';
 import '../widgets/app_admin_menu_entry.dart';
 import '../widgets/user_avatar.dart';
 
@@ -819,20 +817,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       await loadProfile();
                     }
                   }),
-                  if (kOnlineGamesV2Enabled)
-                    _drawerItem(
-                      Icons.sports_esports_outlined,
-                      text.onlinePlay,
-                      () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => const OnlinePlayHub(),
-                          ),
-                        );
-                      },
-                    ),
                   _drawerItem(Icons.support_agent_outlined, text.support, () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -2871,7 +2855,6 @@ class _HomeText {
   String get favorites => v('Favoriler', 'Favorites', 'Favoriten');
   String get messages => v('Mesajlar', 'Messages', 'Nachrichten');
   String get market => v('Market', 'Market', 'Markt');
-  String get onlinePlay => v('Online Oyna', 'Play online', 'Online spielen');
 
   String get marketComingSoon => v(
     'Market yakında kullanıma açılacak.',

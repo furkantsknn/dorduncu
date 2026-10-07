@@ -2161,7 +2161,8 @@ class _MyEventsScreenState extends State<MyEventsScreen>
       );
     }
 
-    if (_hasChatMembership(data) &&
+    if (!EventModel.mapIsFreeAccess(data) &&
+        _hasChatMembership(data) &&
         !_isEventPaymentCompleted(data) &&
         !_isCancelled(data)) {
       final ColorScheme colors = Theme.of(context).colorScheme;

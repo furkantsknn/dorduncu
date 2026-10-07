@@ -1041,34 +1041,6 @@ match /sessions/{uid} {
           allow create, update, delete: if false;
         }
 
-        match /online_v2_tables/{tableId} {
-          allow read: if signedIn() &&
-            request.auth.uid in resource.data.memberUids;
-          allow create, update, delete: if false;
-
-          match /hands/{handUid} {
-            allow read: if isOwner(handUid);
-            allow create, update, delete: if false;
-          }
-
-          match /moves/{moveId} {
-            allow read: if signedIn() &&
-              request.auth.uid in get(
-                /databases/$(database)/documents/online_v2_tables/$(tableId)
-              ).data.memberUids;
-            allow create, update, delete: if false;
-          }
-        }
-
-        match /online_v2_invites/{inviteId} {
-          allow read: if signedIn() &&
-            (
-              resource.data.senderUid == request.auth.uid ||
-              resource.data.targetUid == request.auth.uid
-            );
-          allow create, update, delete: if false;
-        }
-
       }
     
 

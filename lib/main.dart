@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,7 +6,6 @@ import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
-import 'online_v2/online_games_v2_config.dart';
 import 'screens/account_status_screen.dart';
 import 'screens/create_profile_screen.dart';
 import 'screens/home_screen.dart';
@@ -26,21 +23,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  if (kOnlineGamesV2UseEmulator) {
-    FirebaseFirestore.instance.useFirestoreEmulator(
-      kOnlineGamesV2EmulatorHost,
-      kOnlineGamesV2FirestorePort,
-    );
-    await FirebaseAuth.instance.useAuthEmulator(
-      kOnlineGamesV2EmulatorHost,
-      kOnlineGamesV2AuthPort,
-    );
-    FirebaseFunctions.instanceFor(region: 'europe-west1').useFunctionsEmulator(
-      kOnlineGamesV2EmulatorHost,
-      kOnlineGamesV2FunctionsPort,
-    );
-  }
 
   await FirebaseAppCheck.instance.activate(
     providerAndroid: kDebugMode
