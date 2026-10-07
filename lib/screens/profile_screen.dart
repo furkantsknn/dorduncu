@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
+import '../services/language_controller.dart';
+import '../utils/verification_reason.dart';
 import '../services/user_service.dart';
 import '../services/friend_service.dart';
 import 'edit_profile_screen.dart';
@@ -1278,14 +1280,27 @@ class _MembershipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String status = user.verificationStatus.toLowerCase();
+    final String languageCode = switch (LanguageController.language.value) {
+      AppLanguage.english => 'en',
+      AppLanguage.german => 'de',
+      AppLanguage.turkish => 'tr',
+    };
+    final VerificationDisplay verificationDisplay = presentVerificationStatus(
+      status: user.verified
+          ? 'approved'
+          : user.verificationStatus.toLowerCase(),
+      reasonCode: user.verificationReasonCode,
+      decisionReason: user.verificationRejectionReason,
+      decisionSource: user.verificationDecisionSource,
+      languageCode: languageCode,
+    );
 
     final String title;
     final String subtitle;
     final IconData icon;
     final Color color;
 
-    if (user.verified) {
+    if (verificationDisplay.kind == VerificationDisplayKind.approved) {
       title = _profileText(
         context,
         tr: 'Doğrulanmış hesap',
@@ -1300,7 +1315,7 @@ class _MembershipCard extends StatelessWidget {
       );
       icon = Icons.verified_rounded;
       color = const Color(0xff2563EB);
-    } else if (status == 'pending') {
+    } else if (verificationDisplay.kind == VerificationDisplayKind.pending) {
       title = _profileText(
         context,
         tr: 'Doğrulama inceleniyor',
@@ -1315,21 +1330,22 @@ class _MembershipCard extends StatelessWidget {
       );
       icon = Icons.hourglass_top_rounded;
       color = const Color(0xffD97706);
-    } else if (status == 'rejected') {
-      title = _profileText(
-        context,
-        tr: 'Doğrulama reddedildi',
-        en: 'Verification rejected',
-        de: 'Verifizierung abgelehnt',
+    } else if (verificationDisplay.showRejected) {
+      title = verificationStatusTitle(
+        kind: VerificationDisplayKind.rejected,
+        languageCode: languageCode,
       );
-      subtitle = _profileText(
-        context,
-        tr: 'Bilgilerini kontrol ederek yeniden başvur.',
-        en: 'Review your information and apply again.',
-        de: 'Prüfe deine Angaben und stelle den Antrag erneut.',
-      );
+      subtitle = verificationDisplay.reason;
       icon = Icons.cancel_outlined;
       color = Theme.of(context).colorScheme.error;
+    } else if (verificationDisplay.kind == VerificationDisplayKind.unknown) {
+      title = verificationStatusTitle(
+        kind: VerificationDisplayKind.unknown,
+        languageCode: languageCode,
+      );
+      subtitle = verificationDisplay.reason;
+      icon = Icons.help_outline_rounded;
+      color = const Color(0xffD97706);
     } else {
       title = _profileText(
         context,

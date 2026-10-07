@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import 'admin_user_detail_screen.dart';
 
 class AdminUsersScreen extends StatefulWidget {
-  const AdminUsersScreen({
-    super.key,
-    this.initialFilter = 'all',
-  });
+  const AdminUsersScreen({super.key, this.initialFilter = 'all'});
 
   final String initialFilter;
 
@@ -24,6 +21,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     super.initState();
     _selectedFilter = widget.initialFilter;
   }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -42,225 +40,207 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               : widget.initialFilter == 'admin'
               ? 'Admin Kullanıcılar'
               : 'Kullanıcı Yönetimi',
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Kullanıcılar yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Kullanıcılar yüklenirken bir hata oluştu.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> allUsers =
-              snapshot.data!.docs;
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>> allUsers =
+                  snapshot.data!.docs;
 
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> visibleUsers =
-          allUsers.where((document) {
-            final Map<String, dynamic> data = document.data();
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              visibleUsers = allUsers.where((document) {
+                final Map<String, dynamic> data = document.data();
 
-            final String role =
-                data['role']?.toString().toLowerCase() ?? '';
+                final String role =
+                    data['role']?.toString().toLowerCase() ?? '';
 
-            final bool isAdmin =
-                data['admin'] == true ||
+                final bool isAdmin =
+                    data['admin'] == true ||
                     role == 'admin' ||
                     role == 'super_admin' ||
                     role == 'moderator';
 
-            final bool isPlus = data['plus'] == true;
+                final bool isPlus = data['plus'] == true;
 
-            final bool isPlayer =
-                data['oyuncuRozeti'] == true ||
-                    data['verified'] == true ||
-                    data['verificationStatus'] == 'approved';
+                final bool isPlayer =
+                    data['oyuncuRozeti'] == true || data['verified'] == true;
 
-            switch (_selectedFilter) {
-              case 'normal':
-                if (isAdmin || isPlus) {
-                  return false;
+                switch (_selectedFilter) {
+                  case 'normal':
+                    if (isAdmin || isPlus) {
+                      return false;
+                    }
+                  case 'plus':
+                    if (!isPlus) {
+                      return false;
+                    }
+                  case 'player':
+                    if (!isPlayer) {
+                      return false;
+                    }
+                  case 'admin':
+                    if (!isAdmin) {
+                      return false;
+                    }
+                  case 'all':
+                    break;
                 }
-              case 'plus':
-                if (!isPlus) {
-                  return false;
+
+                if (_searchText.isEmpty) {
+                  return true;
                 }
-              case 'player':
-                if (!isPlayer) {
-                  return false;
-                }
-              case 'admin':
-                if (!isAdmin) {
-                  return false;
-                }
-              case 'all':
-                break;
-            }
 
-            if (_searchText.isEmpty) {
-              return true;
-            }
+                final String query = _searchText.toLowerCase();
 
-            final String query = _searchText.toLowerCase();
+                final String profileName =
+                    data['profilAdi']?.toString().toLowerCase() ?? '';
 
-            final String profileName =
-                data['profilAdi']?.toString().toLowerCase() ?? '';
+                final String name = data['ad']?.toString().toLowerCase() ?? '';
 
-            final String name =
-                data['ad']?.toString().toLowerCase() ?? '';
+                final String surname =
+                    data['soyad']?.toString().toLowerCase() ?? '';
 
-            final String surname =
-                data['soyad']?.toString().toLowerCase() ?? '';
-
-            final String phone =
-                data['telefon']?.toString().toLowerCase() ??
+                final String phone =
+                    data['telefon']?.toString().toLowerCase() ??
                     data['phoneNumber']?.toString().toLowerCase() ??
                     '';
 
-            final String city =
-                data['sehir']?.toString().toLowerCase() ?? '';
+                final String city =
+                    data['sehir']?.toString().toLowerCase() ?? '';
 
-            final String uid = document.id.toLowerCase();
+                final String uid = document.id.toLowerCase();
 
-            return profileName.contains(query) ||
-                name.contains(query) ||
-                surname.contains(query) ||
-                '$name $surname'.contains(query) ||
-                phone.contains(query) ||
-                city.contains(query) ||
-                uid.contains(query);
-          }).toList();
+                return profileName.contains(query) ||
+                    name.contains(query) ||
+                    surname.contains(query) ||
+                    '$name $surname'.contains(query) ||
+                    phone.contains(query) ||
+                    city.contains(query) ||
+                    uid.contains(query);
+              }).toList();
 
-          visibleUsers.sort((a, b) {
-            final Timestamp? aTimestamp =
-            _timestampFromData(a.data());
+              visibleUsers.sort((a, b) {
+                final Timestamp? aTimestamp = _timestampFromData(a.data());
 
-            final Timestamp? bTimestamp =
-            _timestampFromData(b.data());
+                final Timestamp? bTimestamp = _timestampFromData(b.data());
 
-            final DateTime aDate =
-                aTimestamp?.toDate() ?? DateTime(1970);
+                final DateTime aDate = aTimestamp?.toDate() ?? DateTime(1970);
 
-            final DateTime bDate =
-                bTimestamp?.toDate() ?? DateTime(1970);
+                final DateTime bDate = bTimestamp?.toDate() ?? DateTime(1970);
 
-            return bDate.compareTo(aDate);
-          });
+                return bDate.compareTo(aDate);
+              });
 
-          return Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                child: _buildStatistics(allUsers),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (String value) {
-                    setState(() {
-                      _searchText = value.trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText:
-                    'Ad, profil adı, telefon, şehir veya kullanıcı ara',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchText.isEmpty
-                        ? null
-                        : IconButton(
-                      tooltip: 'Aramayı temizle',
-                      onPressed: () {
-                        _searchController.clear();
-
+              return Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                    child: _buildStatistics(allUsers),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (String value) {
                         setState(() {
-                          _searchText = '';
+                          _searchText = value.trim();
                         });
                       },
-                      icon: const Icon(Icons.close),
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 48,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  children: <Widget>[
-                    _buildFilter('all', 'Tümü'),
-                    _buildFilter('normal', 'Normal'),
-                    _buildFilter('plus', 'Plus'),
-                    _buildFilter('player', 'Oyuncu'),
-                    _buildFilter('admin', 'Admin'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: visibleUsers.isEmpty
-                    ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'Bu filtreye uygun kullanıcı bulunamadı.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Ad, profil adı, telefon, şehir veya kullanıcı ara',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchText.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Aramayı temizle',
+                                onPressed: () {
+                                  _searchController.clear();
+
+                                  setState(() {
+                                    _searchText = '';
+                                  });
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
-                )
-                    : ListView.separated(
-                  padding:
-                  const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  itemCount: visibleUsers.length,
-                  separatorBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    return const SizedBox(height: 10);
-                  },
-                  itemBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    return _buildUserCard(
-                      context,
-                      visibleUsers[index],
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                  SizedBox(
+                    height: 48,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      children: <Widget>[
+                        _buildFilter('all', 'Tümü'),
+                        _buildFilter('normal', 'Normal'),
+                        _buildFilter('plus', 'Plus'),
+                        _buildFilter('player', 'Oyuncu'),
+                        _buildFilter('admin', 'Admin'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: visibleUsers.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Bu filtreye uygun kullanıcı bulunamadı.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                            itemCount: visibleUsers.length,
+                            separatorBuilder:
+                                (BuildContext context, int index) {
+                                  return const SizedBox(height: 10);
+                                },
+                            itemBuilder: (BuildContext context, int index) {
+                              return _buildUserCard(
+                                context,
+                                visibleUsers[index],
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
       ),
     );
   }
 
   Widget _buildStatistics(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> users,
-      ) {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> users,
+  ) {
     int plusCount = 0;
     int playerCount = 0;
     int adminCount = 0;
@@ -272,14 +252,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         plusCount++;
       }
 
-      if (data['oyuncuRozeti'] == true ||
-          data['verified'] == true ||
-          data['verificationStatus'] == 'approved') {
+      if (data['oyuncuRozeti'] == true || data['verified'] == true) {
         playerCount++;
       }
 
-      final String role =
-          data['role']?.toString().toLowerCase() ?? '';
+      final String role = data['role']?.toString().toLowerCase() ?? '';
 
       if (data['admin'] == true ||
           role == 'admin' ||
@@ -342,18 +319,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Widget _buildUserCard(
-      BuildContext context,
-      QueryDocumentSnapshot<Map<String, dynamic>> document,
-      ) {
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     final Map<String, dynamic> data = document.data();
 
-    final String profileName =
-        data['profilAdi']?.toString().trim() ?? '';
+    final String profileName = data['profilAdi']?.toString().trim() ?? '';
 
     final String name = data['ad']?.toString().trim() ?? '';
 
-    final String surname =
-        data['soyad']?.toString().trim() ?? '';
+    final String surname = data['soyad']?.toString().trim() ?? '';
 
     final String fullName = '$name $surname'.trim();
 
@@ -365,35 +340,30 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
     final String phone =
         data['telefon']?.toString().trim() ??
-            data['phoneNumber']?.toString().trim() ??
-            '';
+        data['phoneNumber']?.toString().trim() ??
+        '';
 
-    final String city =
-        data['sehir']?.toString().trim() ?? '';
+    final String city = data['sehir']?.toString().trim() ?? '';
 
-    final String photoUrl =
-        data['profilFotografi']?.toString().trim() ?? '';
+    final String photoUrl = data['profilFotografi']?.toString().trim() ?? '';
 
     final bool isPlus = data['plus'] == true;
 
     final bool isPlayer =
-        data['oyuncuRozeti'] == true ||
-            data['verified'] == true ||
-            data['verificationStatus'] == 'approved';
+        data['oyuncuRozeti'] == true || data['verified'] == true;
 
-    final String role =
-        data['role']?.toString().toLowerCase() ?? '';
+    final String role = data['role']?.toString().toLowerCase() ?? '';
 
     final bool isAdmin =
         data['admin'] == true ||
-            role == 'admin' ||
-            role == 'super_admin' ||
-            role == 'moderator';
+        role == 'admin' ||
+        role == 'super_admin' ||
+        role == 'moderator';
 
     final String accountStatus =
         data['hesapDurumu']?.toString().trim() ??
-            data['accountStatus']?.toString().trim() ??
-            'active';
+        data['accountStatus']?.toString().trim() ??
+        'active';
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -403,9 +373,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             context,
             MaterialPageRoute<void>(
               builder: (BuildContext context) {
-                return AdminUserDetailScreen(
-                  userId: document.id,
-                );
+                return AdminUserDetailScreen(userId: document.id);
               },
             ),
           );
@@ -416,8 +384,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             children: <Widget>[
               CircleAvatar(
                 radius: 27,
-                backgroundImage:
-                photoUrl.isEmpty ? null : NetworkImage(photoUrl),
+                backgroundImage: photoUrl.isEmpty
+                    ? null
+                    : NetworkImage(photoUrl),
                 child: photoUrl.isEmpty
                     ? const Icon(Icons.person_outline)
                     : null,
@@ -495,11 +464,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
-  static Timestamp? _timestampFromData(
-      Map<String, dynamic> data,
-      ) {
-    final dynamic value =
-        data['createdAt'] ?? data['kayitTarihi'];
+  static Timestamp? _timestampFromData(Map<String, dynamic> data) {
+    final dynamic value = data['createdAt'] ?? data['kayitTarihi'];
 
     return value is Timestamp ? value : null;
   }
@@ -553,20 +519,14 @@ class _StatisticCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Column(
           children: <Widget>[
             Icon(icon),
             const SizedBox(height: 5),
             Text(
               '$count',
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             Text(
               title,
@@ -581,10 +541,7 @@ class _StatisticCard extends StatelessWidget {
 }
 
 class _UserLabel extends StatelessWidget {
-  const _UserLabel({
-    required this.text,
-    required this.icon,
-  });
+  const _UserLabel({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -592,10 +549,7 @@ class _UserLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
@@ -607,10 +561,7 @@ class _UserLabel extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
         ],
       ),

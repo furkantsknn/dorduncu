@@ -9,6 +9,7 @@ import 'admin_user_actions_screen.dart';
 import 'admin_permission_gate.dart';
 import 'admin_access.dart';
 import '../services/plus_entitlement.dart';
+import '../utils/verification_admin_labels.dart';
 
 String _locText(
   BuildContext context, {
@@ -150,9 +151,15 @@ class AdminUserDetailScreen extends StatelessWidget {
             final bool legacyPlusFlag = data['plus'] == true && !isPlus;
 
             final bool isPlayer =
-                data['oyuncuRozeti'] == true ||
-                data['verified'] == true ||
-                data['verificationStatus'] == 'approved';
+                data['oyuncuRozeti'] == true || data['verified'] == true;
+            final VerificationAdminLabels application =
+                presentVerificationAdmin(
+                  status: data['verificationStatus']?.toString() ?? '',
+                  automaticCheckStatus: '',
+                  reasonCode: data['verificationReasonCode']?.toString() ?? '',
+                  decisionSource:
+                      data['verificationDecisionSource']?.toString() ?? '',
+                );
 
             final String role = data['role']?.toString().toLowerCase() ?? '';
 
@@ -163,9 +170,6 @@ class AdminUserDetailScreen extends StatelessWidget {
                 role == 'moderator';
 
             final double points = (data['puan'] as num?)?.toDouble() ?? 0;
-
-            final String verificationStatus =
-                data['verificationStatus']?.toString().trim() ?? 'notStarted';
 
             final String accountStatus =
                 data['hesapDurumu']?.toString().trim() ??
@@ -364,12 +368,12 @@ class AdminUserDetailScreen extends StatelessWidget {
                         title: 'Oyuncu rozeti',
                         enabled: isPlayer,
                         enabledText: 'Oyuncu rozeti var',
-                        disabledText: 'Oyuncu doğrulaması yok',
+                        disabledText: 'Oyuncu rozeti kapalı',
                       ),
                       const Divider(height: 24),
                       _InformationRow(
-                        label: 'Doğrulama durumu',
-                        value: _verificationStatusTitle(verificationStatus),
+                        label: 'Kimlik başvurusu',
+                        value: application.applicationStatus,
                       ),
                       const Divider(height: 24),
                       _StatusRow(
@@ -483,21 +487,6 @@ class AdminUserDetailScreen extends StatelessWidget {
     final String minute = value.minute.toString().padLeft(2, '0');
 
     return '$day.$month.$year $hour:$minute';
-  }
-
-  static String _verificationStatusTitle(String value) {
-    switch (value.toLowerCase()) {
-      case 'pending':
-        return 'İnceleniyor';
-      case 'approved':
-        return 'Onaylandı';
-      case 'revision':
-        return 'Revizyon bekleniyor';
-      case 'rejected':
-        return 'Reddedildi';
-      default:
-        return 'Başvuru yapılmadı';
-    }
   }
 
   static String _accountStatusTitle(String value) {

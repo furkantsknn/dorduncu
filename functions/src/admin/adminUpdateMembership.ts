@@ -54,12 +54,17 @@ export const adminUpdateMembership = onCall(
         createdAt: FieldValue.serverTimestamp(),
       });
     } else {
-      batch.set(userRef, {
-        verified: enabled,
-        oyuncuRozeti: enabled,
-        verificationStatus: enabled ? "approved" : "rejected",
+      batch.set(userRef, enabled ? {
+        verified: true,
+        oyuncuRozeti: true,
         verifiedAt: FieldValue.serverTimestamp(),
         verifiedBy: adminId,
+        updatedAt: FieldValue.serverTimestamp(),
+      } : {
+        verified: false,
+        oyuncuRozeti: false,
+        badgeRemovedAt: FieldValue.serverTimestamp(),
+        badgeRemovedBy: adminId,
         updatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
       batch.set(logRef, {

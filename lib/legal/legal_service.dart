@@ -184,6 +184,26 @@ class LegalService {
         .toList(growable: false);
   }
 
+  /// Documents recorded when the login checkboxes are confirmed.
+  ///
+  /// Terms and community rules share one checkbox and are stored as separate
+  /// versioned acceptances. The age declaration is the second checkbox.
+  /// KVKK and privacy stay informational and are not in this list.
+  static List<LegalDocumentDefinition> onboardingAcceptanceDocuments() {
+    return const <String>[
+      'terms_of_use',
+      'community_rules',
+      'age_declaration',
+    ].map(LegalVersions.byCode).toList(growable: false);
+  }
+
+  static List<LegalDocumentDefinition> onboardingInformationDocuments() {
+    return const <String>[
+      'kvkk_notice',
+      'privacy_policy',
+    ].map(LegalVersions.byCode).toList(growable: false);
+  }
+
   static List<LegalDocumentDefinition> getOptionalDocuments() {
     return LegalVersions.documents
         .where((LegalDocumentDefinition document) => document.isOptional)
@@ -205,11 +225,12 @@ class LegalService {
     return '${documentCode}_$version';
   }
 
-  /// Writes one active acceptance per mandatory [LegalVersions] document.
+  /// Writes the login checkbox acceptances.
   ///
   /// `acceptedAt` is a Firestore server timestamp. The document id is
   /// `{code}_{version}`, so the same version is not written twice. A newer
   /// version creates a new document and marks older copies inactive.
+  /// Existing records are not deleted. Informational documents are not written.
   static Future<void> recordOnboardingAcceptances({
     required String userId,
     required String locale,
@@ -226,7 +247,8 @@ class LegalService {
         .doc(userId)
         .collection('legal_acceptances');
 
-    for (final LegalDocumentDefinition document in getMandatoryDocuments()) {
+    for (final LegalDocumentDefinition document
+        in onboardingAcceptanceDocuments()) {
       final String documentId = acceptanceDocumentId(
         documentCode: document.code,
         version: document.version,

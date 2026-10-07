@@ -10,6 +10,23 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../services/language_controller.dart';
+import '../utils/verification_reason.dart';
+
+String _verificationText(
+  String languageCode, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (languageCode) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
 
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
@@ -393,7 +410,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
         final bool isApproved = status == 'approved';
         final bool isPending = status == 'pending';
         final bool isRevision = status == 'revision';
-        final bool isRejected = status == 'rejected';
         final bool isExpired = status == 'expired';
 
         final String decisionReason =
@@ -405,11 +421,34 @@ class _VerificationScreenState extends State<VerificationScreen> {
         final Timestamp? reviewedAt =
             verificationData?['reviewedAt'] as Timestamp?;
 
-        final DateTime? reviewDate = reviewedAt?.toDate();
+        final String languageCode = switch (language) {
+          AppLanguage.english => 'en',
+          AppLanguage.german => 'de',
+          AppLanguage.turkish => 'tr',
+        };
+        final VerificationDisplay verificationDisplay =
+            presentVerificationStatus(
+              status: status,
+              reasonCode:
+                  verificationData?['reasonCode']?.toString() ??
+                  userData?['verificationReasonCode']?.toString() ??
+                  '',
+              decisionReason: decisionReason,
+              decisionSource:
+                  verificationData?['decisionSource']?.toString() ??
+                  userData?['verificationDecisionSource']?.toString() ??
+                  '',
+              languageCode: languageCode,
+            );
+        final Timestamp? decidedAt =
+            verificationData?['decidedAt'] as Timestamp? ?? reviewedAt;
+        final DateTime? decisionDate = decidedAt?.toDate();
 
         final bool canSendDocuments =
             !userApproved &&
-            (verificationData == null || isRevision || isRejected || isExpired);
+            !isPending &&
+            !isApproved &&
+            (verificationData == null || verificationDisplay.allowReapply);
 
         if (loadingVerification) {
           return const Scaffold(
@@ -592,15 +631,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       color: const Color(0xff171A20),
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: isApproved
-                            ? Colors.green
-                            : isRevision
-                            ? Colors.orange
-                            : status == 'rejected'
-                            ? Colors.red
-                            : isExpired
-                            ? Colors.grey
-                            : Colors.blueGrey,
+                        color: switch (verificationDisplay.kind) {
+                          VerificationDisplayKind.approved => Colors.green,
+                          VerificationDisplayKind.rejected => Colors.red,
+                          VerificationDisplayKind.revision ||
+                          VerificationDisplayKind.unknown => Colors.orange,
+                          VerificationDisplayKind.expired => Colors.grey,
+                          _ => Colors.blueGrey,
+                        },
                       ),
                     ),
                     child: Column(
@@ -616,55 +654,79 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          isApproved
-                              ? '✅ Onaylandı'
-                              : isRevision
-                              ? '🟠 Revizyon Bekleniyor'
-                              : status == 'rejected'
-                              ? '🔴 Reddedildi'
-                              : isExpired
-                              ? '⚪ Süresi Doldu'
-                              : '⏳ İnceleniyor',
+                          verificationStatusTitle(
+                            kind: verificationDisplay.kind,
+                            languageCode: languageCode,
+                          ),
                           style: TextStyle(
-                            color: isApproved
+                            color:
+                                verificationDisplay.kind ==
+                                    VerificationDisplayKind.approved
                                 ? Colors.green
-                                : isRevision
-                                ? Colors.orange
-                                : status == 'rejected'
+                                : verificationDisplay.kind ==
+                                      VerificationDisplayKind.rejected
                                 ? Colors.red
-                                : isExpired
-                                ? Colors.grey
+                                : verificationDisplay.kind ==
+                                      VerificationDisplayKind.unknown
+                                ? Colors.orange
                                 : Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        if (decisionReason.isNotEmpty) ...[
+                        if (verificationDisplay.reason.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           const Divider(color: Colors.white12),
                           const SizedBox(height: 12),
-                          const Text(
-                            'İnceleme Nedeni',
-                            style: TextStyle(
+                          Text(
+                            verificationDisplay.showRejected
+                                ? _verificationText(
+                                    languageCode,
+                                    tr: 'Ret sebebi',
+                                    en: 'Rejection reason',
+                                    de: 'Ablehnungsgrund',
+                                  )
+                                : _verificationText(
+                                    languageCode,
+                                    tr: 'Durum',
+                                    en: 'Status',
+                                    de: 'Status',
+                                  ),
+                            style: const TextStyle(
                               color: Colors.orange,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            decisionReason,
+                            verificationDisplay.reason,
                             style: const TextStyle(
                               color: Colors.white70,
                               height: 1.5,
                             ),
                           ),
-                          if (reviewDate != null) ...[
+                          if (decisionDate != null &&
+                              verificationDisplay.showRejected) ...[
                             const SizedBox(height: 12),
                             Text(
-                              "İnceleme Tarihi: "
-                              "${reviewDate.day.toString().padLeft(2, '0')}."
-                              "${reviewDate.month.toString().padLeft(2, '0')}."
-                              "${reviewDate.year}",
+                              _verificationText(
+                                languageCode,
+                                tr:
+                                    'Karar tarihi: '
+                                    '${decisionDate.day.toString().padLeft(2, '0')}.'
+                                    '${decisionDate.month.toString().padLeft(2, '0')}.'
+                                    '${decisionDate.year}',
+                                en:
+                                    'Decision date: '
+                                    '${decisionDate.day.toString().padLeft(2, '0')}.'
+                                    '${decisionDate.month.toString().padLeft(2, '0')}.'
+                                    '${decisionDate.year}',
+                                de:
+                                    'Entscheidungsdatum: '
+                                    '${decisionDate.day.toString().padLeft(2, '0')}.'
+                                    '${decisionDate.month.toString().padLeft(2, '0')}.'
+                                    '${decisionDate.year}',
+                              ),
                               style: const TextStyle(
                                 color: Colors.white38,
                                 fontSize: 12,
@@ -734,13 +796,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                   ),
 
-                if (status == 'rejected')
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 20),
+                if (verificationDisplay.showRejected)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
-                      'Başvurun reddedildi. Belgelerini yeniden hazırlayarak yeni bir başvuru gönderebilirsin.',
+                      _verificationText(
+                        languageCode,
+                        tr: 'Belgelerini yeniden hazırlayarak tekrar başvurabilirsin.',
+                        en: 'You can prepare your documents and apply again.',
+                        de: 'Du kannst deine Dokumente erneut vorbereiten und den Antrag noch einmal stellen.',
+                      ),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.redAccent,
                         fontSize: 14,
                         height: 1.5,
@@ -808,8 +875,15 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               : Text(
                                   isRevision
                                       ? 'Revizyonu Gönder'
-                                      : status == 'rejected'
-                                      ? 'Yeniden Başvur'
+                                      : verificationDisplay.showRejected ||
+                                            verificationDisplay.kind ==
+                                                VerificationDisplayKind.unknown
+                                      ? _verificationText(
+                                          languageCode,
+                                          tr: 'Yeniden Başvur',
+                                          en: 'Apply again',
+                                          de: 'Erneut beantragen',
+                                        )
                                       : text.sendApplication,
                                   style: const TextStyle(
                                     fontSize: 17,

@@ -12,7 +12,13 @@ enum LegalDocumentType {
   ageDeclaration,
 }
 
-enum LegalAcceptanceRequirement { none, mandatory, optional, contextual }
+enum LegalAcceptanceRequirement {
+  none,
+  mandatory,
+  optional,
+  contextual,
+  informational,
+}
 
 class LegalDocumentDefinition {
   const LegalDocumentDefinition({
@@ -48,10 +54,15 @@ class LegalDocumentDefinition {
   final String assetName;
 
   bool get requiresAcceptance =>
-      acceptanceRequirement != LegalAcceptanceRequirement.none;
+      acceptanceRequirement == LegalAcceptanceRequirement.mandatory ||
+      acceptanceRequirement == LegalAcceptanceRequirement.optional ||
+      acceptanceRequirement == LegalAcceptanceRequirement.contextual;
 
   bool get isMandatory =>
       acceptanceRequirement == LegalAcceptanceRequirement.mandatory;
+
+  bool get isInformational =>
+      acceptanceRequirement == LegalAcceptanceRequirement.informational;
 
   bool get isOptional =>
       acceptanceRequirement == LegalAcceptanceRequirement.optional;

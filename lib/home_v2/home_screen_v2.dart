@@ -106,6 +106,7 @@ class HomeScreenV2 extends StatelessWidget {
             actionLabel: copy.explore,
             onAction: onExplore,
             map: HomeEventMap(
+              city: cityLabel,
               events: visible,
               onEventTap: (HomeListedEvent event) =>
                   _openPreview(context, event),

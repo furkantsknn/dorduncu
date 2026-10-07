@@ -248,6 +248,15 @@ export const processVerification = onCall(
           {
             status,
             decisionReason,
+            decisionSource: "admin",
+            reasonCode:
+              status === "approved" ?
+                FieldValue.delete() :
+                status === "revision" ?
+                  "revision_requested" :
+                  "admin_decision",
+            decidedAt:
+              FieldValue.serverTimestamp(),
             adminNote:
               FieldValue.delete(),
             reviewedAt:
@@ -266,6 +275,12 @@ export const processVerification = onCall(
               verified: true,
               verificationStatus:
                 "approved",
+              verificationReasonCode:
+                FieldValue.delete(),
+              verificationDecisionSource:
+                "admin",
+              verificationDecidedAt:
+                FieldValue.serverTimestamp(),
               verificationRejectionReason:
                 FieldValue.delete(),
               verificationAdminNote:
@@ -309,6 +324,14 @@ export const processVerification = onCall(
               verified: false,
               verificationStatus:
                 status,
+              verificationReasonCode:
+                status === "revision" ?
+                  "revision_requested" :
+                  "admin_decision",
+              verificationDecisionSource:
+                "admin",
+              verificationDecidedAt:
+                FieldValue.serverTimestamp(),
               verificationRejectionReason:
                 decisionReason,
               verificationAdminNote:

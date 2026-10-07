@@ -24,13 +24,17 @@ import {
 import {
   createHmac,
 } from "node:crypto";
+import {
+  classifyIdentityTerms,
+  decideVerification,
+  VerificationCheck,
+} from "./verificationDecision";
 
 interface AnalyzeVerificationRequest {
   requestId?: unknown;
 }
 
-interface CheckResult {
-  status: "passed" | "failed";
+interface CheckResult extends VerificationCheck {
   reason: string;
 }
 
@@ -178,10 +182,9 @@ async function readIdentityTckn(
     return extractTckn(
       detectedText,
     );
-  } catch (error) {
+  } catch {
     console.error(
       "TCKN OCR hatası",
-      error,
     );
 
     return null;
@@ -245,6 +248,7 @@ async function reserveIdentity(
         ) {
           return {
             status: "failed",
+            reasonCode: "identity_already_used",
             reason:
                 "Bu kimlik başka bir hesapta daha önce kullanılmış.",
           };
@@ -274,6 +278,7 @@ async function reserveIdentity(
 
         return {
           status: "passed",
+          reasonCode: "identity_unique",
           reason:
               "Kimlik bu hesaba ait önceki başvuruyla eşleşiyor.",
         };
@@ -293,6 +298,7 @@ async function reserveIdentity(
 
       return {
         status: "passed",
+        reasonCode: "identity_unique",
         reason:
             "Kimlik başka bir hesapta kullanılmamış.",
       };
@@ -348,41 +354,39 @@ async function analyzeTextDocument(
 
     if (!normalized) {
       return {
-        status: "failed",
+        status: "unavailable",
+        reasonCode: "identity_text_unreadable",
         reason:
           `${documentName} üzerinde okunabilir metin tespit edilemedi.`,
       };
     }
 
-    const matched =
-      requiredTerms.some(
-        (term) =>
-          normalized.includes(
-            normalizeText(term),
-          ),
-      );
-
-    if (!matched) {
-      return {
-        status: "failed",
-        reason:
-          `${documentName} beklenen belge türü olarak doğrulanamadı.`,
-      };
-    }
+    const classified =
+      classifyIdentityTerms({
+        readable: true,
+        termsMatched: requiredTerms.some(
+          (term) =>
+            normalized.includes(
+              normalizeText(term),
+            ),
+        ),
+      });
 
     return {
-      status: "passed",
-      reason:
-        "Belge okunabilir ve temel belge kontrolü başarılı.",
+      status: classified.status,
+      reasonCode: classified.reasonCode,
+      reason: classified.status === "passed" ?
+        "Belge okunabilir ve temel belge kontrolü başarılı." :
+        `${documentName} üzerindeki metin otomatik olarak doğrulanamadı.`,
     };
-  } catch (error) {
+  } catch {
     console.error(
       `${documentName} analiz hatası`,
-      error,
     );
 
     return {
-      status: "failed",
+      status: "unavailable",
+      reasonCode: "identity_ocr_unavailable",
       reason:
         `${documentName} otomatik olarak analiz edilemedi.`,
     };
@@ -414,32 +418,35 @@ async function analyzeSelfie(
     if (faces.length === 0) {
       return {
         status: "failed",
+        reasonCode: "selfie_no_face",
         reason:
-          "Selfie görüntüsünde yüz tespit edilemedi.",
+          "Uygun selfie bulunamadı.",
       };
     }
 
     if (faces.length > 1) {
       return {
         status: "failed",
+        reasonCode: "selfie_multiple_faces",
         reason:
-          "Selfie görüntüsünde birden fazla yüz tespit edildi.",
+          "Uygun selfie bulunamadı.",
       };
     }
 
     return {
       status: "passed",
+      reasonCode: "selfie_single_face",
       reason:
         "Selfie görüntüsünde tek yüz tespit edildi.",
     };
-  } catch (error) {
+  } catch {
     console.error(
       "Selfie analiz hatası",
-      error,
     );
 
     return {
-      status: "failed",
+      status: "unavailable",
+      reasonCode: "selfie_analysis_unavailable",
       reason:
         "Selfie otomatik olarak analiz edilemedi.",
     };
@@ -510,12 +517,57 @@ export async function runVerificationAnalysis(
     );
   }
 
-  await verificationReference.update({
-    automaticCheckStatus:
-      "processing",
-    updatedAt:
-      FieldValue.serverTimestamp(),
-  });
+  const submissionId =
+    verificationData.submissionId
+      ?.toString()
+      .trim() ?? "";
+
+  const claimed =
+    await firestore.runTransaction(
+      async (transaction) => {
+        const fresh =
+          await transaction.get(
+            verificationReference,
+          );
+        const freshData =
+          fresh.data() ?? {};
+        const freshSubmission =
+          freshData.submissionId
+            ?.toString()
+            .trim() ?? "";
+
+        if (
+          submissionId &&
+          freshSubmission !== submissionId
+        ) {
+          return false;
+        }
+
+        if (
+          freshData.status !== "pending" ||
+          freshData.automaticCheckStatus !==
+            "pending"
+        ) {
+          return false;
+        }
+
+        transaction.update(
+          verificationReference,
+          {
+            automaticCheckStatus:
+              "processing",
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+        );
+
+        return true;
+      },
+    );
+
+  if (!claimed) {
+    return;
+  }
 
   const tckn =
   await readIdentityTckn(
@@ -529,9 +581,10 @@ export async function runVerificationAnalysis(
 
   if (!tckn) {
     identityUniquenessCheck = {
-      status: "failed",
+      status: "unavailable",
+      reasonCode: "tckn_unreadable",
       reason:
-      "Kimlik üzerindeki T.C. kimlik numarası güvenilir şekilde okunamadı.",
+      "Kimlik numarası otomatik okunamadı.",
     };
   } else {
     identityFingerprint =
@@ -571,59 +624,111 @@ export async function runVerificationAnalysis(
   ];
 
 
-  const hasFailed =
-    checks.some(
-      (check) =>
-        check.status === "failed",
+  const decision =
+    decideVerification(checks);
+
+  const stillCurrent =
+    await firestore.runTransaction(
+      async (transaction) => {
+        const fresh =
+          await transaction.get(
+            verificationReference,
+          );
+        const freshData =
+          fresh.data() ?? {};
+        const freshSubmission =
+          freshData.submissionId
+            ?.toString()
+            .trim() ?? "";
+
+        if (
+          submissionId &&
+          freshSubmission !== submissionId
+        ) {
+          return false;
+        }
+
+        if (freshData.status !== "pending") {
+          return false;
+        }
+
+        const userUpdate =
+          decision.userStatus === "rejected" ?
+            {
+              verified: false,
+              verificationStatus: "rejected",
+              verificationReasonCode:
+                decision.reasonCode,
+              verificationDecisionSource:
+                decision.decisionSource,
+              verificationDecidedAt:
+                FieldValue.serverTimestamp(),
+              verificationRejectionReason:
+                FieldValue.delete(),
+              guncellemeTarihi:
+                FieldValue.serverTimestamp(),
+            } :
+            {
+              verified: false,
+              verificationStatus: "pending",
+              verificationReasonCode:
+                FieldValue.delete(),
+              verificationDecisionSource:
+                FieldValue.delete(),
+              verificationDecidedAt:
+                FieldValue.delete(),
+              verificationRejectionReason:
+                FieldValue.delete(),
+              guncellemeTarihi:
+                FieldValue.serverTimestamp(),
+            };
+
+        transaction.update(
+          verificationReference,
+          {
+            identityFrontCheck,
+            identityBackCheck:
+              FieldValue.delete(),
+            criminalRecordCheck:
+              FieldValue.delete(),
+            selfieCheck,
+            identityUniquenessCheck,
+            identityFingerprint:
+              identityUniquenessCheck.status ===
+                "passed" ?
+                identityFingerprint :
+                FieldValue.delete(),
+            automaticCheckStatus:
+              decision.automaticCheckStatus,
+            status: decision.status,
+            reasonCode: decision.reasonCode,
+            decisionSource:
+              decision.decisionSource,
+            decidedAt:
+              decision.status === "rejected" ?
+                FieldValue.serverTimestamp() :
+                FieldValue.delete(),
+            rejectionReason:
+              FieldValue.delete(),
+            automaticCheckCompletedAt:
+              FieldValue.serverTimestamp(),
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+        );
+
+        transaction.set(
+          firestore.collection("users").doc(uid),
+          userUpdate,
+          {merge: true},
+        );
+
+        return true;
+      },
     );
 
-  await verificationReference.update({
-    identityFrontCheck,
-    identityBackCheck:
-      FieldValue.delete(),
-    criminalRecordCheck:
-      FieldValue.delete(),
-    selfieCheck,
-    identityUniquenessCheck,
-    identityFingerprint:
-    identityUniquenessCheck.status ===
-      "passed" ?
-      identityFingerprint :
-      FieldValue.delete(),
-    automaticCheckStatus:
-    hasFailed ?
-      "failed" :
-      "passed",
-    status:
-    hasFailed ?
-      "rejected" :
-      "pending",
-    rejectionReason:
-    hasFailed ?
-      "Otomatik doğrulama kontrollerinden biri başarısız oldu." :
-      "",
-    automaticCheckCompletedAt:
-    FieldValue.serverTimestamp(),
-    updatedAt:
-    FieldValue.serverTimestamp(),
-  });
-  if (hasFailed) {
-    await firestore
-      .collection("users")
-      .doc(uid)
-      .set(
-        {
-          verified: false,
-          verificationStatus: "rejected",
-          verificationRejectionReason:
-          "Otomatik doğrulama kontrollerinden biri başarısız oldu.",
-          guncellemeTarihi:
-          FieldValue.serverTimestamp(),
-        },
-        {
-          merge: true,
-        },
-      );
+  if (!stillCurrent) {
+    return;
   }
 }
 
@@ -727,24 +832,56 @@ export const analyzeVerificationOnWrite =
       const requestId =
         event.params.requestId;
 
+      const submissionId =
+        data.submissionId
+          ?.toString()
+          .trim() ?? "";
+
       try {
         await runVerificationAnalysis(
           requestId,
         );
-      } catch (error) {
+      } catch {
         console.error(
           "Otomatik doğrulama analizi başarısız.",
-          error,
         );
 
-        await after.ref.update({
-          automaticCheckStatus:
-            "failed",
-          automaticCheckCompletedAt:
-            FieldValue.serverTimestamp(),
-          updatedAt:
-            FieldValue.serverTimestamp(),
-        });
+        await firestore.runTransaction(
+          async (transaction) => {
+            const fresh =
+              await transaction.get(after.ref);
+            const freshData =
+              fresh.data() ?? {};
+            const freshSubmission =
+              freshData.submissionId
+                ?.toString()
+                .trim() ?? "";
+
+            if (
+              submissionId &&
+              freshSubmission !== submissionId
+            ) {
+              return;
+            }
+
+            if (freshData.status !== "pending") {
+              return;
+            }
+
+            transaction.update(after.ref, {
+              automaticCheckStatus:
+                "needs_review",
+              reasonCode:
+                "analysis_unavailable",
+              decisionSource: "automatic",
+              status: "pending",
+              automaticCheckCompletedAt:
+                FieldValue.serverTimestamp(),
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            });
+          },
+        );
       }
     },
   );

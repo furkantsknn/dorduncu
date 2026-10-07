@@ -12,6 +12,7 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/digital_purchase_service.dart';
+import 'services/phone_verification_session.dart';
 import 'services/language_controller.dart';
 import 'services/notification_push_service.dart';
 import 'services/theme_controller.dart';
@@ -158,33 +159,38 @@ class AuthControl extends StatelessWidget {
 
         final User? user = snapshot.data;
 
-        if (user == null) {
-          return const LoginScreen();
-        }
+        return ValueListenableBuilder<bool>(
+          valueListenable: PhoneVerificationGate.codeEntryOpen,
+          builder: (BuildContext context, bool codeEntryOpen, Widget? child) {
+            if (user == null || codeEntryOpen) {
+              return const LoginScreen();
+            }
 
-        return _SignedInPlayBilling(
-          child: FutureBuilder<AuthDestination>(
-            future: UserService.getAuthDestination(user: user),
-            builder: (context, destinationSnapshot) {
-              if (destinationSnapshot.connectionState ==
-                  ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
+            return _SignedInPlayBilling(
+              child: FutureBuilder<AuthDestination>(
+                future: UserService.getAuthDestination(user: user),
+                builder: (context, destinationSnapshot) {
+                  if (destinationSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
 
-              if (destinationSnapshot.hasError ||
-                  !destinationSnapshot.hasData) {
-                return AccountStatusScreen(
-                  title: l10n.connectionError,
-                  message: l10n.checkInternetConnection,
-                  icon: Icons.cloud_off_outlined,
-                );
-              }
+                  if (destinationSnapshot.hasError ||
+                      !destinationSnapshot.hasData) {
+                    return AccountStatusScreen(
+                      title: l10n.connectionError,
+                      message: l10n.checkInternetConnection,
+                      icon: Icons.cloud_off_outlined,
+                    );
+                  }
 
-              return _destinationScreen(destinationSnapshot.data!, l10n);
-            },
-          ),
+                  return _destinationScreen(destinationSnapshot.data!, l10n);
+                },
+              ),
+            );
+          },
         );
       },
     );

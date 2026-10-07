@@ -7,6 +7,8 @@ import 'package:latlong2/latlong.dart';
 import '../home_v2/home_event_map.dart';
 import '../home_v2/home_listed_event.dart';
 import '../services/event_service.dart';
+import '../utils/city_map_camera.dart';
+import '../utils/turkey_city_centers.dart';
 import 'event_detail_screen.dart';
 
 String _mapText(
@@ -36,17 +38,56 @@ class ExploreMapScreen extends StatefulWidget {
 
 class _ExploreMapScreenState extends State<ExploreMapScreen> {
   final MapController controller = MapController();
+  final CityMapCamera _camera = CityMapCamera();
 
   Position? userPosition;
   double radiusKm = 0;
   String category = 'Tümü';
   bool locating = false;
+  bool _userLocated = false;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _events;
 
   @override
   void initState() {
     super.initState();
     _events = EventService.watchListedEvents(city: widget.selectedCity);
+    _camera.choose(widget.selectedCity);
+  }
+
+  @override
+  void didUpdateWidget(covariant ExploreMapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (turkeyCityKey(oldWidget.selectedCity) ==
+        turkeyCityKey(widget.selectedCity)) {
+      return;
+    }
+    _userLocated = false;
+    _moveCity(_camera.choose(widget.selectedCity));
+  }
+
+  void _onMapReady() {
+    if (_userLocated) {
+      _camera.ready = true;
+      return;
+    }
+    _moveCity(_camera.controllerReady());
+  }
+
+  void _moveCity(CityCameraCommand? command) {
+    if (command == null || _userLocated) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _userLocated ||
+          command.generation != _camera.generation) {
+        return;
+      }
+      try {
+        controller.move(command.center, command.zoom);
+        _camera.complete(command);
+      } catch (_) {}
+    });
   }
 
   static const List<String> categories = [
@@ -110,6 +151,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
 
       setState(() {
         userPosition = value;
+        _userLocated = true;
       });
 
       controller.move(LatLng(value.latitude, value.longitude), 13);
@@ -192,19 +234,20 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
               .where(_matches)
               .toList();
 
-          final center = userPosition == null
-              ? _center(docs)
-              : LatLng(userPosition!.latitude, userPosition!.longitude);
+          final LatLng opening =
+              turkeyCityCenter(widget.selectedCity) ?? turkeyMapFallback;
 
           return Stack(
             children: [
               FlutterMap(
                 mapController: controller,
                 options: MapOptions(
-                  initialCenter: center,
-                  initialZoom: 11.5,
+                  initialCenter: opening,
+                  initialZoom: _camera.zoom,
                   minZoom: 4,
                   maxZoom: 19,
+                  keepAlive: true,
+                  onMapReady: _onMapReady,
                 ),
                 children: [
                   TileLayer(
@@ -454,27 +497,6 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     }
 
     return LatLng(latitude, longitude);
-  }
-
-  LatLng _center(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
-    final validPoints = docs
-        .map((doc) => _point(doc.data()))
-        .where((point) => point.latitude != 0 && point.longitude != 0)
-        .toList();
-
-    if (validPoints.isEmpty) {
-      return const LatLng(41.0082, 28.9784);
-    }
-
-    final latitudeAverage =
-        validPoints.map((point) => point.latitude).reduce((a, b) => a + b) /
-        validPoints.length;
-
-    final longitudeAverage =
-        validPoints.map((point) => point.longitude).reduce((a, b) => a + b) /
-        validPoints.length;
-
-    return LatLng(latitudeAverage, longitudeAverage);
   }
 
   String _clean(String value) {

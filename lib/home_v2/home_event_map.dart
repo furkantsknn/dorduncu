@@ -3,15 +3,19 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../services/language_controller.dart';
+import '../utils/city_map_camera.dart';
+import '../utils/turkey_city_centers.dart';
 import 'home_listed_event.dart';
 
 class HomeEventMap extends StatefulWidget {
   const HomeEventMap({
+    required this.city,
     required this.events,
     required this.onEventTap,
     super.key,
   });
 
+  final String city;
   final List<HomeListedEvent> events;
   final ValueChanged<HomeListedEvent> onEventTap;
 
@@ -21,6 +25,7 @@ class HomeEventMap extends StatefulWidget {
 
 class _HomeEventMapState extends State<HomeEventMap> {
   final MapController _mapController = MapController();
+  final CityMapCamera _camera = CityMapCamera();
 
   List<HomeListedEvent> get _points {
     return widget.events
@@ -31,15 +36,16 @@ class _HomeEventMapState extends State<HomeEventMap> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+    _camera.choose(widget.city);
   }
 
   @override
   void didUpdateWidget(covariant HomeEventMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_sameEvents(oldWidget.events, widget.events)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+    if (turkeyCityKey(oldWidget.city) == turkeyCityKey(widget.city)) {
+      return;
     }
+    _move(_camera.choose(widget.city));
   }
 
   @override
@@ -48,37 +54,25 @@ class _HomeEventMapState extends State<HomeEventMap> {
     super.dispose();
   }
 
-  bool _sameEvents(List<HomeListedEvent> previous, List<HomeListedEvent> next) {
-    if (previous.length != next.length) {
-      return false;
-    }
-    for (int index = 0; index < previous.length; index++) {
-      if (previous[index].id != next[index].id) {
-        return false;
-      }
-    }
-    return true;
+  void _onMapReady() {
+    _move(_camera.controllerReady());
   }
 
-  void _fit() {
-    final List<HomeListedEvent> points = _points;
-    if (!mounted || points.isEmpty) {
+  void _move(CityCameraCommand? command) {
+    if (command == null) {
       return;
     }
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: LatLngBounds.fromPoints(
-          points
-              .map(
-                (HomeListedEvent event) =>
-                    LatLng(event.latitude, event.longitude),
-              )
-              .toList(),
-        ),
-        padding: const EdgeInsets.fromLTRB(36, 28, 36, 28),
-        maxZoom: 13,
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || command.generation != _camera.generation) {
+        return;
+      }
+      try {
+        _mapController.move(command.center, command.zoom);
+        _camera.complete(command);
+      } catch (_) {
+        // The controller attaches in onMapReady. The pending city stays.
+      }
+    });
   }
 
   @override
@@ -102,11 +96,13 @@ class _HomeEventMapState extends State<HomeEventMap> {
       clipBehavior: Clip.antiAlias,
       child: FlutterMap(
         mapController: _mapController,
-        options: const MapOptions(
-          initialCenter: LatLng(41.0082, 28.9784),
-          initialZoom: 11,
+        options: MapOptions(
+          initialCenter: turkeyCityCenter(widget.city) ?? turkeyMapFallback,
+          initialZoom: _camera.zoom,
           minZoom: 4,
           maxZoom: 18,
+          keepAlive: true,
+          onMapReady: _onMapReady,
         ),
         children: <Widget>[
           TileLayer(

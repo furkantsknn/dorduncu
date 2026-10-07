@@ -30,78 +30,59 @@ class UserGameSkill {
       GameCatalog.categoryById(categoryId);
 
   factory UserGameSkill.fromMap(
-      Map<String, dynamic> map, {
-        String fallbackGameId = '',
-      }) {
-    final storedGameId = _firstString(
-      map,
-      const <String>[
-        'gameId',
-        'oyunId',
-        'id',
-      ],
-      fallback: fallbackGameId,
-    );
+    Map<String, dynamic> map, {
+    String fallbackGameId = '',
+  }) {
+    final storedGameId = _firstString(map, const <String>[
+      'gameId',
+      'oyunId',
+      'id',
+    ], fallback: fallbackGameId);
 
-    final legacyGameName = _firstString(
-      map,
-      const <String>[
-        'gameName',
-        'oyunAdi',
-        'name',
-        'oyun',
-      ],
-    );
+    final legacyGameName = _firstString(map, const <String>[
+      'gameName',
+      'oyunAdi',
+      'name',
+      'oyun',
+    ]);
 
     final catalogGame =
         GameCatalog.gameById(storedGameId) ??
-            GameCatalog.gameByLegacyValue(legacyGameName);
+        GameCatalog.gameByLegacyValue(legacyGameName);
 
-    final resolvedGameId =
-    storedGameId.isNotEmpty ? storedGameId : catalogGame?.id ?? '';
+    final resolvedGameId = storedGameId.isNotEmpty
+        ? storedGameId
+        : catalogGame?.id ?? '';
 
-    final resolvedGameName =
-    legacyGameName.isNotEmpty
+    final resolvedGameName = legacyGameName.isNotEmpty
         ? legacyGameName
         : catalogGame?.name ?? '';
 
-    final storedCategoryId = _firstString(
-      map,
-      const <String>[
-        'categoryId',
-        'kategoriId',
-      ],
-    );
+    final storedCategoryId = _firstString(map, const <String>[
+      'categoryId',
+      'kategoriId',
+    ]);
 
     final catalogCategory =
         GameCatalog.categoryById(storedCategoryId) ??
-            GameCatalog.categoryForGame(resolvedGameId);
+        GameCatalog.categoryForGame(resolvedGameId);
 
-    final resolvedCategoryId =
-    storedCategoryId.isNotEmpty
+    final resolvedCategoryId = storedCategoryId.isNotEmpty
         ? storedCategoryId
         : catalogCategory?.id ?? '';
 
-    final resolvedCategoryName = _firstString(
-      map,
-      const <String>[
-        'categoryName',
-        'kategoriAdi',
-        'kategori',
-      ],
-      fallback: catalogCategory?.name ?? '',
-    );
+    final resolvedCategoryName = _firstString(map, const <String>[
+      'categoryName',
+      'kategoriAdi',
+      'kategori',
+    ], fallback: catalogCategory?.name ?? '');
 
-    final rawLevel = _firstInt(
-      map,
-      const <String>[
-        'level',
-        'seviye',
-        'levelPercent',
-        'seviyeYuzdesi',
-      ],
-      fallback: 30,
-    );
+    final rawLevel = _firstInt(map, const <String>[
+      'level',
+      'seviye',
+      'levelPercent',
+      'seviyeYuzdesi',
+    ], fallback: 30);
 
     final skillLevel = GameCatalog.skillLevelForValue(rawLevel);
 
@@ -111,21 +92,16 @@ class UserGameSkill {
       categoryId: resolvedCategoryId,
       categoryName: resolvedCategoryName,
       level: skillLevel.value,
-      levelLabel: _firstString(
-        map,
-        const <String>[
-          'levelLabel',
-          'seviyeAdi',
-        ],
-        fallback: skillLevel.label,
-      ),
+      levelLabel: _firstString(map, const <String>[
+        'levelLabel',
+        'seviyeAdi',
+      ], fallback: skillLevel.label),
     );
   }
 
   factory UserGameSkill.fromLegacyGame(String value) {
     final catalogGame = GameCatalog.gameByLegacyValue(value);
-    final category =
-    GameCatalog.categoryById(catalogGame?.categoryId);
+    final category = GameCatalog.categoryById(catalogGame?.categoryId);
 
     return UserGameSkill(
       gameId: catalogGame?.id ?? GameCatalog.normalizeId(value),
@@ -157,8 +133,7 @@ class UserGameSkill {
     String? levelLabel,
   }) {
     final resolvedLevel = level ?? this.level;
-    final resolvedDefinition =
-    GameCatalog.skillLevelForValue(resolvedLevel);
+    final resolvedDefinition = GameCatalog.skillLevelForValue(resolvedLevel);
 
     return UserGameSkill(
       gameId: gameId ?? this.gameId,
@@ -166,15 +141,11 @@ class UserGameSkill {
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
       level: resolvedDefinition.value,
-      levelLabel:
-      levelLabel ?? resolvedDefinition.label,
+      levelLabel: levelLabel ?? resolvedDefinition.label,
     );
   }
 
-  static dynamic _firstValue(
-      Map<String, dynamic> map,
-      List<String> keys,
-      ) {
+  static dynamic _firstValue(Map<String, dynamic> map, List<String> keys) {
     for (final key in keys) {
       if (map.containsKey(key) && map[key] != null) {
         return map[key];
@@ -184,10 +155,10 @@ class UserGameSkill {
   }
 
   static String _firstString(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        String fallback = '',
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    String fallback = '',
+  }) {
     final value = _firstValue(map, keys);
     if (value == null) {
       return fallback;
@@ -198,10 +169,10 @@ class UserGameSkill {
   }
 
   static int _firstInt(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        int fallback = 0,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    int fallback = 0,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is num) {
@@ -235,6 +206,9 @@ class UserModel {
     this.email = '',
     this.verified = false,
     this.verificationStatus = '',
+    this.verificationReasonCode = '',
+    this.verificationDecisionSource = '',
+    this.verificationRejectionReason = '',
     this.oyuncuRozeti = false,
     this.accountStatus = 'active',
     this.lastLoginPlatform = '',
@@ -283,6 +257,9 @@ class UserModel {
   final DateTime? plusExpiresAt;
   final bool verified;
   final String verificationStatus;
+  final String verificationReasonCode;
+  final String verificationDecisionSource;
+  final String verificationRejectionReason;
   final bool oyuncuRozeti;
 
   final String accountStatus;
@@ -324,9 +301,7 @@ class UserModel {
     }
 
     final Duration difference = expiry.difference(DateTime.now());
-    return difference.inHours <= 0
-        ? 0
-        : (difference.inHours / 24).ceil();
+    return difference.inHours <= 0 ? 0 : (difference.inHours / 24).ceil();
   }
 
   String get plusPlanLabel {
@@ -349,9 +324,10 @@ class UserModel {
   bool get canAccessApp => isActive;
 
   String get fullName {
-    return <String>[ad.trim(), soyad.trim()]
-        .where((part) => part.isNotEmpty)
-        .join(' ');
+    return <String>[
+      ad.trim(),
+      soyad.trim(),
+    ].where((part) => part.isNotEmpty).join(' ');
   }
 
   String get displayName {
@@ -373,8 +349,7 @@ class UserModel {
     return sehir.trim();
   }
 
-  bool get hasProfilePhoto =>
-      profilFotografi.trim().isNotEmpty;
+  bool get hasProfilePhoto => profilFotografi.trim().isNotEmpty;
 
   bool get hasAvatar => avatarUrl.trim().isNotEmpty;
 
@@ -384,9 +359,7 @@ class UserModel {
 
   List<UserGameSkill> get sortedGameSkills {
     final values = gameSkills.values.toList();
-    values.sort(
-          (a, b) => a.gameName.compareTo(b.gameName),
-    );
+    values.sort((a, b) => a.gameName.compareTo(b.gameName));
     return values;
   }
 
@@ -395,26 +368,22 @@ class UserModel {
   bool hasGame(String gameIdOrName) {
     final catalogGame =
         GameCatalog.gameById(gameIdOrName) ??
-            GameCatalog.gameByLegacyValue(gameIdOrName);
+        GameCatalog.gameByLegacyValue(gameIdOrName);
 
-    if (catalogGame != null &&
-        gameSkills.containsKey(catalogGame.id)) {
+    if (catalogGame != null && gameSkills.containsKey(catalogGame.id)) {
       return true;
     }
 
-    final normalizedValue =
-    GameCatalog.normalizeId(gameIdOrName);
+    final normalizedValue = GameCatalog.normalizeId(gameIdOrName);
 
     return oyunlar.any((legacyGame) {
-      final resolved =
-      GameCatalog.gameByLegacyValue(legacyGame);
+      final resolved = GameCatalog.gameByLegacyValue(legacyGame);
 
       if (catalogGame != null && resolved != null) {
         return resolved.id == catalogGame.id;
       }
 
-      return GameCatalog.normalizeId(legacyGame) ==
-          normalizedValue;
+      return GameCatalog.normalizeId(legacyGame) == normalizedValue;
     });
   }
 
@@ -425,7 +394,7 @@ class UserModel {
   UserGameSkill? skillForGame(String gameIdOrName) {
     final catalogGame =
         GameCatalog.gameById(gameIdOrName) ??
-            GameCatalog.gameByLegacyValue(gameIdOrName);
+        GameCatalog.gameByLegacyValue(gameIdOrName);
 
     if (catalogGame != null) {
       final directSkill = gameSkills[catalogGame.id];
@@ -434,13 +403,11 @@ class UserModel {
       }
     }
 
-    final normalizedValue =
-    GameCatalog.normalizeId(gameIdOrName);
+    final normalizedValue = GameCatalog.normalizeId(gameIdOrName);
 
     for (final skill in gameSkills.values) {
       if (skill.gameId == normalizedValue ||
-          GameCatalog.normalizeId(skill.gameName) ==
-              normalizedValue) {
+          GameCatalog.normalizeId(skill.gameName) == normalizedValue) {
         return skill;
       }
     }
@@ -453,8 +420,8 @@ class UserModel {
   }
 
   factory UserModel.fromDocument(
-      DocumentSnapshot<Map<String, dynamic>> document,
-      ) {
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     return UserModel.fromMap(
       document.data() ?? const <String, dynamic>{},
       documentId: document.id,
@@ -462,39 +429,29 @@ class UserModel {
   }
 
   factory UserModel.fromMap(
-      Map<String, dynamic> map, {
-        String documentId = '',
-      }) {
-    final legacyGames = _firstStringList(
-      map,
-      const <String>[
-        'oyunlar',
-        'games',
-      ],
-    );
+    Map<String, dynamic> map, {
+    String documentId = '',
+  }) {
+    final legacyGames = _firstStringList(map, const <String>[
+      'oyunlar',
+      'games',
+    ]);
 
     final parsedSkills = _parseGameSkills(
-      _firstValue(
-        map,
-        const <String>[
-          'gameSkills',
-          'oyunSeviyeleri',
-          'sporSeviyeleri',
-        ],
-      ),
+      _firstValue(map, const <String>[
+        'gameSkills',
+        'oyunSeviyeleri',
+        'sporSeviyeleri',
+      ]),
     );
 
     /// Eski kullanıcı kayıtlarında yalnızca "oyunlar" listesi varsa
     /// onları Başlangıç (%30) seviyesinde yeni yapıya taşır.
     for (final legacyGame in legacyGames) {
-      final skill =
-      UserGameSkill.fromLegacyGame(legacyGame);
+      final skill = UserGameSkill.fromLegacyGame(legacyGame);
 
       if (skill.gameId.isNotEmpty) {
-        parsedSkills.putIfAbsent(
-          skill.gameId,
-              () => skill,
-        );
+        parsedSkills.putIfAbsent(skill.gameId, () => skill);
       }
     }
 
@@ -504,256 +461,120 @@ class UserModel {
     }.where((value) => value.trim().isNotEmpty).toList();
 
     return UserModel(
-      uid: _firstString(
-        map,
-        const <String>[
-          'uid',
-          'userId',
-        ],
-        fallback: documentId,
-      ),
-      ad: _firstString(
-        map,
-        const <String>[
-          'ad',
-          'firstName',
-        ],
-      ),
-      soyad: _firstString(
-        map,
-        const <String>[
-          'soyad',
-          'lastName',
-        ],
-      ),
-      profilAdi: _firstString(
-        map,
-        const <String>[
-          'profilAdi',
-          'profileName',
-          'displayName',
-        ],
-      ),
-      telefon: _firstString(
-        map,
-        const <String>[
-          'telefon',
-          'phone',
-          'phoneNumber',
-        ],
-      ),
-      email: _firstString(
-        map,
-        const <String>[
-          'email',
-          'eposta',
-        ],
-      ),
-      sehir: _firstString(
-        map,
-        const <String>[
-          'sehir',
-          'city',
-        ],
-      ),
-      aktifSehir: _firstString(
-        map,
-        const <String>[
-          'aktifSehir',
-          'activeCity',
-        ],
-      ),
-      ilce: _firstString(
-        map,
-        const <String>[
-          'ilce',
-          'district',
-        ],
-      ),
-      profilFotografi: _firstString(
-        map,
-        const <String>[
-          'profilFotografi',
-          'profilePhoto',
-          'profilePhotoUrl',
-          'photoUrl',
-        ],
-      ),
-      avatarUrl: _firstString(
-        map,
-        const <String>[
-          'avatarUrl',
-          'avatar',
-          'profileAvatarUrl',
-        ],
-      ),
-      hakkimda: _firstString(
-        map,
-        const <String>[
-          'hakkimda',
-          'about',
-          'bio',
-        ],
-      ),
-      latitude: _firstDouble(
-        map,
-        const <String>[
-          'latitude',
-          'enlem',
-        ],
-      ),
-      longitude: _firstDouble(
-        map,
-        const <String>[
-          'longitude',
-          'boylam',
-        ],
-      ),
-      puan: _firstDouble(
-        map,
-        const <String>[
-          'puan',
-          'rating',
-          'ratingAverage',
-        ],
-      ),
-      ratingCount: _firstInt(
-        map,
-        const <String>[
-          'ratingCount',
-          'puanSayisi',
-          'degerlendirmeSayisi',
-        ],
-      ),
-      completedEventCount: _firstInt(
-        map,
-        const <String>[
-          'completedEventCount',
-          'tamamlananEtkinlikSayisi',
-        ],
-      ),
-      plus: _firstBool(
-        map,
-        const <String>[
-          'plus',
-          'isPlus',
-        ],
-      ),
-      plusPlan: _firstString(
-        map,
-        const <String>[
-          'plusPlan',
-          'subscriptionPlan',
-        ],
-      ),
+      uid: _firstString(map, const <String>[
+        'uid',
+        'userId',
+      ], fallback: documentId),
+      ad: _firstString(map, const <String>['ad', 'firstName']),
+      soyad: _firstString(map, const <String>['soyad', 'lastName']),
+      profilAdi: _firstString(map, const <String>[
+        'profilAdi',
+        'profileName',
+        'displayName',
+      ]),
+      telefon: _firstString(map, const <String>[
+        'telefon',
+        'phone',
+        'phoneNumber',
+      ]),
+      email: _firstString(map, const <String>['email', 'eposta']),
+      sehir: _firstString(map, const <String>['sehir', 'city']),
+      aktifSehir: _firstString(map, const <String>['aktifSehir', 'activeCity']),
+      ilce: _firstString(map, const <String>['ilce', 'district']),
+      profilFotografi: _firstString(map, const <String>[
+        'profilFotografi',
+        'profilePhoto',
+        'profilePhotoUrl',
+        'photoUrl',
+      ]),
+      avatarUrl: _firstString(map, const <String>[
+        'avatarUrl',
+        'avatar',
+        'profileAvatarUrl',
+      ]),
+      hakkimda: _firstString(map, const <String>['hakkimda', 'about', 'bio']),
+      latitude: _firstDouble(map, const <String>['latitude', 'enlem']),
+      longitude: _firstDouble(map, const <String>['longitude', 'boylam']),
+      puan: _firstDouble(map, const <String>[
+        'puan',
+        'rating',
+        'ratingAverage',
+      ]),
+      ratingCount: _firstInt(map, const <String>[
+        'ratingCount',
+        'puanSayisi',
+        'degerlendirmeSayisi',
+      ]),
+      completedEventCount: _firstInt(map, const <String>[
+        'completedEventCount',
+        'tamamlananEtkinlikSayisi',
+      ]),
+      plus: _firstBool(map, const <String>['plus', 'isPlus']),
+      plusPlan: _firstString(map, const <String>[
+        'plusPlan',
+        'subscriptionPlan',
+      ]),
       plusExpiresAt: _nullableDate(
-        _firstValue(
-          map,
-          const <String>[
-            'plusExpiresAt',
-            'subscriptionExpiresAt',
-          ],
-        ),
+        _firstValue(map, const <String>[
+          'plusExpiresAt',
+          'subscriptionExpiresAt',
+        ]),
       ),
-      verified: _firstBool(
-        map,
-        const <String>[
-          'verified',
-          'dogrulanmis',
-        ],
-      ),
-      verificationStatus: _firstString(
-        map,
-        const <String>[
-          'verificationStatus',
-          'dogrulamaDurumu',
-        ],
-      ),
-      oyuncuRozeti: _firstBool(
-        map,
-        const <String>[
-          'oyuncuRozeti',
-          'playerBadge',
-        ],
-      ),
-      accountStatus: _firstString(
-        map,
-        const <String>[
-          'accountStatus',
-          'hesapDurumu',
-        ],
-        fallback: 'active',
-      ),
-      lastLoginPlatform: _firstString(
-        map,
-        const <String>[
-          'lastLoginPlatform',
-          'sonGirisPlatformu',
-        ],
-      ),
-      lastLoginAppVersion: _firstString(
-        map,
-        const <String>[
-          'lastLoginAppVersion',
-          'sonGirisUygulamaSurumu',
-        ],
-      ),
-      lastDeviceId: _firstString(
-        map,
-        const <String>[
-          'lastDeviceId',
-          'sonCihazId',
-        ],
-      ),
-      activeSessionId: _firstString(
-        map,
-        const <String>[
-          'activeSessionId',
-          'aktifOturumId',
-        ],
-      ),
+      verified: _firstBool(map, const <String>['verified', 'dogrulanmis']),
+      verificationStatus: _firstString(map, const <String>[
+        'verificationStatus',
+        'dogrulamaDurumu',
+      ]),
+      verificationReasonCode: _firstString(map, const <String>[
+        'verificationReasonCode',
+        'reasonCode',
+      ]),
+      verificationDecisionSource: _firstString(map, const <String>[
+        'verificationDecisionSource',
+        'decisionSource',
+      ]),
+      verificationRejectionReason: _firstString(map, const <String>[
+        'verificationRejectionReason',
+      ]),
+      oyuncuRozeti: _firstBool(map, const <String>[
+        'oyuncuRozeti',
+        'playerBadge',
+      ]),
+      accountStatus: _firstString(map, const <String>[
+        'accountStatus',
+        'hesapDurumu',
+      ], fallback: 'active'),
+      lastLoginPlatform: _firstString(map, const <String>[
+        'lastLoginPlatform',
+        'sonGirisPlatformu',
+      ]),
+      lastLoginAppVersion: _firstString(map, const <String>[
+        'lastLoginAppVersion',
+        'sonGirisUygulamaSurumu',
+      ]),
+      lastDeviceId: _firstString(map, const <String>[
+        'lastDeviceId',
+        'sonCihazId',
+      ]),
+      activeSessionId: _firstString(map, const <String>[
+        'activeSessionId',
+        'aktifOturumId',
+      ]),
       oyunlar: resolvedLegacyGames,
       gameSkills: parsedSkills,
-      badges: _firstStringList(
-        map,
-        const <String>[
-          'badges',
-          'rozetler',
-        ],
-      ),
-      favoriEtkinlikler: _firstStringList(
-        map,
-        const <String>[
-          'favoriEtkinlikler',
-          'favoriteEventIds',
-        ],
-      ),
+      badges: _firstStringList(map, const <String>['badges', 'rozetler']),
+      favoriEtkinlikler: _firstStringList(map, const <String>[
+        'favoriEtkinlikler',
+        'favoriteEventIds',
+      ]),
       createdAt: _nullableDate(
-        _firstValue(
-          map,
-          const <String>[
-            'olusturmaTarihi',
-            'createdAt',
-          ],
-        ),
+        _firstValue(map, const <String>['olusturmaTarihi', 'createdAt']),
       ),
       updatedAt: _nullableDate(
-        _firstValue(
-          map,
-          const <String>[
-            'guncellemeTarihi',
-            'updatedAt',
-          ],
-        ),
+        _firstValue(map, const <String>['guncellemeTarihi', 'updatedAt']),
       ),
       lastLoginAt: _nullableDate(
-        _firstValue(
-          map,
-          const <String>[
-            'lastLoginAt',
-            'sonGirisTarihi',
-          ],
-        ),
+        _firstValue(map, const <String>['lastLoginAt', 'sonGirisTarihi']),
       ),
     );
   }
@@ -768,8 +589,7 @@ class UserModel {
       'telefon': telefon,
       'email': email,
       'sehir': sehir,
-      'aktifSehir':
-      aktifSehir.trim().isNotEmpty ? aktifSehir : sehir,
+      'aktifSehir': aktifSehir.trim().isNotEmpty ? aktifSehir : sehir,
       'ilce': ilce,
       'profilFotografi': profilFotografi,
       'avatarUrl': avatarUrl,
@@ -795,28 +615,21 @@ class UserModel {
 
       // Eski arrayContains sorgularının çalışmaya devam etmesi için.
       'oyunlar': gameSkills.isNotEmpty
-          ? gameSkills.values
-          .map((skill) => skill.gameName)
-          .toSet()
-          .toList()
+          ? gameSkills.values.map((skill) => skill.gameName).toSet().toList()
           : oyunlar,
 
       // Yeni seviye sistemi.
       'gameIds': gameSkills.keys.toList(),
       'gameSkills': <String, dynamic>{
-        for (final entry in gameSkills.entries)
-          entry.key: entry.value.toMap(),
+        for (final entry in gameSkills.entries) entry.key: entry.value.toMap(),
       },
 
       'badges': badges,
       'favoriEtkinlikler': favoriEtkinlikler,
 
-      if (createdAt != null)
-        'olusturmaTarihi': Timestamp.fromDate(createdAt!),
-      if (updatedAt != null)
-        'guncellemeTarihi': Timestamp.fromDate(updatedAt!),
-      if (lastLoginAt != null)
-        'lastLoginAt': Timestamp.fromDate(lastLoginAt!),
+      if (createdAt != null) 'olusturmaTarihi': Timestamp.fromDate(createdAt!),
+      if (updatedAt != null) 'guncellemeTarihi': Timestamp.fromDate(updatedAt!),
+      if (lastLoginAt != null) 'lastLoginAt': Timestamp.fromDate(lastLoginAt!),
     };
   }
 
@@ -842,8 +655,7 @@ class UserModel {
       'verified': verified,
       'oyuncuRozeti': oyuncuRozeti,
       'gameSkills': <String, dynamic>{
-        for (final entry in gameSkills.entries)
-          entry.key: entry.value.toMap(),
+        for (final entry in gameSkills.entries) entry.key: entry.value.toMap(),
       },
       'badges': badges,
     };
@@ -872,6 +684,9 @@ class UserModel {
     DateTime? plusExpiresAt,
     bool? verified,
     String? verificationStatus,
+    String? verificationReasonCode,
+    String? verificationDecisionSource,
+    String? verificationRejectionReason,
     bool? oyuncuRozeti,
     String? accountStatus,
     String? lastLoginPlatform,
@@ -896,44 +711,42 @@ class UserModel {
       sehir: sehir ?? this.sehir,
       aktifSehir: aktifSehir ?? this.aktifSehir,
       ilce: ilce ?? this.ilce,
-      profilFotografi:
-      profilFotografi ?? this.profilFotografi,
+      profilFotografi: profilFotografi ?? this.profilFotografi,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       hakkimda: hakkimda ?? this.hakkimda,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       puan: puan ?? this.puan,
       ratingCount: ratingCount ?? this.ratingCount,
-      completedEventCount:
-      completedEventCount ?? this.completedEventCount,
+      completedEventCount: completedEventCount ?? this.completedEventCount,
       plus: plus ?? this.plus,
       plusPlan: plusPlan ?? this.plusPlan,
       plusExpiresAt: plusExpiresAt ?? this.plusExpiresAt,
       verified: verified ?? this.verified,
-      verificationStatus:
-      verificationStatus ?? this.verificationStatus,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      verificationReasonCode:
+          verificationReasonCode ?? this.verificationReasonCode,
+      verificationDecisionSource:
+          verificationDecisionSource ?? this.verificationDecisionSource,
+      verificationRejectionReason:
+          verificationRejectionReason ?? this.verificationRejectionReason,
       oyuncuRozeti: oyuncuRozeti ?? this.oyuncuRozeti,
       accountStatus: accountStatus ?? this.accountStatus,
-      lastLoginPlatform:
-      lastLoginPlatform ?? this.lastLoginPlatform,
-      lastLoginAppVersion:
-      lastLoginAppVersion ?? this.lastLoginAppVersion,
+      lastLoginPlatform: lastLoginPlatform ?? this.lastLoginPlatform,
+      lastLoginAppVersion: lastLoginAppVersion ?? this.lastLoginAppVersion,
       lastDeviceId: lastDeviceId ?? this.lastDeviceId,
       activeSessionId: activeSessionId ?? this.activeSessionId,
       oyunlar: oyunlar ?? this.oyunlar,
       gameSkills: gameSkills ?? this.gameSkills,
       badges: badges ?? this.badges,
-      favoriEtkinlikler:
-      favoriEtkinlikler ?? this.favoriEtkinlikler,
+      favoriEtkinlikler: favoriEtkinlikler ?? this.favoriEtkinlikler,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
     );
   }
 
-  static Map<String, UserGameSkill> _parseGameSkills(
-      dynamic value,
-      ) {
+  static Map<String, UserGameSkill> _parseGameSkills(dynamic value) {
     final result = <String, UserGameSkill>{};
 
     if (value is Map) {
@@ -974,10 +787,7 @@ class UserModel {
     return result;
   }
 
-  static dynamic _firstValue(
-      Map<String, dynamic> map,
-      List<String> keys,
-      ) {
+  static dynamic _firstValue(Map<String, dynamic> map, List<String> keys) {
     for (final key in keys) {
       if (map.containsKey(key) && map[key] != null) {
         return map[key];
@@ -988,10 +798,10 @@ class UserModel {
   }
 
   static String _firstString(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        String fallback = '',
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    String fallback = '',
+  }) {
     final value = _firstValue(map, keys);
 
     if (value == null) {
@@ -1003,10 +813,10 @@ class UserModel {
   }
 
   static int _firstInt(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        int fallback = 0,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    int fallback = 0,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is num) {
@@ -1017,25 +827,24 @@ class UserModel {
   }
 
   static double _firstDouble(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        double fallback = 0,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    double fallback = 0,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is num) {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ??
-        fallback;
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   static bool _firstBool(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        bool fallback = false,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    bool fallback = false,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is bool) {
@@ -1046,12 +855,9 @@ class UserModel {
       return value != 0;
     }
 
-    final normalized =
-        value?.toString().trim().toLowerCase() ?? '';
+    final normalized = value?.toString().trim().toLowerCase() ?? '';
 
-    if (normalized == 'true' ||
-        normalized == '1' ||
-        normalized == 'evet') {
+    if (normalized == 'true' || normalized == '1' || normalized == 'evet') {
       return true;
     }
 
@@ -1066,9 +872,9 @@ class UserModel {
   }
 
   static List<String> _firstStringList(
-      Map<String, dynamic> map,
-      List<String> keys,
-      ) {
+    Map<String, dynamic> map,
+    List<String> keys,
+  ) {
     final value = _firstValue(map, keys);
 
     if (value is! List) {

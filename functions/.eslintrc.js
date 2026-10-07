@@ -13,6 +13,7 @@ module.exports = {
   ignorePatterns: [
     "/lib/**/*",
     "/generated/**/*",
+    "/test/**/*",
   ],
   rules: {
     "quotes": ["error", "double"],

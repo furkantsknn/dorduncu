@@ -3,9 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
-import '../legal/legal_document.dart';
 import '../legal/legal_service.dart';
+import '../legal/login_legal_consent.dart';
 import '../services/language_controller.dart';
+import '../services/phone_verification_session.dart';
 
 import 'create_profile_screen.dart';
 import 'account_status_screen.dart';
@@ -26,7 +27,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController phoneController = TextEditingController();
 
   bool loading = false;
-  final Set<String> acceptedDocumentCodes = <String>{};
+  bool termsAccepted = false;
+  bool ageDeclared = false;
+  final PhoneVerificationSession<PhoneAuthCredential> _phoneSession =
+      PhoneVerificationSession<PhoneAuthCredential>();
 
   String selectedCountryCode = "+90";
 
@@ -41,12 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     <String, String>{"name": text.unitedStates, "flag": "🇺🇸", "code": "+1"},
   ];
 
-  bool get _allMandatoryAccepted {
-    return LegalService.getMandatoryDocuments().every(
-      (LegalDocumentDefinition document) =>
-          acceptedDocumentCodes.contains(document.code),
-    );
-  }
+  bool get _allMandatoryAccepted => termsAccepted && ageDeclared;
 
   bool get canContinue {
     return phoneController.text.trim().isNotEmpty &&
@@ -105,6 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     final String phoneNumber = "$selectedCountryCode$rawPhone";
+    final int attempt = _phoneSession.startAttempt();
 
     FocusScope.of(context).unfocus();
 
@@ -118,43 +118,30 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 60),
         verificationCompleted: (PhoneAuthCredential credential) async {
-          try {
-            final UserCredential result = await FirebaseAuth.instance
-                .signInWithCredential(credential);
-            final User? user = result.user;
-            if (user == null || !mounted) {
-              return;
-            }
-            await _routeAfterSignIn(user);
-          } on FirebaseAuthException catch (error) {
-            if (!mounted) return;
-            setState(() {
-              loading = false;
-            });
-            _showMessage(_authErrorMessage(error));
-          }
+          final PhoneAuthDecision decision = _phoneSession.autoCredential(
+            attempt,
+            credential,
+          );
+          if (!decision.signIn || _phoneSession.codeScreenOpen) return;
+          await _signInWithCredential(attempt, credential);
         },
         verificationFailed: (FirebaseAuthException error) {
-          debugPrint('========== TELEFON DOĞRULAMA HATASI ==========');
-          debugPrint('Kod: ${error.code}');
-          debugPrint('Mesaj: ${error.message}');
-          debugPrint('Telefon: ${error.phoneNumber}');
-          debugPrint('Plugin: ${error.plugin}');
-          debugPrint('==============================================');
-
-          if (!mounted) return;
+          final bool showHere = _phoneSession.fail(attempt, error.code);
+          if (!showHere || !mounted) return;
 
           setState(() {
             loading = false;
           });
 
-          _showMessage(
-            '${_authErrorMessage(error)}\n\n'
-            'Hata kodu: ${error.code}',
-          );
+          _showMessage(_authErrorMessage(error));
         },
         codeSent: (String verificationId, int? resendToken) {
-          if (!mounted) return;
+          final PhoneAuthDecision decision = _phoneSession.codeSent(
+            attempt,
+            verificationId,
+            resendToken,
+          );
+          if (!decision.pushCodeScreen || !mounted) return;
 
           setState(() {
             loading = false;
@@ -162,16 +149,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
           Navigator.push(
             context,
-            MaterialPageRoute(
+            MaterialPageRoute<void>(
               builder: (context) => VerifyScreen(
                 phoneNumber: phoneNumber,
-                verificationId: verificationId,
-                resendToken: resendToken,
+                session: _phoneSession,
+                attemptId: attempt,
               ),
             ),
           );
         },
         codeAutoRetrievalTimeout: (String verificationId) {
+          _phoneSession.autoTimeout(attempt, verificationId);
           if (!mounted) return;
           setState(() {
             loading = false;
@@ -197,7 +185,35 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _routeAfterSignIn(User user) async {
+  Future<void> _signInWithCredential(
+    int attempt,
+    PhoneAuthCredential credential,
+  ) async {
+    try {
+      final UserCredential result = await FirebaseAuth.instance
+          .signInWithCredential(credential);
+      final User? user = result.user ?? FirebaseAuth.instance.currentUser;
+      if (user == null || !_phoneSession.isCurrent(attempt)) {
+        _phoneSession.signInFailed(attempt);
+        return;
+      }
+      await _routeAfterSignIn(user, attempt);
+    } on FirebaseAuthException catch (error) {
+      final User? existing = FirebaseAuth.instance.currentUser;
+      if (existing != null && _phoneSession.isCurrent(attempt)) {
+        await _routeAfterSignIn(existing, attempt);
+        return;
+      }
+      if (!_phoneSession.signInFailed(attempt) || !mounted) return;
+      setState(() {
+        loading = false;
+      });
+      _showMessage(_authErrorMessage(error));
+    }
+  }
+
+  Future<void> _routeAfterSignIn(User user, int attempt) async {
+    if (!_phoneSession.claimNavigation(attempt)) return;
     try {
       final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
@@ -212,10 +228,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final bool blocked = data['blocked'] == true;
 
+      if (!_phoneSession.isCurrent(attempt) || !mounted) return;
+
       if (blocked) {
         await FirebaseAuth.instance.signOut();
 
-        if (!mounted) return;
+        if (!_phoneSession.isCurrent(attempt) || !mounted) return;
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -247,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
         user: user,
       );
 
-      if (!mounted) return;
+      if (!_phoneSession.isCurrent(attempt) || !mounted) return;
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -256,10 +274,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         (route) => false,
       );
+      _phoneSession.releaseCodeGate();
     } on FirebaseFunctionsException catch (_) {
+      _phoneSession.releaseNavigationClaim(attempt);
       await FirebaseAuth.instance.signOut();
 
-      if (!mounted) return;
+      if (!_phoneSession.isCurrent(attempt) || !mounted) return;
 
       setState(() {
         loading = false;
@@ -311,29 +331,29 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _authErrorMessage(FirebaseAuthException error) {
-    switch (error.code) {
-      case "invalid-phone-number":
+    switch (classifyPhoneAuthError(error.code)) {
+      case PhoneAuthFailureKind.invalidPhone:
         return text.invalidPhone;
-      case "too-many-requests":
+      case PhoneAuthFailureKind.tooManyRequests:
         return text.tooManyRequests;
-      case "quota-exceeded":
+      case PhoneAuthFailureKind.quotaExceeded:
         return text.quotaExceeded;
-      case "network-request-failed":
+      case PhoneAuthFailureKind.network:
         return text.networkError;
-      case "captcha-check-failed":
+      case PhoneAuthFailureKind.captcha:
         return text.captchaFailed;
-      case "app-not-authorized":
-      case "invalid-app-credential":
+      case PhoneAuthFailureKind.appNotAuthorized:
         return text.appNotAuthorized;
-      case "operation-not-allowed":
+      case PhoneAuthFailureKind.operationNotAllowed:
         return text.operationNotAllowed;
-      case "billing-not-enabled":
+      case PhoneAuthFailureKind.billingNotEnabled:
         return text.billingNotEnabled;
-      case "missing-client-identifier":
+      case PhoneAuthFailureKind.missingClientIdentifier:
         return text.missingClientIdentifier;
-      default:
-        final String message = error.message?.trim() ?? "";
-        return message.isNotEmpty ? message : text.phoneVerificationError;
+      case PhoneAuthFailureKind.invalidCode:
+      case PhoneAuthFailureKind.sessionExpired:
+      case PhoneAuthFailureKind.generic:
+        return text.phoneVerificationError;
     }
   }
 
@@ -521,44 +541,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ],
                               ),
                               const SizedBox(height: 24),
-                              ...LegalService.getMandatoryDocuments().map((
-                                LegalDocumentDefinition document,
-                              ) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _agreementRow(
-                                    value: acceptedDocumentCodes.contains(
-                                      document.code,
-                                    ),
-                                    onChanged: loading
-                                        ? null
-                                        : (bool? value) {
-                                            setState(() {
-                                              if (value == true) {
-                                                acceptedDocumentCodes.add(
-                                                  document.code,
-                                                );
-                                              } else {
-                                                acceptedDocumentCodes.remove(
-                                                  document.code,
-                                                );
-                                              }
-                                            });
-                                          },
-                                    leadingText: "",
-                                    linkText: text.documentTitle(document.code),
-                                    trailingText: text.readAndAccept,
-                                    onLinkTap: () {
-                                      _showLegalDocument(
-                                        title: text.documentTitle(
-                                          document.code,
-                                        ),
-                                        documentCode: document.code,
-                                      );
-                                    },
-                                  ),
-                                );
-                              }),
+                              LoginLegalConsent(
+                                termsAccepted: termsAccepted,
+                                ageDeclared: ageDeclared,
+                                enabled: !loading,
+                                language: LanguageController.language.value,
+                                onTermsChanged: (bool value) {
+                                  setState(() {
+                                    termsAccepted = value;
+                                  });
+                                },
+                                onAgeChanged: (bool value) {
+                                  setState(() {
+                                    ageDeclared = value;
+                                  });
+                                },
+                                onOpenDocument: (String documentCode) {
+                                  _showLegalDocument(
+                                    title: text.documentTitle(documentCode),
+                                    documentCode: documentCode,
+                                  );
+                                },
+                              ),
                               const SizedBox(height: 10),
                               SizedBox(
                                 width: double.infinity,
@@ -757,65 +761,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Widget _agreementRow({
-    required bool value,
-    required ValueChanged<bool?>? onChanged,
-    required String leadingText,
-    required String linkText,
-    required String trailingText,
-    required VoidCallback onLinkTap,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 42,
-          height: 42,
-          child: Checkbox(
-            value: value,
-            onChanged: onChanged,
-            activeColor: Colors.orange,
-            checkColor: Colors.black,
-            side: const BorderSide(color: Colors.white54),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Wrap(
-              children: [
-                Text(
-                  leadingText,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                GestureDetector(
-                  onTap: onLinkTap,
-                  child: Text(
-                    linkText,
-                    style: const TextStyle(
-                      color: Colors.orange,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      decoration: TextDecoration.underline,
-                      decorationColor: Colors.orange,
-                    ),
-                  ),
-                ),
-                Text(
-                  trailingText,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   void dispose() {
+    _phoneSession.dispose();
     phoneController.dispose();
     super.dispose();
   }
@@ -929,11 +877,6 @@ class _LoginText {
     en: 'Privacy Policy',
     de: 'Datenschutzerklärung',
   );
-  String get readAndAccept => value(
-    tr: ' metnini okudum ve kabul ediyorum.',
-    en: ' — I have read and accept it.',
-    de: ' — ich habe sie gelesen und akzeptiere sie.',
-  );
   String documentTitle(String documentCode) {
     switch (documentCode) {
       case 'kvkk_notice':
@@ -988,9 +931,9 @@ class _LoginText {
       value(tr: 'Amerika', en: 'United States', de: 'Vereinigte Staaten');
 
   String get acceptAgreementsWarning => value(
-    tr: 'Devam etmek için zorunlu hukuki metinlerin tümünü kabul etmelisin.',
-    en: 'You must accept all required legal documents to continue.',
-    de: 'Du musst alle erforderlichen Rechtstexte akzeptieren, um fortzufahren.',
+    tr: 'Devam etmek için her iki kutuyu da işaretle.',
+    en: 'Check both boxes to continue.',
+    de: 'Markiere beide Kästchen, um fortzufahren.',
   );
   String get enterPhone => value(
     tr: 'Telefon numaranı gir.',

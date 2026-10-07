@@ -1,4 +1,8 @@
 import {
+  randomUUID,
+} from "node:crypto";
+
+import {
   HttpsError,
   onCall,
 } from "firebase-functions/v2/https";
@@ -203,9 +207,14 @@ export const submitVerification = onCall(
           FieldValue.delete(),
 
         status: "pending",
+        submissionId: randomUUID(),
 
         automaticCheckStatus:
           "pending",
+        reasonCode: FieldValue.delete(),
+        decisionSource: FieldValue.delete(),
+        decidedAt: FieldValue.delete(),
+        rejectionReason: FieldValue.delete(),
 
         identityFrontCheck: {
           status: "pending",
@@ -251,8 +260,14 @@ export const submitVerification = onCall(
         verified: false,
         verificationStatus:
           "pending",
+        verificationReasonCode:
+          FieldValue.delete(),
+        verificationDecisionSource:
+          FieldValue.delete(),
+        verificationDecidedAt:
+          FieldValue.delete(),
         verificationRejectionReason:
-          "",
+          FieldValue.delete(),
         guncellemeTarihi:
           FieldValue.serverTimestamp(),
       },

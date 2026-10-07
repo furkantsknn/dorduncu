@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import '../utils/verification_admin_labels.dart';
 import 'admin_permission_gate.dart';
 
 String _adminMembershipText(
@@ -291,9 +292,15 @@ class _AdminMembershipManagementScreenState
             final bool isPlus = data['plus'] == true;
 
             final bool isPlayer =
-                data['oyuncuRozeti'] == true ||
-                data['verified'] == true ||
-                data['verificationStatus'] == 'approved';
+                data['oyuncuRozeti'] == true || data['verified'] == true;
+            final VerificationAdminLabels application =
+                presentVerificationAdmin(
+                  status: data['verificationStatus']?.toString() ?? '',
+                  automaticCheckStatus: '',
+                  reasonCode: data['verificationReasonCode']?.toString() ?? '',
+                  decisionSource:
+                      data['verificationDecisionSource']?.toString() ?? '',
+                );
 
             return Scaffold(
               appBar: AppBar(
@@ -360,11 +367,16 @@ class _AdminMembershipManagementScreenState
                             title: 'Oyuncu rozeti',
                             enabled: isPlayer,
                             enabledText: 'Oyuncu rozeti aktif',
-                            disabledText: 'Oyuncu doğrulaması yok',
+                            disabledText: 'Oyuncu rozeti kapalı',
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Kimlik başvurusu: ${application.applicationStatus}',
+                            style: const TextStyle(height: 1.4),
                           ),
                           const SizedBox(height: 16),
-                          Text(
-                            'Oyuncu rozeti normalde doğrulama süreci üzerinden yönetilir. Manuel rozet müdahalesi yalnızca super admin tarafından yapılabilir.',
+                          const Text(
+                            'Rozet ve kimlik başvurusu ayrı kayıtlardır. Kaldırma yalnızca rozeti kapatır.',
                             style: TextStyle(height: 1.4),
                           ),
                         ],

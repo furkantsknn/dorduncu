@@ -12,8 +12,8 @@ class LegalVersions {
           code: 'kvkk_notice',
           version: currentVersion,
           effectiveDate: DateTime(2026, 10, 5),
-          acceptanceRequirement: LegalAcceptanceRequirement.mandatory,
-          requiresReacceptance: true,
+          acceptanceRequirement: LegalAcceptanceRequirement.informational,
+          requiresReacceptance: false,
           assetName: 'kvkk_notice',
         ),
         LegalDocumentDefinition(
@@ -21,8 +21,8 @@ class LegalVersions {
           code: 'privacy_policy',
           version: currentVersion,
           effectiveDate: DateTime(2026, 10, 5),
-          acceptanceRequirement: LegalAcceptanceRequirement.mandatory,
-          requiresReacceptance: true,
+          acceptanceRequirement: LegalAcceptanceRequirement.informational,
+          requiresReacceptance: false,
           assetName: 'privacy_policy',
         ),
         LegalDocumentDefinition(

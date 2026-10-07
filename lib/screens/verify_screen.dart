@@ -10,18 +10,19 @@ import 'account_status_screen.dart';
 import 'home_screen.dart';
 import '../legal/legal_service.dart';
 import '../services/language_controller.dart';
+import '../services/phone_verification_session.dart';
 import '../services/user_service.dart';
 
 class VerifyScreen extends StatefulWidget {
   final String phoneNumber;
-  final String verificationId;
-  final int? resendToken;
+  final PhoneVerificationSession<PhoneAuthCredential> session;
+  final int attemptId;
 
   const VerifyScreen({
     super.key,
     required this.phoneNumber,
-    required this.verificationId,
-    this.resendToken,
+    required this.session,
+    required this.attemptId,
   });
 
   @override
@@ -35,10 +36,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
   bool loading = false;
   bool resending = false;
+  bool _allowPop = false;
   int remainingSeconds = 60;
   Timer? countdownTimer;
-  late String verificationId;
-  int? resendToken;
+  late int _attemptId;
 
   bool get canVerify {
     return !loading && !resending && codeController.text.trim().length == 6;
@@ -51,9 +52,29 @@ class _VerifyScreenState extends State<VerifyScreen> {
   @override
   void initState() {
     super.initState();
-    verificationId = widget.verificationId;
-    resendToken = widget.resendToken;
+    _attemptId = widget.attemptId;
+    widget.session.addListener(_onSession);
     _startCountdown();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onSession();
+    });
+  }
+
+  void _onSession() {
+    if (!mounted || !widget.session.isCurrent(_attemptId)) return;
+
+    final String? errorCode = widget.session.pendingErrorCode;
+    if (errorCode != null) {
+      widget.session.clearError();
+      _showMessage(_messageForCode(errorCode));
+    }
+
+    final PhoneAuthCredential? credential = widget.session.takeAutoCredential(
+      _attemptId,
+    );
+    if (credential != null) {
+      _signInWithCredential(credential);
+    }
   }
 
   void _startCountdown() {
@@ -94,40 +115,62 @@ class _VerifyScreenState extends State<VerifyScreen> {
       loading = true;
     });
 
-    try {
-      final PhoneAuthCredential credential = PhoneAuthProvider.credential(
+    if (!widget.session.beginManualSignIn(_attemptId)) {
+      if (!widget.session.signInStarted && mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+      return;
+    }
+
+    final String verificationId = widget.session.verificationId!;
+
+    await _signInWithCredential(
+      PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: smsCode,
-      );
+      ),
+    );
+  }
 
+  Future<void> _signInWithCredential(PhoneAuthCredential credential) async {
+    final int attempt = _attemptId;
+    if (!mounted) return;
+    setState(() {
+      loading = true;
+    });
+
+    try {
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithCredential(credential);
-
-      final User? user = userCredential.user;
+      final User? user =
+          userCredential.user ?? FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         throw FirebaseAuthException(
-          code: "user-not-found",
+          code: 'user-not-found',
           message: text.userSessionCouldNotBeCreated,
         );
       }
 
-      await _routeAfterSignIn(user);
+      await _routeAfterSignIn(user, attempt);
     } on FirebaseAuthException catch (error) {
-      if (!mounted) return;
-
+      final User? existing = FirebaseAuth.instance.currentUser;
+      if (existing != null && widget.session.isCurrent(attempt)) {
+        await _routeAfterSignIn(existing, attempt);
+        return;
+      }
+      if (!widget.session.signInFailed(attempt) || !mounted) return;
       setState(() {
         loading = false;
       });
-
       _showMessage(_authErrorMessage(error));
     } catch (_) {
-      if (!mounted) return;
-
+      if (!widget.session.signInFailed(attempt) || !mounted) return;
       setState(() {
         loading = false;
       });
-
       _showMessage(text.unexpectedSignInError);
     }
   }
@@ -143,54 +186,51 @@ class _VerifyScreenState extends State<VerifyScreen> {
       resending = true;
     });
 
+    final int resent = widget.session.beginResend(_attemptId);
+    if (resent == 0) {
+      setState(() {
+        resending = false;
+      });
+      return;
+    }
+    _attemptId = resent;
+
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: widget.phoneNumber,
         timeout: const Duration(seconds: 60),
-        forceResendingToken: resendToken,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          try {
-            final UserCredential result = await FirebaseAuth.instance
-                .signInWithCredential(credential);
-            final User? user = result.user;
-            if (user == null || !mounted) {
-              return;
-            }
-            await _routeAfterSignIn(user);
-          } on FirebaseAuthException catch (error) {
-            if (!mounted) return;
-            setState(() {
-              resending = false;
-            });
-            _showMessage(_authErrorMessage(error));
-          }
+        forceResendingToken: widget.session.resendToken,
+        verificationCompleted: (PhoneAuthCredential credential) {
+          final PhoneAuthDecision decision = widget.session.autoCredential(
+            resent,
+            credential,
+          );
+          if (!decision.signIn) return;
+          final PhoneAuthCredential? pending = widget.session
+              .takeAutoCredential(resent);
+          if (pending == null) return;
+          _signInWithCredential(pending);
         },
         verificationFailed: (FirebaseAuthException error) {
-          if (!mounted) return;
-
+          widget.session.fail(resent, error.code);
+          if (!mounted || !widget.session.isCurrent(resent)) return;
           setState(() {
             resending = false;
           });
-
-          _showMessage(_authErrorMessage(error));
         },
         codeSent: (String newVerificationId, int? newResendToken) {
-          if (!mounted) return;
-
-          verificationId = newVerificationId;
-          resendToken = newResendToken;
+          widget.session.codeSent(resent, newVerificationId, newResendToken);
+          if (!mounted || !widget.session.isCurrent(resent)) return;
           codeController.clear();
-
           setState(() {
             resending = false;
           });
-
           _startCountdown();
           _showMessage(text.newCodeSent);
         },
         codeAutoRetrievalTimeout: (String newVerificationId) {
-          verificationId = newVerificationId;
-          if (!mounted) return;
+          widget.session.autoTimeout(resent, newVerificationId);
+          if (!mounted || !widget.session.isCurrent(resent)) return;
           setState(() {
             resending = false;
           });
@@ -215,7 +255,24 @@ class _VerifyScreenState extends State<VerifyScreen> {
     }
   }
 
-  Future<void> _routeAfterSignIn(User user) async {
+  Future<void> _leaveForPhoneEntry() async {
+    if (_allowPop) return;
+    widget.session.abandon();
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+    widget.session.releaseCodeGate();
+    if (!mounted) return;
+    setState(() {
+      _allowPop = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context);
+    });
+  }
+
+  Future<void> _routeAfterSignIn(User user, int attempt) async {
+    if (!widget.session.claimNavigation(attempt)) return;
     try {
       final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
@@ -228,10 +285,13 @@ class _VerifyScreenState extends State<VerifyScreen> {
         result.data as Map,
       );
 
+      if (!widget.session.isCurrent(attempt) || !mounted) return;
+
       if (data['blocked'] == true) {
         await FirebaseAuth.instance.signOut();
+        widget.session.releaseCodeGate();
 
-        if (!mounted) return;
+        if (!widget.session.isCurrent(attempt) || !mounted) return;
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -263,19 +323,28 @@ class _VerifyScreenState extends State<VerifyScreen> {
         user: user,
       );
 
-      if (!mounted) return;
+      if (!widget.session.isCurrent(attempt) || !mounted) return;
+
+      if (destination.type == AuthDestinationType.login) {
+        widget.session.releaseCodeGate();
+        Navigator.popUntil(context, (Route<dynamic> route) => route.isFirst);
+        return;
+      }
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
+        MaterialPageRoute<void>(
           builder: (context) => _destinationScreen(destination),
         ),
         (route) => false,
       );
+      widget.session.releaseCodeGate();
     } on FirebaseFunctionsException {
+      widget.session.releaseNavigationClaim(attempt);
       await FirebaseAuth.instance.signOut();
+      widget.session.releaseCodeGate();
 
-      if (!mounted) return;
+      if (!widget.session.isCurrent(attempt) || !mounted) return;
 
       setState(() {
         loading = false;
@@ -288,7 +357,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   Widget _destinationScreen(AuthDestination destination) {
     switch (destination.type) {
       case AuthDestinationType.login:
-        return const CreateProfileScreen();
+        return const SizedBox.shrink();
       case AuthDestinationType.createProfile:
         return const CreateProfileScreen();
       case AuthDestinationType.home:
@@ -327,27 +396,32 @@ class _VerifyScreenState extends State<VerifyScreen> {
   }
 
   String _authErrorMessage(FirebaseAuthException error) {
-    switch (error.code) {
-      case "invalid-verification-code":
+    return _messageForCode(error.code);
+  }
+
+  String _messageForCode(String code) {
+    switch (classifyPhoneAuthError(code)) {
+      case PhoneAuthFailureKind.invalidCode:
         return text.invalidVerificationCode;
-      case "session-expired":
+      case PhoneAuthFailureKind.sessionExpired:
         return text.sessionExpired;
-      case "too-many-requests":
+      case PhoneAuthFailureKind.tooManyRequests:
         return text.tooManyRequests;
-      case "quota-exceeded":
+      case PhoneAuthFailureKind.quotaExceeded:
         return text.quotaExceeded;
-      case "network-request-failed":
+      case PhoneAuthFailureKind.network:
         return text.networkError;
-      case "captcha-check-failed":
+      case PhoneAuthFailureKind.captcha:
         return text.captchaFailed;
-      case "invalid-app-credential":
-      case "app-not-authorized":
+      case PhoneAuthFailureKind.appNotAuthorized:
         return text.appNotAuthorized;
-      case "invalid-phone-number":
+      case PhoneAuthFailureKind.invalidPhone:
         return text.invalidPhoneNumber;
-      default:
-        final String message = error.message?.trim() ?? "";
-        return message.isNotEmpty ? message : text.verificationFailed;
+      case PhoneAuthFailureKind.operationNotAllowed:
+      case PhoneAuthFailureKind.billingNotEnabled:
+      case PhoneAuthFailureKind.missingClientIdentifier:
+      case PhoneAuthFailureKind.generic:
+        return text.verificationFailed;
     }
   }
 
@@ -368,7 +442,11 @@ class _VerifyScreenState extends State<VerifyScreen> {
             final _VerifyText currentText = _VerifyText(selectedLanguage);
 
             return PopScope(
-              canPop: !loading && !resending,
+              canPop: _allowPop,
+              onPopInvokedWithResult: (bool didPop, Object? result) {
+                if (didPop || _allowPop) return;
+                _leaveForPhoneEntry();
+              },
               child: Scaffold(
                 backgroundColor: const Color(0xff0F1115),
                 appBar: AppBar(
@@ -554,11 +632,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
                             ),
                           const SizedBox(height: 8),
                           TextButton(
-                            onPressed: loading || resending
-                                ? null
-                                : () {
-                                    Navigator.pop(context);
-                                  },
+                            onPressed: _leaveForPhoneEntry,
                             child: Text(
                               currentText.changePhoneNumber,
                               style: TextStyle(
@@ -591,6 +665,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
   @override
   void dispose() {
+    widget.session.removeListener(_onSession);
     countdownTimer?.cancel();
     codeController.dispose();
     super.dispose();

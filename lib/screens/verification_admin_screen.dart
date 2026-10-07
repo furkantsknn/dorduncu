@@ -9,6 +9,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../admin/admin_access.dart';
+import '../utils/verification_admin_labels.dart';
 
 String _verificationAdminText(
   BuildContext context, {
@@ -25,7 +26,6 @@ String _verificationAdminText(
       return tr;
   }
 }
-
 
 class VerificationAdminScreen extends StatefulWidget {
   const VerificationAdminScreen({super.key});
@@ -77,49 +77,19 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
     }
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'passed':
-        return Colors.green;
-      case 'failed':
-        return Colors.red;
-      case 'processing':
-        return Colors.orange;
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'passed':
-        return Icons.check_circle;
-      case 'failed':
-        return Icons.cancel;
-      case 'processing':
-        return Icons.hourglass_top;
-      default:
-        return Icons.pending_outlined;
-    }
-  }
-
-  String _statusText(String status) {
-    switch (status) {
-      case 'passed':
-        return _verificationAdminText(context, tr: 'Kontrol başarılı', en: 'Check successful', de: 'Prüfung erfolgreich');
-      case 'failed':
-        return 'Sorun bulundu';
-      case 'processing':
-        return 'Kontrol ediliyor';
-      default:
-        return 'Kontrol bekliyor';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_verificationAdminText(context, tr: 'Profil Doğrulamaları', en: 'Profile Verifications', de: 'Profilprüfungen'))),
+      appBar: AppBar(
+        title: Text(
+          _verificationAdminText(
+            context,
+            tr: 'Profil Doğrulamaları',
+            en: 'Profile Verifications',
+            de: 'Profilprüfungen',
+          ),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('verification_requests')
@@ -127,7 +97,16 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text(_verificationAdminText(context, tr: 'Başvurular yüklenemedi.', en: 'Applications could not be loaded.', de: 'Anträge konnten nicht geladen werden.')));
+            return Center(
+              child: Text(
+                _verificationAdminText(
+                  context,
+                  tr: 'Başvurular yüklenemedi.',
+                  en: 'Applications could not be loaded.',
+                  de: 'Anträge konnten nicht geladen werden.',
+                ),
+              ),
+            );
           }
 
           if (!snapshot.hasData) {
@@ -138,7 +117,14 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
 
           if (docs.isEmpty) {
             return Center(
-              child: Text(_verificationAdminText(context, tr: 'Bekleyen doğrulama başvurusu yok.', en: 'No pending verification applications.', de: 'Keine ausstehenden Verifizierungsanträge.')),
+              child: Text(
+                _verificationAdminText(
+                  context,
+                  tr: 'Bekleyen doğrulama başvurusu yok.',
+                  en: 'No pending verification applications.',
+                  de: 'Keine ausstehenden Verifizierungsanträge.',
+                ),
+              ),
             );
           }
 
@@ -155,8 +141,18 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
 
               final String automaticStatus =
                   data['automaticCheckStatus']?.toString().trim() ?? 'pending';
+              final VerificationAdminLabels labels = presentVerificationAdmin(
+                status: data['status']?.toString() ?? 'pending',
+                automaticCheckStatus: automaticStatus,
+                reasonCode: data['reasonCode']?.toString() ?? '',
+                decisionSource: data['decisionSource']?.toString() ?? '',
+              );
 
-              final Color statusColor = _statusColor(automaticStatus);
+              final Color statusColor = labels.identityRejection
+                  ? Colors.red
+                  : automaticStatus == 'passed'
+                  ? Colors.green
+                  : Colors.orange;
 
               return Card(
                 margin: EdgeInsets.zero,
@@ -193,7 +189,14 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                fullName.isEmpty ? _verificationAdminText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer') : fullName,
+                                fullName.isEmpty
+                                    ? _verificationAdminText(
+                                        context,
+                                        tr: 'Kullanıcı',
+                                        en: 'User',
+                                        de: 'Nutzer',
+                                      )
+                                    : fullName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -215,14 +218,18 @@ class _VerificationAdminScreenState extends State<VerificationAdminScreen> {
                               Row(
                                 children: [
                                   Icon(
-                                    _statusIcon(automaticStatus),
+                                    labels.identityRejection
+                                        ? Icons.cancel
+                                        : automaticStatus == 'passed'
+                                        ? Icons.check_circle
+                                        : Icons.hourglass_top,
                                     size: 17,
                                     color: statusColor,
                                   ),
                                   const SizedBox(width: 5),
                                   Flexible(
                                     child: Text(
-                                      _statusText(automaticStatus),
+                                      labels.analysisStatus,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: statusColor,
@@ -267,7 +274,16 @@ class VerificationAdminDetailScreen extends StatelessWidget {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_verificationAdminText(context, tr: 'Doğrulama incelemesi sana atandı.', en: 'The verification review was assigned to you.', de: 'Die Verifizierungsprüfung wurde dir zugewiesen.'))),
+        SnackBar(
+          content: Text(
+            _verificationAdminText(
+              context,
+              tr: 'Doğrulama incelemesi sana atandı.',
+              en: 'The verification review was assigned to you.',
+              de: 'Die Verifizierungsprüfung wurde dir zugewiesen.',
+            ),
+          ),
+        ),
       );
     } on FirebaseFunctionsException catch (error) {
       if (!context.mounted) return;
@@ -295,7 +311,16 @@ class VerificationAdminDetailScreen extends StatelessWidget {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_verificationAdminText(context, tr: 'Otomatik kontrol tamamlandı.', en: 'Automatic check completed.', de: 'Automatische Prüfung abgeschlossen.'))),
+        SnackBar(
+          content: Text(
+            _verificationAdminText(
+              context,
+              tr: 'Otomatik kontrol tamamlandı.',
+              en: 'Automatic check completed.',
+              de: 'Automatische Prüfung abgeschlossen.',
+            ),
+          ),
+        ),
       );
     } on FirebaseFunctionsException catch (error) {
       if (!context.mounted) {
@@ -344,7 +369,14 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.pop(dialogContext);
                 },
-                child: Text(_verificationAdminText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+                child: Text(
+                  _verificationAdminText(
+                    context,
+                    tr: 'Vazgeç',
+                    en: 'Cancel',
+                    de: 'Abbrechen',
+                  ),
+                ),
               ),
               FilledButton(
                 onPressed: () {
@@ -390,7 +422,19 @@ class VerificationAdminDetailScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            approved ? _verificationAdminText(context, tr: 'Başvuru onaylandı.', en: 'Application approved.', de: 'Antrag genehmigt.') : _verificationAdminText(context, tr: 'Başvuru reddedildi.', en: 'Application rejected.', de: 'Antrag abgelehnt.'),
+            approved
+                ? _verificationAdminText(
+                    context,
+                    tr: 'Başvuru onaylandı.',
+                    en: 'Application approved.',
+                    de: 'Antrag genehmigt.',
+                  )
+                : _verificationAdminText(
+                    context,
+                    tr: 'Başvuru reddedildi.',
+                    en: 'Application rejected.',
+                    de: 'Antrag abgelehnt.',
+                  ),
           ),
         ),
       );
@@ -402,7 +446,17 @@ class VerificationAdminDetailScreen extends StatelessWidget {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? _verificationAdminText(context, tr: 'İşlem tamamlanamadı.', en: 'Operation could not be completed.', de: 'Vorgang konnte nicht abgeschlossen werden.'))),
+        SnackBar(
+          content: Text(
+            error.message ??
+                _verificationAdminText(
+                  context,
+                  tr: 'İşlem tamamlanamadı.',
+                  en: 'Operation could not be completed.',
+                  de: 'Vorgang konnte nicht abgeschlossen werden.',
+                ),
+          ),
+        ),
       );
     }
   }
@@ -445,23 +499,65 @@ class VerificationAdminDetailScreen extends StatelessWidget {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? _verificationAdminText(context, tr: 'Belge açılamadı.', en: 'Document could not be opened.', de: 'Dokument konnte nicht geöffnet werden.'))),
+        SnackBar(
+          content: Text(
+            error.message ??
+                _verificationAdminText(
+                  context,
+                  tr: 'Belge açılamadı.',
+                  en: 'Document could not be opened.',
+                  de: 'Dokument konnte nicht geöffnet werden.',
+                ),
+          ),
+        ),
       );
     } catch (_) {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_verificationAdminText(context, tr: 'Belge güvenli şekilde açılamadı.', en: 'The document could not be opened securely.', de: 'Das Dokument konnte nicht sicher geöffnet werden.'))),
+        SnackBar(
+          content: Text(
+            _verificationAdminText(
+              context,
+              tr: 'Belge güvenli şekilde açılamadı.',
+              en: 'The document could not be opened securely.',
+              de: 'Das Dokument konnte nicht sicher geöffnet werden.',
+            ),
+          ),
+        ),
       );
     }
+  }
+
+  String _decisionTime(Object? value) {
+    if (value is! Timestamp) {
+      return 'Kayıtlı değil';
+    }
+
+    final DateTime date = value.toDate().toLocal();
+    final String day = date.day.toString().padLeft(2, '0');
+    final String month = date.month.toString().padLeft(2, '0');
+    final String hour = date.hour.toString().padLeft(2, '0');
+    final String minute = date.minute.toString().padLeft(2, '0');
+    return '$day.$month.${date.year} $hour:$minute';
   }
 
   String _documentTitle(BuildContext context, String documentType) {
     switch (documentType) {
       case 'identity_front':
-        return _verificationAdminText(context, tr: 'Kimlik Ön Yüzü', en: 'ID Front', de: 'Ausweis Vorderseite');
+        return _verificationAdminText(
+          context,
+          tr: 'Kimlik Ön Yüzü',
+          en: 'ID Front',
+          de: 'Ausweis Vorderseite',
+        );
       case 'identity_back':
-        return _verificationAdminText(context, tr: 'Kimlik Arka Yüzü', en: 'ID Back', de: 'Ausweis Rückseite');
+        return _verificationAdminText(
+          context,
+          tr: 'Kimlik Arka Yüzü',
+          en: 'ID Back',
+          de: 'Ausweis Rückseite',
+        );
       case 'criminal_record':
         return 'Adli Sicil Belgesi';
       case 'selfie':
@@ -515,20 +611,26 @@ class VerificationAdminDetailScreen extends StatelessWidget {
     required Map<String, dynamic> check,
   }) {
     final String status = check['status']?.toString().trim() ?? 'pending';
-
-    final String reason = check['reason']?.toString().trim() ?? '';
+    final String reasonCode = check['reasonCode']?.toString().trim() ?? '';
+    final String reason = reasonCode.isNotEmpty
+        ? verificationAdminReasonLabel(reasonCode)
+        : check['reason']?.toString().trim() ?? '';
+    final bool technical = verificationReasonIsTechnical(reasonCode);
 
     final bool passed = status == 'passed';
 
-    final bool failed = status == 'failed';
+    final bool failed = status == 'failed' && !technical;
 
-    final bool processing = status == 'processing';
+    final bool uncertain =
+        status == 'unavailable' || technical || status == 'needs_review';
 
     final Color color = passed
         ? Colors.green
         : failed
         ? Colors.red
-        : Colors.orange;
+        : uncertain
+        ? Colors.orange
+        : Colors.blueGrey;
 
     return Container(
       width: double.infinity,
@@ -562,9 +664,14 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                 Text(
                   reason.isNotEmpty
                       ? reason
-                      : processing
+                      : status == 'processing'
                       ? 'Kontrol ediliyor...'
-                      : _verificationAdminText(context, tr: 'Henüz kontrol edilmedi.', en: 'Not checked yet.', de: 'Noch nicht geprüft.'),
+                      : _verificationAdminText(
+                          context,
+                          tr: 'Henüz kontrol edilmedi.',
+                          en: 'Not checked yet.',
+                          de: 'Noch nicht geprüft.',
+                        ),
                   style: TextStyle(
                     color: failed ? Colors.redAccent : null,
                     fontSize: 13,
@@ -578,26 +685,30 @@ class VerificationAdminDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _automaticSummary(String status) {
-    final bool passed = status == 'passed';
-
-    final bool failed = status == 'failed';
-
-    final bool processing = status == 'processing';
+  Widget _automaticSummary(VerificationAdminLabels labels) {
+    final bool passed = labels.analysisStatus == 'Otomatik kontroller geçti';
+    final bool uncertain =
+        labels.analysisStatus == 'Otomatik sonuç belirsiz' ||
+        labels.analysisStatus == 'Otomatik analiz tamamlanamadı';
+    final bool failed =
+        labels.analysisStatus == 'Otomatik kontrol sonlandı' &&
+        labels.identityRejection;
 
     final Color color = passed
         ? Colors.green
         : failed
         ? Colors.red
-        : Colors.orange;
+        : uncertain
+        ? Colors.orange
+        : Colors.blueGrey;
 
     final String text = passed
-        ? 'Tüm otomatik kontroller başarılı'
+        ? 'Otomatik kontroller geçti. Yönetici incelemesi bekleniyor.'
+        : uncertain
+        ? labels.analysisStatus
         : failed
-        ? 'Otomatik kontrolde sorun bulundu'
-        : processing
-        ? 'Otomatik kontrol devam ediyor'
-        : 'Otomatik kontrol henüz yapılmadı';
+        ? labels.applicationStatus
+        : labels.analysisStatus;
 
     return Container(
       width: double.infinity,
@@ -637,7 +748,16 @@ class VerificationAdminDetailScreen extends StatelessWidget {
         .doc(requestId);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_verificationAdminText(context, tr: 'Başvuru Detayı', en: 'Application Details', de: 'Antragsdetails'))),
+      appBar: AppBar(
+        title: Text(
+          _verificationAdminText(
+            context,
+            tr: 'Başvuru Detayı',
+            en: 'Application Details',
+            de: 'Antragsdetails',
+          ),
+        ),
+      ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: reference.snapshots(),
         builder: (context, snapshot) {
@@ -672,6 +792,12 @@ class VerificationAdminDetailScreen extends StatelessWidget {
 
           final String automaticStatus =
               data['automaticCheckStatus']?.toString().trim() ?? 'pending';
+          final VerificationAdminLabels labels = presentVerificationAdmin(
+            status: data['status']?.toString() ?? '',
+            automaticCheckStatus: automaticStatus,
+            reasonCode: data['reasonCode']?.toString() ?? '',
+            decisionSource: data['decisionSource']?.toString() ?? '',
+          );
 
           final bool isProcessing = automaticStatus == 'processing';
 
@@ -719,7 +845,14 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          fullName.isEmpty ? _verificationAdminText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer') : fullName,
+                          fullName.isEmpty
+                              ? _verificationAdminText(
+                                  context,
+                                  tr: 'Kullanıcı',
+                                  en: 'User',
+                                  de: 'Nutzer',
+                                )
+                              : fullName,
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
@@ -729,6 +862,33 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                         Text(
                           'Telefon: '
                           '${data['telefon'] ?? '-'}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          'Karar kaydı',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 10),
+                        Text('Başvuru durumu: ${labels.applicationStatus}'),
+                        const SizedBox(height: 6),
+                        Text('Analiz durumu: ${labels.analysisStatus}'),
+                        const SizedBox(height: 6),
+                        Text('Sebep: ${labels.reason}'),
+                        const SizedBox(height: 6),
+                        Text('Karar kaynağı: ${labels.source}'),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Karar zamanı: ${_decisionTime(data['decidedAt'] ?? data['reviewedAt'])}',
                         ),
                       ],
                     ),
@@ -781,13 +941,23 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  _verificationAdminText(context, tr: 'Yüklenen Belgeler', en: 'Uploaded Documents', de: 'Hochgeladene Dokumente'),
+                  _verificationAdminText(
+                    context,
+                    tr: 'Yüklenen Belgeler',
+                    en: 'Uploaded Documents',
+                    de: 'Hochgeladene Dokumente',
+                  ),
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 _documentTile(
                   context: context,
-                  title: _verificationAdminText(context, tr: 'Kimlik Ön Yüzü', en: 'ID Front', de: 'Ausweis Vorderseite'),
+                  title: _verificationAdminText(
+                    context,
+                    tr: 'Kimlik Ön Yüzü',
+                    en: 'ID Front',
+                    de: 'Ausweis Vorderseite',
+                  ),
                   path:
                       data['identityFrontPath']?.toString() ??
                       data['identityFrontUrl']?.toString(),
@@ -827,15 +997,25 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                 const Divider(),
                 const SizedBox(height: 12),
                 Text(
-                  _verificationAdminText(context, tr: 'Otomatik Belge Kontrolü', en: 'Automatic Document Check', de: 'Automatische Dokumentprüfung'),
+                  _verificationAdminText(
+                    context,
+                    tr: 'Otomatik Belge Kontrolü',
+                    en: 'Automatic Document Check',
+                    de: 'Automatische Dokumentprüfung',
+                  ),
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 12),
-                _automaticSummary(automaticStatus),
+                _automaticSummary(labels),
                 const SizedBox(height: 14),
                 _automaticCheckTile(
                   context: context,
-                  title: _verificationAdminText(context, tr: 'Kimlik Ön Yüzü', en: 'ID Front', de: 'Ausweis Vorderseite'),
+                  title: _verificationAdminText(
+                    context,
+                    tr: 'Kimlik Ön Yüzü',
+                    en: 'ID Front',
+                    de: 'Ausweis Vorderseite',
+                  ),
                   check: identityFrontCheck,
                 ),
                 if (hasLegacyIdentityBack)
@@ -850,7 +1030,11 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                     title: 'Adli Sicil Belgesi (Eski Başvuru)',
                     check: criminalRecordCheck,
                   ),
-                _automaticCheckTile(context: context, title: 'Selfie', check: selfieCheck),
+                _automaticCheckTile(
+                  context: context,
+                  title: 'Selfie',
+                  check: selfieCheck,
+                ),
                 const SizedBox(height: 6),
                 SizedBox(
                   width: double.infinity,
@@ -869,8 +1053,18 @@ class VerificationAdminDetailScreen extends StatelessWidget {
                       isProcessing
                           ? 'Kontrol Ediliyor...'
                           : automaticStatus == 'pending'
-                          ? _verificationAdminText(context, tr: 'Otomatik Kontrolü Başlat', en: 'Start Automatic Check', de: 'Automatische Prüfung starten')
-                          : _verificationAdminText(context, tr: 'Otomatik Kontrolü Tekrarla', en: 'Repeat Automatic Check', de: 'Automatische Prüfung wiederholen'),
+                          ? _verificationAdminText(
+                              context,
+                              tr: 'Otomatik Kontrolü Başlat',
+                              en: 'Start Automatic Check',
+                              de: 'Automatische Prüfung starten',
+                            )
+                          : _verificationAdminText(
+                              context,
+                              tr: 'Otomatik Kontrolü Tekrarla',
+                              en: 'Repeat Automatic Check',
+                              de: 'Automatische Prüfung wiederholen',
+                            ),
                     ),
                   ),
                 ),
