@@ -3,6 +3,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+String _refundRequestsText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class RefundRequestsScreen extends StatelessWidget {
   const RefundRequestsScreen({super.key});
 
@@ -10,11 +27,11 @@ class RefundRequestsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return const Scaffold(body: Center(child: Text('Oturum bulunamadı.')));
+      return Scaffold(body: Center(child: Text(_refundRequestsText(context, tr: 'Oturum bulunamadı.', en: 'Session not found.', de: 'Sitzung nicht gefunden.'))));
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('İade Taleplerim')),
+      appBar: AppBar(title: Text(_refundRequestsText(context, tr: 'İade Taleplerim', en: 'My Refund Requests', de: 'Meine Erstattungsanfragen'))),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('refundRequests')
@@ -22,7 +39,7 @@ class RefundRequestsScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(child: Text('İade talepleri yüklenemedi.'));
+            return Center(child: Text(_refundRequestsText(context, tr: 'İade talepleri yüklenemedi.', en: 'Refund requests could not be loaded.', de: 'Erstattungsanfragen konnten nicht geladen werden.')));
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -30,7 +47,7 @@ class RefundRequestsScreen extends StatelessWidget {
 
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
-            return const Center(child: Text('Henüz bir iade talebin yok.'));
+            return Center(child: Text(_refundRequestsText(context, tr: 'Henüz bir iade talebin yok.', en: 'You have no refund requests yet.', de: 'Du hast noch keine Erstattungsanfragen.')));
           }
 
           return ListView.separated(
@@ -48,7 +65,7 @@ class RefundRequestsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.currency_exchange)),
                   title: Text(
-                    data['eventTitle']?.toString() ?? 'İade talebi',
+                    data['eventTitle']?.toString() ?? _refundRequestsText(context, tr: 'İade talebi', en: 'Refund request', de: 'Erstattungsanfrage'),
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                   subtitle: Text([

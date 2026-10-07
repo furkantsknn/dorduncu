@@ -1,6 +1,23 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminAccountStatusScreen extends StatefulWidget {
   const AdminAccountStatusScreen({
     super.key,
@@ -55,7 +72,7 @@ class _AdminAccountStatusScreenState
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Hesap Durumunu Güncelle'),
+          title: Text('Hesap Durumunu Güncelle'),
           content: Text(
             'Yeni durum: ${_statusTitle(_selectedStatus)}'
                 '${reason.isEmpty ? '' : '\n\nAçıklama: $reason'}',
@@ -65,7 +82,7 @@ class _AdminAccountStatusScreenState
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
             ),
             FilledButton(
               onPressed: () {
@@ -178,8 +195,8 @@ class _AdminAccountStatusScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Hesap Durumu',
+        title: Text(
+          _locText(context, tr: 'Hesap Durumu', en: 'Account Status', de: 'Kontostatus'),
           style: TextStyle(
             fontWeight: FontWeight.w900,
           ),
@@ -288,8 +305,8 @@ class _AdminAccountStatusScreenState
                     enabled: !_saving,
                     minLines: 3,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'İşlem açıklaması',
+                    decoration: InputDecoration(
+                      labelText: _locText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
                       hintText:
                       'Örnek: Topluluk kurallarının ihlali',
                       border: OutlineInputBorder(),

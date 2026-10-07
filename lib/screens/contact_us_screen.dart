@@ -4,6 +4,22 @@ import 'package:flutter/material.dart';
 import 'faq_screen.dart';
 import 'support_screen.dart';
 
+String _contactText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 class ContactUsScreen extends StatelessWidget {
   const ContactUsScreen({
     super.key,
@@ -19,7 +35,7 @@ class ContactUsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xff0F1115),
       appBar: AppBar(
-        title: const Text('Bize Ulaşın'),
+        title: Text(_contactText(context, tr: 'Bize Ulaşın', en: 'Contact Us', de: 'Kontakt')),
         backgroundColor: const Color(0xff0F1115),
         foregroundColor: Colors.white,
       ),
@@ -36,7 +52,7 @@ class ContactUsScreen extends StatelessWidget {
                   color: Colors.orange.withValues(alpha: 0.35),
                 ),
               ),
-              child: const Column(
+              child: Column(
                 children: [
                   Icon(
                     Icons.contact_support_outlined,
@@ -45,7 +61,7 @@ class ContactUsScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 14),
                   Text(
-                    'Yardım için doğru kanalı seç',
+                    _contactText(context, tr: 'Yardım için doğru kanalı seç', en: 'Choose the right support channel', de: 'Wähle den richtigen Support-Kanal'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
@@ -55,7 +71,7 @@ class ContactUsScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Hesap veya uygulama sorunlarında destek talebi oluştur. Genel sorular için önce sık sorulan sorulara göz at.',
+                    _contactText(context, tr: 'Hesap veya uygulama sorunlarında destek talebi oluştur. Genel sorular için önce sık sorulan sorulara göz at.', en: 'Create a support request for account or app issues. For general questions, check the FAQ first.', de: 'Erstelle bei Konto- oder App-Problemen eine Support-Anfrage. Bei allgemeinen Fragen sieh zuerst in die FAQ.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white70, height: 1.45),
                   ),
@@ -65,12 +81,12 @@ class ContactUsScreen extends StatelessWidget {
             const SizedBox(height: 22),
             _ContactCard(
               icon: Icons.edit_note_outlined,
-              title: 'Destek Talebi Oluştur',
+              title: _contactText(context, tr: 'Destek Talebi Oluştur', en: 'Create Support Request', de: 'Support-Anfrage erstellen'),
               description:
               signedIn
-                  ? 'Sorununu destek ekibine güvenli şekilde ilet.'
-                  : 'Talep oluşturmak için telefon numaranla giriş yapmalısın.',
-              buttonText: signedIn ? 'Talep Oluştur' : 'Önce Giriş Yap',
+                  ? _contactText(context, tr: 'Sorununu destek ekibine güvenli şekilde ilet.', en: 'Send your issue securely to the support team.', de: 'Sende dein Problem sicher an das Support-Team.')
+                  : _contactText(context, tr: 'Talep oluşturmak için telefon numaranla giriş yapmalısın.', en: 'You must sign in with your phone number to create a request.', de: 'Du musst dich mit deiner Telefonnummer anmelden, um eine Anfrage zu erstellen.'),
+              buttonText: signedIn ? _contactText(context, tr: 'Talep Oluştur', en: 'Create Request', de: 'Anfrage erstellen') : _contactText(context, tr: 'Önce Giriş Yap', en: 'Sign In First', de: 'Zuerst anmelden'),
               enabled: signedIn,
               onPressed: () {
                 Navigator.push(
@@ -86,10 +102,10 @@ class ContactUsScreen extends StatelessWidget {
             const SizedBox(height: 14),
             _ContactCard(
               icon: Icons.help_outline,
-              title: 'Sık Sorulan Sorular',
+              title: _contactText(context, tr: 'Sık Sorulan Sorular', en: 'Frequently Asked Questions', de: 'Häufig gestellte Fragen'),
               description:
-              'SMS, giriş, hesap kısıtlamaları ve güvenlik konularındaki hızlı yanıtları görüntüle.',
-              buttonText: 'Soruları Görüntüle',
+              _contactText(context, tr: 'SMS, giriş, hesap kısıtlamaları ve güvenlik konularındaki hızlı yanıtları görüntüle.', en: 'View quick answers about SMS, sign-in, account restrictions and security.', de: 'Sieh dir schnelle Antworten zu SMS, Anmeldung, Kontobeschränkungen und Sicherheit an.'),
+              buttonText: _contactText(context, tr: 'Soruları Görüntüle', en: 'View Questions', de: 'Fragen anzeigen'),
               enabled: true,
               onPressed: () {
                 Navigator.push(
@@ -99,8 +115,8 @@ class ContactUsScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 22),
-            const Text(
-              'Güvenliğin için SMS doğrulama kodunu, ödeme bilgilerini veya özel şifrelerini hiçbir destek görevlisiyle paylaşma.',
+            Text(
+              _contactText(context, tr: 'Güvenliğin için SMS doğrulama kodunu, ödeme bilgilerini veya özel şifrelerini hiçbir destek görevlisiyle paylaşma.', en: 'For your security, never share SMS verification codes, payment information or private passwords with any support representative.', de: 'Teile zu deiner Sicherheit niemals SMS-Bestätigungscodes, Zahlungsinformationen oder private Passwörter mit Support-Mitarbeitern.'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white38,

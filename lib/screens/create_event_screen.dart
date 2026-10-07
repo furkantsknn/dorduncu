@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,18 +10,19 @@ import 'package:http/http.dart' as http;
 import '../l10n/app_localizations.dart';
 import '../services/user_service.dart';
 import '../utils/game_catalog.dart';
+import '../widgets/game_visuals.dart';
 import 'map_location_picker_screen.dart';
 
 import '../models/event_model.dart';
 import '../services/event_service.dart';
 
-
 String _createEventCategoryName(
-    BuildContext context,
-    GameCategoryDefinition category,
-    ) {
-  final languageCode =
-  Localizations.localeOf(context).languageCode.toLowerCase();
+  BuildContext context,
+  GameCategoryDefinition category,
+) {
+  final languageCode = Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase();
 
   switch (category.id) {
     case 'masa_oyunlari':
@@ -58,12 +60,10 @@ String _createEventCategoryName(
   }
 }
 
-String _createEventGameName(
-    BuildContext context,
-    GameDefinition game,
-    ) {
-  final languageCode =
-  Localizations.localeOf(context).languageCode.toLowerCase();
+String _createEventGameName(BuildContext context, GameDefinition game) {
+  final languageCode = Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase();
 
   if (languageCode == 'tr') {
     return game.name;
@@ -103,11 +103,8 @@ String _createEventGameName(
   }
 }
 
-String _createEventGameDisplayName(
-    BuildContext context,
-    GameDefinition game,
-    ) {
-  return '${game.emoji} ${_createEventGameName(context, game)}';
+String _createEventGameDisplayName(BuildContext context, GameDefinition game) {
+  return '${GameVisuals.emoji(game.id)} ${_createEventGameName(context, game)}';
 }
 
 class CreateEventScreen extends StatefulWidget {
@@ -145,11 +142,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   List<String> neighborhoodSuggestions = const [];
   Timer? _neighborhoodTimer;
 
-  static const memberPreferences = <String>[
-    'Herkes',
-    'Normal Üye',
-    'Plus Üye',
-  ];
+  static const memberPreferences = <String>['Herkes', 'Normal Üye', 'Plus Üye'];
 
   static const playerOptions = <int>[1, 2, 3, 4];
 
@@ -255,17 +248,16 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     super.dispose();
   }
 
-  bool get isPlus => profile['plus'] == true;
+  bool get isPlus => _plusActive(profile);
 
   int get playerCount => selectedPlayerCount;
 
   GameCategoryDefinition get selectedCategory =>
       GameCatalog.categoryById(selectedCategoryId) ??
-          GameCatalog.categories.first;
+      GameCatalog.categories.first;
 
   GameDefinition get selectedGame {
-    return GameCatalog.gameById(selectedGameId) ??
-        selectedCategory.games.first;
+    return GameCatalog.gameById(selectedGameId) ?? selectedCategory.games.first;
   }
 
   DateTime get startAt => DateTime(
@@ -289,12 +281,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   double get durationFactor =>
       GameCatalog.durationFactorForMinutes(durationMinutes);
 
-  double get totalPrice => GameCatalog.calculateTotalPrice(
-    gameId: selectedGameId,
-    playerCount: playerCount,
-    durationMinutes: durationMinutes,
-  );
-
   Future<void> _loadProfile() async {
     try {
       final data = await UserService.getProfileData();
@@ -316,9 +302,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     } catch (error) {
       if (!mounted) return;
 
-      _message(
-        AppLocalizations.of(context)!.profileInfoLoadFailed('$error'),
-      );
+      _message(AppLocalizations.of(context)!.profileInfoLoadFailed('$error'));
     } finally {
       if (mounted) {
         setState(() => profileLoading = false);
@@ -343,12 +327,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       final rawData = decoded is Map<String, dynamic> ? decoded['data'] : null;
       if (rawData is! List) throw Exception('İlçe listesi okunamadı.');
 
-      final parsed = rawData
-          .whereType<Map<String, dynamic>>()
-          .map(_District.fromMap)
-          .where((item) => item.name.isNotEmpty)
-          .toList()
-        ..sort((a, b) => a.name.compareTo(b.name));
+      final parsed =
+          rawData
+              .whereType<Map<String, dynamic>>()
+              .map(_District.fromMap)
+              .where((item) => item.name.isNotEmpty)
+              .toList()
+            ..sort((a, b) => a.name.compareTo(b.name));
 
       if (!mounted) return;
       setState(() => districts = parsed);
@@ -372,7 +357,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
     _neighborhoodTimer = Timer(
       const Duration(milliseconds: 500),
-          () => _searchNeighborhoods(query),
+      () => _searchNeighborhoods(query),
     );
   }
 
@@ -392,9 +377,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       });
       final response = await http.get(
         uri,
-        headers: const {
-          'User-Agent': 'Dorduncu/1.0 (address autocomplete)',
-        },
+        headers: const {'User-Agent': 'DortApp/1.0 (address autocomplete)'},
       );
       if (response.statusCode != 200) return;
       final decoded = jsonDecode(response.body);
@@ -462,30 +445,37 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         autofocus: true,
                         onChanged: (_) => setSheetState(() {}),
                         decoration: InputDecoration(
-                          hintText: AppLocalizations.of(context)!.searchDistrictsInCity(activeCity),
+                          hintText: AppLocalizations.of(
+                            context,
+                          )!.searchDistrictsInCity(activeCity),
                           prefixIcon: const Icon(Icons.search),
                         ),
                       ),
                     ),
                     Expanded(
                       child: visible.isEmpty
-                          ? Center(child: Text(AppLocalizations.of(context)!.districtNotFound))
+                          ? Center(
+                              child: Text(
+                                AppLocalizations.of(context)!.districtNotFound,
+                              ),
+                            )
                           : ListView.separated(
-                        itemCount: visible.length,
-                        separatorBuilder: (_, _) =>
-                        const Divider(height: 1),
-                        itemBuilder: (_, index) {
-                          final item = visible[index];
-                          return ListTile(
-                            leading: const Icon(Icons.apartment_outlined),
-                            title: Text(item.name),
-                            trailing: districtController.text == item.name
-                                ? const Icon(Icons.check_circle)
-                                : null,
-                            onTap: () => Navigator.pop(sheetContext, item),
-                          );
-                        },
-                      ),
+                              itemCount: visible.length,
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (_, index) {
+                                final item = visible[index];
+                                return ListTile(
+                                  leading: const Icon(Icons.apartment_outlined),
+                                  title: Text(item.name),
+                                  trailing: districtController.text == item.name
+                                      ? const Icon(Icons.check_circle)
+                                      : null,
+                                  onTap: () =>
+                                      Navigator.pop(sheetContext, item),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
@@ -578,12 +568,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   TimeOfDay _timeFromMinutes(int minutes) {
     final safeMinutes = minutes.clamp(0, (24 * 60) - 1);
-    return TimeOfDay(
-      hour: safeMinutes ~/ 60,
-      minute: safeMinutes % 60,
-    );
+    return TimeOfDay(hour: safeMinutes ~/ 60, minute: safeMinutes % 60);
   }
-
 
   String _playerOptionText(int count) {
     final languageCode = Localizations.localeOf(context).languageCode;
@@ -599,8 +585,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   String _memberPreferenceText(String preference) {
-    final String languageCode =
-    Localizations.localeOf(context).languageCode.toLowerCase();
+    final String languageCode = Localizations.localeOf(
+      context,
+    ).languageCode.toLowerCase();
 
     switch (preference) {
       case 'Normal Üye':
@@ -635,24 +622,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   String _durationText() {
-    if (durationMinutes <= 0) return '-';
+    if (durationMinutes <= 0) {
+      return '-';
+    }
     final hours = durationMinutes ~/ 60;
     final minutes = durationMinutes % 60;
-    if (minutes == 0) return AppLocalizations.of(context)!.durationHours(hours);
-    if (hours == 0) return AppLocalizations.of(context)!.durationMinutesOnly(minutes);
-    return AppLocalizations.of(context)!.durationHoursMinutes(hours, minutes);
-  }
-
-  String _money(double value) {
-    final digits = value.round().toString();
-    final buffer = StringBuffer();
-    for (var index = 0; index < digits.length; index++) {
-      if (index > 0 && (digits.length - index) % 3 == 0) {
-        buffer.write('.');
-      }
-      buffer.write(digits[index]);
+    if (minutes == 0) {
+      return AppLocalizations.of(context)!.durationHours(hours);
     }
-    return AppLocalizations.of(context)!.currencyAmount(buffer.toString());
+    if (hours == 0) {
+      return AppLocalizations.of(context)!.durationMinutesOnly(minutes);
+    }
+    return AppLocalizations.of(context)!.durationHoursMinutes(hours, minutes);
   }
 
   Future<void> _pickFromMap({bool currentLocation = false}) async {
@@ -721,8 +702,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         for (final item in districts) {
           final a = _normalize(item.name);
           final b = _normalize(result.district);
-          if (b.isNotEmpty &&
-              (a == b || a.contains(b) || b.contains(a))) {
+          if (b.isNotEmpty && (a == b || a.contains(b) || b.contains(a))) {
             matchingDistrict = item;
             break;
           }
@@ -769,12 +749,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       .replaceAll('ç', 'c')
       .trim();
 
-
-  String _currentAddressKey() => _normalize([
-    neighborhoodController.text.trim(),
-    districtController.text.trim(),
-    activeCity,
-  ].where((part) => part.isNotEmpty).join('|'));
+  String _currentAddressKey() => _normalize(
+    [
+      neighborhoodController.text.trim(),
+      districtController.text.trim(),
+      activeCity,
+    ].where((part) => part.isNotEmpty).join('|'),
+  );
 
   bool _addressMatches(String candidate, String expected) {
     final a = _normalize(candidate);
@@ -806,9 +787,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       });
       final response = await http.get(
         uri,
-        headers: const {
-          'User-Agent': 'Dorduncu/1.0 (event address geocoding)',
-        },
+        headers: const {'User-Agent': 'DortApp/1.0 (event address geocoding)'},
       );
       if (response.statusCode != 200) return false;
 
@@ -826,11 +805,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         final address = addressRaw is Map
             ? Map<String, dynamic>.from(addressRaw)
             : const <String, dynamic>{};
-        final resultCity = _firstValue(address, [
-          'province',
-          'state',
-          'city',
-        ]);
+        final resultCity = _firstValue(address, ['province', 'state', 'city']);
         final resultDistrict = _firstValue(address, [
           'city_district',
           'town',
@@ -838,15 +813,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           'district',
           'county',
         ]);
-        final cityMatches = _addressMatches(resultCity, activeCity) ||
-            _normalize(raw['display_name']?.toString() ?? '')
-                .contains(_normalize(activeCity));
+        final cityMatches =
+            _addressMatches(resultCity, activeCity) ||
+            _normalize(
+              raw['display_name']?.toString() ?? '',
+            ).contains(_normalize(activeCity));
         if (!cityMatches) continue;
 
         cityFallback ??= raw;
         if (_addressMatches(resultDistrict, district) ||
-            _normalize(raw['display_name']?.toString() ?? '')
-                .contains(_normalize(district))) {
+            _normalize(
+              raw['display_name']?.toString() ?? '',
+            ).contains(_normalize(district))) {
           best = raw;
           break;
         }
@@ -921,9 +899,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       if (!mounted) return;
 
       if (!coordinatesReady) {
-        _message(
-          AppLocalizations.of(context)!.addressNotFoundOnMap,
-        );
+        _message(AppLocalizations.of(context)!.addressNotFoundOnMap);
         return;
       }
 
@@ -944,20 +920,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         district: districtController.text.trim(),
         neighborhood: neighborhoodController.text.trim(),
         address:
-        '${neighborhoodController.text.trim()}, ${districtController.text.trim()}, $activeCity',
+            '${neighborhoodController.text.trim()}, ${districtController.text.trim()}, $activeCity',
         latitude: latitude,
         longitude: longitude,
         eventDate: startAt,
         startAt: startAt,
         endAt: endAt,
         creatorId: user.uid,
-        creatorProfileName:
-        latestProfile['profilAdi']?.toString() ?? '',
-        creatorProfilePhoto:
-        latestProfile['profilFotografi']?.toString() ?? '',
-        creatorPlus: latestProfile['plus'] == true,
+        creatorProfileName: latestProfile['profilAdi']?.toString() ?? '',
+        creatorProfilePhoto: latestProfile['profilFotografi']?.toString() ?? '',
+        creatorPlus: _plusActive(latestProfile),
         creatorVerified:
-        latestProfile['verified'] == true ||
+            latestProfile['verified'] == true ||
             latestProfile['verificationStatus'] == 'approved',
         participantIds: [user.uid],
         chatMemberIds: [user.uid],
@@ -965,12 +939,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         favoriteCount: 0,
         status: 'aktif',
         createdAt: DateTime.now(),
-        paymentRequired: true,
-        paymentStatus: 'notCreated',
+        paymentRequired: false,
+        paymentStatus: 'not_required',
+        accessModel: 'free',
         paymentId: '',
         basePricePerPlayer: selectedCategory.basePricePerPlayer,
         durationFactor: durationFactor,
-        customerTotal: totalPrice,
+        customerTotal: 0,
         playerGrossEarning: 0,
         platformShare: 0,
         pricingVersion: 'v2',
@@ -984,7 +959,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       Navigator.of(context).pop(true);
     } on FirebaseException catch (error) {
       _message(
-        AppLocalizations.of(context)!.eventCreateFailedWithCode(error.code, error.message ?? ''),
+        AppLocalizations.of(
+          context,
+        )!.eventCreateFailedWithCode(error.code, error.message ?? ''),
       );
     } catch (error) {
       _message(AppLocalizations.of(context)!.eventCreateFailed('$error'));
@@ -1003,346 +980,369 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       body: profileLoading
           ? const Center(child: CircularProgressIndicator())
           : Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 36),
-          children: [
-            _title(AppLocalizations.of(context)!.eventInformation),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCategoryId,
-              isExpanded: true,
-              items: GameCatalog.categories
-                  .map(
-                    (category) => DropdownMenuItem<String>(
-                  value: category.id,
-                  child: Text(
-                    '${category.emoji} '
-                        '${_createEventCategoryName(context, category)}',
-                  ),
-                ),
-              )
-                  .toList(),
-              onChanged: busy
-                  ? null
-                  : (value) {
-                if (value == null) return;
-                final category = GameCatalog.categoryById(value);
-                if (category == null || category.games.isEmpty) return;
-                setState(() {
-                  selectedCategoryId = category.id;
-                  selectedGameId = category.games.first.id;
-                });
-              },
-              decoration: InputDecoration(labelText: AppLocalizations.of(context)!.category),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedGameId,
-              isExpanded: true,
-              items: selectedCategory.games
-                  .map(
-                    (game) => DropdownMenuItem<String>(
-                  value: game.id,
-                  child: Text(_createEventGameDisplayName(context, game)),
-                ),
-              )
-                  .toList(),
-              onChanged: busy
-                  ? null
-                  : (value) {
-                if (value != null) {
-                  setState(() => selectedGameId = value);
-                }
-              },
-              decoration: InputDecoration(labelText: AppLocalizations.of(context)!.gameOrSport),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: selectedPlayerCount,
-              isExpanded: true,
-              items: playerOptions
-                  .map(
-                    (playerOption) => DropdownMenuItem<int>(
-                  value: playerOption,
-                  child: Text(_playerOptionText(playerOption)),
-                ),
-              )
-                  .toList(),
-              onChanged: busy
-                  ? null
-                  : (value) {
-                if (value == null) return;
-                if (!isPlus && value != 1) {
-                  _message(
-                    AppLocalizations.of(context)!
-                        .plusRequiredForMultiplePlayers,
-                  );
-                  return;
-                }
-                setState(() => selectedPlayerCount = value);
-              },
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.searchedPlayer,
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedMemberPreference,
-              isExpanded: true,
-              items: memberPreferences
-                  .map(
-                    (preference) => DropdownMenuItem<String>(
-                  value: preference,
-                  child: Text(_memberPreferenceText(preference)),
-                ),
-              )
-                  .toList(),
-              onChanged: busy
-                  ? null
-                  : (value) => setState(
-                    () => selectedMemberPreference =
-                    value ?? selectedMemberPreference,
-              ),
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.preferredMemberType,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                isPlus
-                    ? AppLocalizations.of(context)!.plusMemberBenefits
-                    : AppLocalizations.of(context)!.normalMemberLimits,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: busy ? null : _pickDate,
-              icon: const Icon(Icons.calendar_month),
-              label: Text(
-                '${selectedDate.day}.${selectedDate.month}.${selectedDate.year}',
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: busy ? null : _pickStartTime,
-                    icon: const Icon(Icons.play_circle_outline),
-                    label: Text(
-                      AppLocalizations.of(context)!.startTimeLabel(selectedStartTime.format(context)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: busy ? null : _pickEndTime,
-                    icon: const Icon(Icons.stop_circle_outlined),
-                    label: Text(
-                      AppLocalizations.of(context)!.endTimeLabel(selectedEndTime.format(context)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildPriceSummary(),
-            const SizedBox(height: 24),
-            _title(AppLocalizations.of(context)!.locationInformation),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 14,
-              ),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Theme.of(context).dividerColor,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
                 children: [
-                  const Icon(Icons.location_city_outlined),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppLocalizations.of(context)!.activeCity,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          activeCity,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                  _title(AppLocalizations.of(context)!.eventInformation),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCategoryId,
+                    isExpanded: true,
+                    items: GameCatalog.categories
+                        .map(
+                          (category) => DropdownMenuItem<String>(
+                            value: category.id,
+                            child: Text(
+                              '${category.emoji} '
+                              '${_createEventCategoryName(context, category)}',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: busy
+                        ? null
+                        : (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            final category = GameCatalog.categoryById(value);
+                            if (category == null || category.games.isEmpty) {
+                              return;
+                            }
+                            setState(() {
+                              selectedCategoryId = category.id;
+                              selectedGameId = category.games.first.id;
+                            });
+                          },
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.category,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedGameId,
+                    isExpanded: true,
+                    items: selectedCategory.games
+                        .map(
+                          (game) => DropdownMenuItem<String>(
+                            value: game.id,
+                            child: Text(
+                              _createEventGameDisplayName(context, game),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => selectedGameId = value);
+                            }
+                          },
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.gameOrSport,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    initialValue: selectedPlayerCount,
+                    isExpanded: true,
+                    items: playerOptions
+                        .map(
+                          (playerOption) => DropdownMenuItem<int>(
+                            value: playerOption,
+                            child: Text(_playerOptionText(playerOption)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: busy
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            if (!isPlus && value != 1) {
+                              _message(
+                                AppLocalizations.of(
+                                  context,
+                                )!.plusRequiredForMultiplePlayers,
+                              );
+                              return;
+                            }
+                            setState(() => selectedPlayerCount = value);
+                          },
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.searchedPlayer,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedMemberPreference,
+                    isExpanded: true,
+                    items: memberPreferences
+                        .map(
+                          (preference) => DropdownMenuItem<String>(
+                            value: preference,
+                            child: Text(_memberPreferenceText(preference)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: busy
+                        ? null
+                        : (value) => setState(
+                            () => selectedMemberPreference =
+                                value ?? selectedMemberPreference,
+                          ),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(
+                        context,
+                      )!.preferredMemberType,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      isPlus
+                          ? AppLocalizations.of(context)!.plusMemberBenefits
+                          : AppLocalizations.of(context)!.normalMemberLimits,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : _pickDate,
+                    icon: const Icon(Icons.calendar_month),
+                    label: Text(
+                      '${selectedDate.day}.${selectedDate.month}.${selectedDate.year}',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: busy ? null : _pickStartTime,
+                          icon: const Icon(Icons.play_circle_outline),
+                          label: Text(
+                            AppLocalizations.of(context)!.startTimeLabel(
+                              selectedStartTime.format(context),
+                            ),
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: busy ? null : _pickEndTime,
+                          icon: const Icon(Icons.stop_circle_outlined),
+                          label: Text(
+                            AppLocalizations.of(
+                              context,
+                            )!.endTimeLabel(selectedEndTime.format(context)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPriceSummary(),
+                  const SizedBox(height: 24),
+                  _title(AppLocalizations.of(context)!.locationInformation),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_city_outlined),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AppLocalizations.of(context)!.activeCity,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                activeCity,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.lock_outline, size: 19),
                       ],
                     ),
                   ),
-                  const Icon(Icons.lock_outline, size: 19),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: districtController,
+                    readOnly: true,
+                    onTap: busy ? null : _chooseDistrict,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.district,
+                      hintText: districtLoading
+                          ? AppLocalizations.of(context)!.districtsLoading
+                          : AppLocalizations.of(
+                              context,
+                            )!.selectFromCityDistricts(activeCity),
+                      prefixIcon: const Icon(Icons.apartment_outlined),
+                      suffixIcon: districtLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? AppLocalizations.of(context)!.mustSelectDistrict
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: neighborhoodController,
+                    focusNode: neighborhoodFocusNode,
+                    enabled: districtController.text.trim().isNotEmpty,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(
+                        context,
+                      )!.neighborhoodStreet,
+                      hintText: districtController.text.trim().isEmpty
+                          ? AppLocalizations.of(context)!.selectDistrictFirst
+                          : AppLocalizations.of(
+                              context,
+                            )!.startTypingNeighborhoodHint,
+                      prefixIcon: const Icon(Icons.signpost_outlined),
+                      suffixIcon: neighborhoodLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? AppLocalizations.of(context)!.neighborhoodRequired
+                        : null,
+                  ),
+                  if (neighborhoodSuggestions.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).dividerColor,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: neighborhoodSuggestions
+                            .map(
+                              (suggestion) => ListTile(
+                                dense: true,
+                                leading: const Icon(Icons.location_on_outlined),
+                                title: Text(suggestion),
+                                onTap: () {
+                                  neighborhoodController.text = suggestion;
+                                  neighborhoodFocusNode.unfocus();
+                                  setState(
+                                    () => neighborhoodSuggestions = const [],
+                                  );
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: busy
+                              ? null
+                              : () => _pickFromMap(currentLocation: true),
+                          icon: const Icon(Icons.my_location),
+                          label: Text(AppLocalizations.of(context)!.myLocation),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: busy ? null : _pickFromMap,
+                          icon: const Icon(Icons.map_outlined),
+                          label: Text(
+                            AppLocalizations.of(context)!.searchOnMap,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    latitude == 0 || longitude == 0
+                        ? AppLocalizations.of(context)!.mapSelectionOptional
+                        : AppLocalizations.of(context)!.meetingPointSelected,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 24),
+                  _title(AppLocalizations.of(context)!.descriptionSection),
+                  TextFormField(
+                    controller: descriptionController,
+                    maxLines: 4,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(context)!.eventDetails,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: busy ? null : _publish,
+                    icon: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.publish_rounded),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      child: Text(AppLocalizations.of(context)!.publishEvent),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: districtController,
-              readOnly: true,
-              onTap: busy ? null : _chooseDistrict,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.district,
-                hintText: districtLoading
-                    ? AppLocalizations.of(context)!.districtsLoading
-                    : AppLocalizations.of(context)!.selectFromCityDistricts(activeCity),
-                prefixIcon: const Icon(Icons.apartment_outlined),
-                suffixIcon: districtLoading
-                    ? const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child:
-                    CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-                    : const Icon(Icons.keyboard_arrow_down_rounded),
-              ),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? AppLocalizations.of(context)!.mustSelectDistrict
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: neighborhoodController,
-              focusNode: neighborhoodFocusNode,
-              enabled: districtController.text.trim().isNotEmpty,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.neighborhoodStreet,
-                hintText: districtController.text.trim().isEmpty
-                    ? AppLocalizations.of(context)!.selectDistrictFirst
-                    : AppLocalizations.of(context)!.startTypingNeighborhoodHint,
-                prefixIcon: const Icon(Icons.signpost_outlined),
-                suffixIcon: neighborhoodLoading
-                    ? const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child:
-                    CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-                    : null,
-              ),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? AppLocalizations.of(context)!.neighborhoodRequired
-                  : null,
-            ),
-            if (neighborhoodSuggestions.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context).dividerColor,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: neighborhoodSuggestions
-                      .map(
-                        (suggestion) => ListTile(
-                      dense: true,
-                      leading: const Icon(
-                        Icons.location_on_outlined,
-                      ),
-                      title: Text(suggestion),
-                      onTap: () {
-                        neighborhoodController.text = suggestion;
-                        neighborhoodFocusNode.unfocus();
-                        setState(
-                              () => neighborhoodSuggestions = const [],
-                        );
-                      },
-                    ),
-                  )
-                      .toList(),
-                ),
-              ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => _pickFromMap(currentLocation: true),
-                    icon: const Icon(Icons.my_location),
-                    label: Text(AppLocalizations.of(context)!.myLocation),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: busy ? null : _pickFromMap,
-                    icon: const Icon(Icons.map_outlined),
-                    label: Text(AppLocalizations.of(context)!.searchOnMap),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              latitude == 0 || longitude == 0
-                  ? AppLocalizations.of(context)!.mapSelectionOptional
-                  : AppLocalizations.of(context)!.meetingPointSelected,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 24),
-            _title(AppLocalizations.of(context)!.descriptionSection),
-            TextFormField(
-              controller: descriptionController,
-              maxLines: 4,
-              maxLength: 500,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.eventDetails,
-              ),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: busy ? null : _publish,
-              icon: busy
-                  ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-                  : const Icon(Icons.publish_rounded),
-              label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                child: Text(AppLocalizations.of(context)!.publishEvent),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-
   Widget _buildPriceSummary() {
-    final validDuration = durationMinutes >= GameCatalog.minimumDurationMinutes &&
+    final bool validDuration =
+        durationMinutes >= GameCatalog.minimumDurationMinutes &&
         durationMinutes <= GameCatalog.maximumDurationMinutes;
 
     return Container(
@@ -1355,43 +1355,25 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppLocalizations.of(context)!.livePriceSummary,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w900),
+            _createEventSummaryTitle(context),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
-          _summaryRow(AppLocalizations.of(context)!.category, selectedCategory.name),
-          _summaryRow(AppLocalizations.of(context)!.gameOrSport, selectedGame.name),
-          _summaryRow(AppLocalizations.of(context)!.searchedPlayer, '$playerCount'),
+          _summaryRow(
+            AppLocalizations.of(context)!.category,
+            selectedCategory.name,
+          ),
+          _summaryRow(
+            AppLocalizations.of(context)!.gameOrSport,
+            selectedGame.name,
+          ),
+          _summaryRow(
+            AppLocalizations.of(context)!.searchedPlayer,
+            '$playerCount',
+          ),
           _summaryRow(AppLocalizations.of(context)!.duration, _durationText()),
-          _summaryRow(
-            AppLocalizations.of(context)!.durationFactor,
-            validDuration ? 'x${durationFactor.toStringAsFixed(2)}' : '-',
-          ),
-          _summaryRow(
-            AppLocalizations.of(context)!.basePricePerPlayer,
-            _money(selectedCategory.basePricePerPlayer),
-          ),
-          const Divider(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  AppLocalizations.of(context)!.totalFee,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              Text(
-                validDuration ? _money(totalPrice) : '-',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
           if (!validDuration) ...[
             const SizedBox(height: 8),
             Text(AppLocalizations.of(context)!.durationRangeHint),
@@ -1423,12 +1405,33 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     padding: const EdgeInsets.only(bottom: 10),
     child: Text(
       text,
-      style: Theme.of(context)
-          .textTheme
-          .titleLarge
-          ?.copyWith(fontWeight: FontWeight.w900),
+      style: Theme.of(
+        context,
+      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
     ),
   );
+}
+
+bool _plusActive(Map<String, dynamic> data) {
+  if (data['plus'] != true) {
+    return false;
+  }
+  final Object? expiry = data['plusExpiresAt'] ?? data['subscriptionExpiresAt'];
+  if (expiry is Timestamp) {
+    return expiry.toDate().isAfter(DateTime.now());
+  }
+  return false;
+}
+
+String _createEventSummaryTitle(BuildContext context) {
+  switch (Localizations.localeOf(context).languageCode) {
+    case 'en':
+      return 'Event summary';
+    case 'de':
+      return 'Veranstaltungsübersicht';
+    default:
+      return 'Etkinlik özeti';
+  }
 }
 
 class _District {

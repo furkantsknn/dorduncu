@@ -12,7 +12,7 @@ import {writeAuditLog} from "../audit/writeAuditLog";
 export const requestAccountDeletion = onCall(
   {
     region: "europe-west1",
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     if (!request.auth) {

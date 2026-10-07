@@ -11,16 +11,19 @@ import 'friends_screen.dart';
 import 'friend_requests_screen.dart';
 import 'user_search_screen.dart';
 import 'public_profile_screen.dart';
+import 'my_events_screen.dart';
 import 'settings_screen.dart';
 import 'verification_screen.dart';
+import '../widgets/app_admin_menu_entry.dart';
+import '../widgets/market_badge_strip.dart';
 import 'user_badges_screen.dart';
 
 String _profileText(
-    BuildContext context, {
-      required String tr,
-      required String en,
-      required String de,
-    }) {
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
   switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
     case 'en':
       return en;
@@ -32,21 +35,16 @@ String _profileText(
 }
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({
-    super.key,
-  });
+  const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() =>
-      _ProfileScreenState();
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-
   bool _loading = true;
   String? _errorMessage;
-  Map<String, dynamic> _profileData =
-  <String, dynamic>{};
+  Map<String, dynamic> _profileData = <String, dynamic>{};
   UserModel? _user;
 
   @override
@@ -64,19 +62,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final Map<String, dynamic> data =
-      await UserService.getProfileData();
+      final Map<String, dynamic> data = await UserService.getProfileData();
 
       if (!mounted) {
         return;
       }
 
-      final User? firebaseUser =
-          FirebaseAuth.instance.currentUser;
+      final User? firebaseUser = FirebaseAuth.instance.currentUser;
 
       if (firebaseUser == null) {
         throw StateError(
-          _profileText(context, tr: 'Profil bilgilerini görüntülemek için giriş yapmalısın.', en: 'You must sign in to view your profile information.', de: 'Du musst dich anmelden, um deine Profilinformationen anzuzeigen.'),
+          _profileText(
+            context,
+            tr: 'Profil bilgilerini görüntülemek için giriş yapmalısın.',
+            en: 'You must sign in to view your profile information.',
+            de: 'Du musst dich anmelden, um deine Profilinformationen anzuzeigen.',
+          ),
         );
       }
 
@@ -102,18 +103,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _loading = false;
         _errorMessage =
-        '${_profileText(context, tr: 'Profil bilgileri yüklenemedi', en: 'Profile information could not be loaded', de: 'Profilinformationen konnten nicht geladen werden')}: $error';
+            '${_profileText(context, tr: 'Profil bilgileri yüklenemedi', en: 'Profile information could not be loaded', de: 'Profilinformationen konnten nicht geladen werden')}: $error';
       });
     }
   }
 
   Future<void> _openEditProfile() async {
-    final bool? updated =
-    await Navigator.of(context).push<bool>(
+    final bool? updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => EditProfileScreen(
-          initialData: _profileData,
-        ),
+        builder: (_) => EditProfileScreen(initialData: _profileData),
       ),
     );
 
@@ -123,12 +121,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openVerification() async {
-    final bool? updated =
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) =>
-        const VerificationScreen(),
-      ),
+    final bool? updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const VerificationScreen()),
     );
 
     if (updated == true) {
@@ -145,35 +139,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PublicProfileScreen(
-          userId: user.uid,
-          initialUser: user,
-        ),
-      ),
-    );
-  }
-  void _openFriends() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const FriendsScreen(),
+        builder: (_) =>
+            PublicProfileScreen(userId: user.uid, initialUser: user),
       ),
     );
   }
 
-  void _openFriendRequests() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const FriendRequestsScreen(),
-      ),
+  Future<void> _openFriends() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const FriendsScreen()),
     );
+    if (mounted) {
+      await _loadProfile();
+    }
   }
-  void _openUserSearch() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const UserSearchScreen(),
-      ),
+
+  Future<void> _openFriendRequests() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const FriendRequestsScreen()),
     );
+    if (mounted) {
+      await _loadProfile();
+    }
   }
+
+  Future<void> _openUserSearch() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const UserSearchScreen()),
+    );
+    if (mounted) {
+      await _loadProfile();
+    }
+  }
+
   Future<void> _openMarket() async {
     final UserModel? user = _user;
 
@@ -193,59 +191,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute<void>(builder: (_) => const MarketScreen()));
+
+    if (mounted) {
+      await _loadProfile();
+    }
+  }
+
+  Future<void> _openSettings() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => const MarketScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
     );
+    if (mounted) {
+      await _loadProfile();
+    }
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-        const SettingsScreen(),
-      ),
-    );
-  }
-
-  void _openBadges() {
+  Future<void> _openBadges() async {
     final UserModel? user = _user;
 
     if (user == null) {
       return;
     }
 
-    Navigator.of(context).push(
+    await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => UserBadgesScreen(
-          userId: user.uid,
-          isOwnProfile: true,
-        ),
+        builder: (_) => UserBadgesScreen(userId: user.uid, isOwnProfile: true),
       ),
     );
+    if (mounted) {
+      await _loadProfile();
+    }
   }
 
   Future<void> _logout() async {
-    final bool? confirmed =
-    await showDialog<bool>(
+    final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(_profileText(context, tr: 'Çıkış yap', en: 'Sign out', de: 'Abmelden')),
-          content: Text(_profileText(context, tr: 'Hesabından çıkış yapmak istediğine emin misin?', en: 'Are you sure you want to sign out of your account?', de: 'Möchtest du dich wirklich von deinem Konto abmelden?')),
+          title: Text(
+            _profileText(
+              context,
+              tr: 'Çıkış yap',
+              en: 'Sign out',
+              de: 'Abmelden',
+            ),
+          ),
+          content: Text(
+            _profileText(
+              context,
+              tr: 'Hesabından çıkış yapmak istediğine emin misin?',
+              en: 'Are you sure you want to sign out of your account?',
+              de: 'Möchtest du dich wirklich von deinem Konto abmelden?',
+            ),
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop(false);
               },
-              child: Text(_profileText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _profileText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.of(context).pop(true);
               },
-              child: Text(_profileText(context, tr: 'Çıkış yap', en: 'Sign out', de: 'Abmelden')),
+              child: Text(
+                _profileText(
+                  context,
+                  tr: 'Çıkış yap',
+                  en: 'Sign out',
+                  de: 'Abmelden',
+                ),
+              ),
             ),
           ],
         );
@@ -263,33 +290,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
-        builder: (_) => const LoginScreen(),
-      ),
-          (_) => false,
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      (_) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (_errorMessage != null ||
-        _user == null) {
+    if (_errorMessage != null || _user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(_profileText(context, tr: 'Profilim', en: 'My Profile', de: 'Mein Profil')),
+          title: Text(
+            _profileText(
+              context,
+              tr: 'Profilim',
+              en: 'My Profile',
+              de: 'Mein Profil',
+            ),
+          ),
           centerTitle: true,
         ),
         body: _ProfileLoadError(
-          message: _errorMessage ??
-              _profileText(context, tr: 'Profil bulunamadı.', en: 'Profile not found.', de: 'Profil nicht gefunden.'),
+          message:
+              _errorMessage ??
+              _profileText(
+                context,
+                tr: 'Profil bulunamadı.',
+                en: 'Profile not found.',
+                de: 'Profil nicht gefunden.',
+              ),
           onRetry: _loadProfile,
         ),
       );
@@ -298,123 +331,156 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final UserModel user = _user!;
 
     return Scaffold(
-      backgroundColor:
-      Theme.of(context).colorScheme.surface,
+      backgroundColor: Theme.of(
+        context,
+      ).colorScheme.surface.withValues(alpha: 1.0),
       appBar: AppBar(
         title: Text(
-          _profileText(context, tr: 'Profilim', en: 'My Profile', de: 'Mein Profil'),
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
+          _profileText(
+            context,
+            tr: 'Profilim',
+            en: 'My Profile',
+            de: 'Mein Profil',
           ),
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         centerTitle: true,
         actions: <Widget>[
           IconButton(
-            tooltip: _profileText(context, tr: 'Ayarlar', en: 'Settings', de: 'Einstellungen'),
-            onPressed: _openSettings,
-            icon: const Icon(
-              Icons.settings_outlined,
+            tooltip: _profileText(
+              context,
+              tr: 'Ayarlar',
+              en: 'Settings',
+              de: 'Einstellungen',
             ),
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined),
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadProfile,
         child: ListView(
-          physics:
-          const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            16,
-            16,
-            32,
-          ),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: <Widget>[
-            _ProfileHeader(
-              user: user,
-              onEdit: _openEditProfile,
-            ),
-            const SizedBox(height: 14),
+            _ProfileHeader(user: user, onEdit: _openEditProfile),
+            const SizedBox(height: 10),
             _StatisticsRow(user: user),
             const SizedBox(height: 14),
-            Card(
-              margin: EdgeInsets.zero,
-              child: ListTile(
-                leading: const Icon(Icons.people_alt_rounded),
-                title: const Text(
-                  'Arkadaşlarım',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
+            _ProfileMenuCard(
+              children: <Widget>[
+                _ProfileMenuTile(
+                  icon: Icons.people_alt_rounded,
+                  title: _profileText(
+                    context,
+                    tr: 'Arkadaşlarım',
+                    en: 'My Friends',
+                    de: 'Meine Freunde',
                   ),
-                ),
-                subtitle: const Text(
-                  'Arkadaş listesini görüntüle',
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
-                ),
-                onTap: _openFriends,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Card(
-              margin: EdgeInsets.zero,
-              child: ListTile(
-                leading: const Icon(
-                  Icons.person_add_alt_1_rounded,
-                ),
-                title: const Text(
-                  'Arkadaşlık İstekleri',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
+                  subtitle: _profileText(
+                    context,
+                    tr: 'Arkadaş listesini görüntüle',
+                    en: 'View your friends list',
+                    de: 'Freundesliste anzeigen',
                   ),
+                  onTap: _openFriends,
                 ),
-                subtitle: const Text(
-                  'Bekleyen istekleri görüntüle',
-                ),
-                trailing: StreamBuilder<int>(
-                  stream: FriendService.instance.pendingRequestCount(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-
-                    if (count == 0) {
-                      return const Icon(
-                        Icons.chevron_right_rounded,
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.person_add_alt_1_rounded),
+                  title: Text(
+                    _profileText(
+                      context,
+                      tr: 'Arkadaşlık İstekleri',
+                      en: 'Friend Requests',
+                      de: 'Freundschaftsanfragen',
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  subtitle: Text(
+                    _profileText(
+                      context,
+                      tr: 'Bekleyen istekleri görüntüle',
+                      en: 'View pending requests',
+                      de: 'Ausstehende Anfragen anzeigen',
+                    ),
+                  ),
+                  trailing: StreamBuilder<int>(
+                    stream: FriendService.instance.pendingRequestCount(),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      if (count == 0) {
+                        return const Icon(Icons.chevron_right_rounded);
+                      }
+                      return Badge(
+                        label: Text('$count'),
+                        child: const Icon(Icons.chevron_right_rounded),
                       );
-                    }
-
-                    return Badge(
-                      label: Text('$count'),
-                      child: const Icon(
-                        Icons.chevron_right_rounded,
-                      ),
-                    );
-                  },
+                    },
+                  ),
+                  onTap: _openFriendRequests,
                 ),
-                onTap: _openFriendRequests,
+              ],
+            ),
+            const SizedBox(height: 14),
+            AppAdminMenuEntry(
+              builder: (BuildContext context, VoidCallback openAdminPanel) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _ProfileMenuCard(
+                    children: <Widget>[
+                      _ProfileMenuTile(
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: AppAdminMenuEntry.label(context),
+                        subtitle: _profileText(
+                          context,
+                          tr: 'Yönetim araçlarını aç',
+                          en: 'Open management tools',
+                          de: 'Verwaltungswerkzeuge öffnen',
+                        ),
+                        onTap: openAdminPanel,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            _ProfileSectionTitle(
+              title: _profileText(
+                context,
+                tr: 'Hesap',
+                en: 'Account',
+                de: 'Konto',
               ),
             ),
+            const SizedBox(height: 8),
+            _PlusMembershipCard(user: user, onTap: _openMarket),
             const SizedBox(height: 14),
-            _PlusMembershipCard(
-              user: user,
-              onTap: _openMarket,
-            ),
-            const SizedBox(height: 14),
-            _MembershipCard(
-              user: user,
-              onVerify: _openVerification,
-            ),
+            _MembershipCard(user: user, onVerify: _openVerification),
             const SizedBox(height: 14),
             _ProfileCompletionCard(user: user),
             const SizedBox(height: 14),
+            _ProfileSectionTitle(
+              title: _profileText(
+                context,
+                tr: 'Profil ve keşfet',
+                en: 'Profile & discover',
+                de: 'Profil & Entdecken',
+              ),
+            ),
+            const SizedBox(height: 8),
             _ProfileMenuCard(
               children: <Widget>[
                 _ProfileMenuTile(
                   icon: Icons.search_rounded,
                   title: 'Oyuncu Ara',
-                  subtitle: 'Kullanıcı adı ile oyuncu ara',
+                  subtitle: _profileText(
+                    context,
+                    tr: 'Kullanıcı adı ile oyuncu ara',
+                    en: 'Search players by username',
+                    de: 'Spieler nach Benutzernamen suchen',
+                  ),
                   onTap: _openUserSearch,
                 ),
                 const Divider(height: 1),
@@ -451,50 +517,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   onTap: _openPublicProfile,
                 ),
-                const Divider(height: 1),
-                _ProfileMenuTile(
-                  icon: Icons.edit_outlined,
-                  title: _profileText(
-                    context,
-                    tr: 'Profili düzenle',
-                    en: 'Edit profile',
-                    de: 'Profil bearbeiten',
-                  ),
-                  subtitle: _profileText(
-                    context,
-                    tr: 'Fotoğraf, hakkında ve oyun seviyelerini güncelle',
-                    en: 'Update your photo, bio and game levels',
-                    de: 'Aktualisiere Foto, Profiltext und Spielniveaus',
-                  ),
-                  onTap: _openEditProfile,
-                ),
               ],
             ),
             if (user.hakkimda.trim().isNotEmpty) ...[
               const SizedBox(height: 14),
-              _AboutCard(
-                text: user.hakkimda.trim(),
-              ),
+              _AboutCard(text: user.hakkimda.trim()),
             ],
             const SizedBox(height: 14),
-            _GamesPreviewCard(
-              user: user,
-              onEdit: _openEditProfile,
+            _ProfileSectionTitle(
+              title: _profileText(
+                context,
+                tr: 'Oyunlar',
+                en: 'Games',
+                de: 'Spiele',
+              ),
             ),
+            const SizedBox(height: 8),
+            _GamesPreviewCard(user: user, onEdit: _openEditProfile),
             const SizedBox(height: 18),
             OutlinedButton.icon(
               onPressed: _logout,
-              icon: const Icon(
-                Icons.logout_rounded,
+              icon: const Icon(Icons.logout_rounded),
+              label: Text(
+                _profileText(
+                  context,
+                  tr: 'Hesaptan çıkış yap',
+                  en: 'Sign out of account',
+                  de: 'Vom Konto abmelden',
+                ),
               ),
-              label: Text(_profileText(context, tr: 'Hesaptan çıkış yap', en: 'Sign out of account', de: 'Vom Konto abmelden')),
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                Theme.of(context)
-                    .colorScheme
-                    .error,
-                minimumSize:
-                const Size.fromHeight(50),
+                foregroundColor: Theme.of(context).colorScheme.error,
+                minimumSize: const Size.fromHeight(50),
               ),
             ),
           ],
@@ -502,34 +556,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
- }
+}
+
+class _ProfileSectionTitle extends StatelessWidget {
+  const _ProfileSectionTitle({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.9,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({
-    required this.user,
-    required this.onEdit,
-  });
+  const _ProfileHeader({required this.user, required this.onEdit});
 
   final UserModel user;
   final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors =
-        Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            colors.primaryContainer,
-            colors.secondaryContainer,
-          ],
+          colors: <Color>[const Color(0xff2B1B0B), const Color(0xff5A330C)],
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         children: <Widget>[
@@ -541,68 +606,55 @@ class _ProfileHeader extends StatelessWidget {
                 right: -4,
                 bottom: -4,
                 child: IconButton.filled(
-                  tooltip: _profileText(context, tr: 'Profili düzenle', en: 'Edit profile', de: 'Profil bearbeiten'),
-                  onPressed: onEdit,
-                  icon: const Icon(
-                    Icons.edit_rounded,
-                    size: 18,
+                  tooltip: _profileText(
+                    context,
+                    tr: 'Profili düzenle',
+                    en: 'Edit profile',
+                    de: 'Profil bearbeiten',
                   ),
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_rounded, size: 18),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 11),
           Text(
             user.displayName,
             textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(
-              color:
-              colors.onPrimaryContainer,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
               fontWeight: FontWeight.w900,
             ),
           ),
           if (user.fullName.isNotEmpty &&
-              user.fullName !=
-                  user.displayName) ...[
+              user.fullName != user.displayName) ...[
             const SizedBox(height: 3),
             Text(
               user.fullName,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: colors.onPrimaryContainer
-                    .withValues(alpha: 0.72),
+                color: Colors.white70,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ],
-          if (user.resolvedCity.isNotEmpty) ...[
+          if (user.sehir.trim().isNotEmpty) ...[
             const SizedBox(height: 9),
             Row(
-              mainAxisAlignment:
-              MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 17,
-                  color:
-                  colors.onPrimaryContainer,
-                ),
+                Icon(Icons.location_on_outlined, size: 17, color: Colors.white),
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     user.ilce.trim().isEmpty
-                        ? user.resolvedCity
-                        : '${user.ilce}, ${user.resolvedCity}',
-                    overflow:
-                    TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors
-                          .onPrimaryContainer,
-                      fontWeight:
-                      FontWeight.w700,
+                        ? user.sehir.trim()
+                        : '${user.ilce.trim()}, ${user.sehir.trim()}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -617,24 +669,32 @@ class _ProfileHeader extends StatelessWidget {
             children: <Widget>[
               if (user.oyuncuRozeti)
                 _HeaderChip(
-                  icon: Icons
-                      .sports_esports_rounded,
-                  text: _profileText(context, tr: 'Oyuncu', en: 'Player', de: 'Spieler'),
+                  icon: Icons.sports_esports_rounded,
+                  text: _profileText(
+                    context,
+                    tr: 'Oyuncu',
+                    en: 'Player',
+                    de: 'Spieler',
+                  ),
                 ),
               if (user.isPlusActive)
                 const _HeaderChip(
-                  icon: Icons
-                      .workspace_premium_rounded,
+                  icon: Icons.workspace_premium_rounded,
                   text: 'Plus',
                 ),
               if (user.verified)
                 _HeaderChip(
-                  icon:
-                  Icons.verified_rounded,
-                  text: _profileText(context, tr: 'Doğrulanmış', en: 'Verified', de: 'Verifiziert'),
+                  icon: Icons.verified_rounded,
+                  text: _profileText(
+                    context,
+                    tr: 'Doğrulanmış',
+                    en: 'Verified',
+                    de: 'Verifiziert',
+                  ),
                 ),
             ],
           ),
+          MarketBadgeStrip(userId: user.uid),
         ],
       ),
     );
@@ -642,9 +702,7 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({
-    required this.user,
-  });
+  const _ProfileAvatar({required this.user});
 
   final UserModel user;
 
@@ -655,8 +713,8 @@ class _ProfileAvatar extends StatelessWidget {
     final String imageUrl = photoUrl.isNotEmpty ? photoUrl : avatarUrl;
 
     return Container(
-      width: 112,
-      height: 112,
+      width: 92,
+      height: 92,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -664,51 +722,42 @@ class _ProfileAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: imageUrl.isEmpty
-            ? _AvatarFallback(
-          name: user.displayName,
-        )
+            ? _AvatarFallback(name: user.displayName)
             : Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (
-              BuildContext context,
-              Object error,
-              StackTrace? stackTrace,
-              ) {
-            return _AvatarFallback(
-              name: user.displayName,
-            );
-          },
-        ),
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (
+                      BuildContext context,
+                      Object error,
+                      StackTrace? stackTrace,
+                    ) {
+                      return _AvatarFallback(name: user.displayName);
+                    },
+              ),
       ),
     );
   }
 }
 
 class _AvatarFallback extends StatelessWidget {
-  const _AvatarFallback({
-    required this.name,
-  });
+  const _AvatarFallback({required this.name});
 
   final String name;
 
   @override
   Widget build(BuildContext context) {
-    final String initial =
-    name.trim().isEmpty
+    final String initial = name.trim().isEmpty
         ? '?'
         : name.trim()[0].toUpperCase();
 
     return Container(
       alignment: Alignment.center,
-      color:
-      Theme.of(context).colorScheme.primary,
+      color: Theme.of(context).colorScheme.primary,
       child: Text(
         initial,
         style: TextStyle(
-          color: Theme.of(context)
-              .colorScheme
-              .onPrimary,
+          color: Theme.of(context).colorScheme.onPrimary,
           fontSize: 40,
           fontWeight: FontWeight.w900,
         ),
@@ -718,10 +767,7 @@ class _AvatarFallback extends StatelessWidget {
 }
 
 class _HeaderChip extends StatelessWidget {
-  const _HeaderChip({
-    required this.icon,
-    required this.text,
-  });
+  const _HeaderChip({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -729,33 +775,19 @@ class _HeaderChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surface
-            .withValues(alpha: 0.88),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            icon,
-            size: 16,
-            color:
-            Theme.of(context).colorScheme.primary,
-          ),
+          Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -764,9 +796,7 @@ class _HeaderChip extends StatelessWidget {
 }
 
 class _StatisticsRow extends StatelessWidget {
-  const _StatisticsRow({
-    required this.user,
-  });
+  const _StatisticsRow({required this.user});
 
   final UserModel user;
 
@@ -777,27 +807,41 @@ class _StatisticsRow extends StatelessWidget {
         Expanded(
           child: _StatisticCard(
             icon: Icons.star_rounded,
-            value: user.puan > 0
-                ? user.puan.toStringAsFixed(1)
-                : _profileText(context, tr: 'Yeni', en: 'New', de: 'Neu'),
-            label: _profileText(context, tr: 'Puan', en: 'Rating', de: 'Bewertung'),
+            value: user.puan > 0 ? user.puan.toStringAsFixed(1) : '—',
+            label: _profileText(
+              context,
+              tr: 'Puan',
+              en: 'Rating',
+              de: 'Bewertung',
+            ),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const MyEventsScreen()),
+              );
+            },
+            child: _StatisticCard(
+              icon: Icons.emoji_events_outlined,
+              value: '${user.completedEventCount}',
+              label: _profileText(
+                context,
+                tr: 'Etkinlik',
+                en: 'Events',
+                de: 'Events',
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 9),
         Expanded(
           child: _StatisticCard(
-            icon:
-            Icons.emoji_events_outlined,
-            value:
-            '${user.completedEventCount}',
-            label: _profileText(context, tr: 'Etkinlik', en: 'Events', de: 'Events'),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: _StatisticCard(
-            icon:
-            Icons.sports_esports_outlined,
+            icon: Icons.sports_esports_outlined,
             value: '${user.gameSkills.length}',
             label: _profileText(context, tr: 'Oyun', en: 'Games', de: 'Spiele'),
           ),
@@ -823,31 +867,20 @@ class _StatisticCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 13,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         child: Column(
           children: <Widget>[
-            Icon(
-              icon,
-              color: const Color(0xffFF9800),
-            ),
+            Icon(icon, color: const Color(0xffFF9800)),
             const SizedBox(height: 5),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -859,11 +892,8 @@ class _StatisticCard extends StatelessWidget {
   }
 }
 
-
 class _PlusDetailsSheet extends StatelessWidget {
-  const _PlusDetailsSheet({
-    required this.user,
-  });
+  const _PlusDetailsSheet({required this.user});
 
   final UserModel user;
 
@@ -913,14 +943,19 @@ class _PlusDetailsSheet extends StatelessWidget {
                 child: Text(
                   'Dört. Plus',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
               Center(
                 child: Text(
-                  'Üyeliğin aktif ve ayrıcalıkların kullanıma hazır.',
+                  _profileText(
+                    context,
+                    tr: 'Üyeliğin aktif ve ayrıcalıkların kullanıma hazır.',
+                    en: 'Your membership is active and your benefits are ready to use.',
+                    de: 'Deine Mitgliedschaft ist aktiv und deine Vorteile sind verfügbar.',
+                  ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -936,10 +971,7 @@ class _PlusDetailsSheet extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: <Color>[
-                      Color(0xff23180B),
-                      Color(0xff4A2C0A),
-                    ],
+                    colors: <Color>[Color(0xff23180B), Color(0xff4A2C0A)],
                   ),
                   borderRadius: BorderRadius.circular(22),
                 ),
@@ -962,7 +994,7 @@ class _PlusDetailsSheet extends StatelessWidget {
                             expiry == null
                                 ? 'Aktif üyelik'
                                 : 'Bitiş: ${_dateText(expiry)} · '
-                                    '${user.plusRemainingDays} gün kaldı',
+                                      '${user.plusRemainingDays} gün kaldı',
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -997,9 +1029,9 @@ class _PlusDetailsSheet extends StatelessWidget {
               const SizedBox(height: 22),
               Text(
                 'Plus ayrıcalıkların',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
               const _PlusBenefitTile(
@@ -1031,9 +1063,7 @@ class _PlusDetailsSheet extends StatelessWidget {
                   },
                   child: const Text(
                     'Tamam',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
               ),
@@ -1058,12 +1088,12 @@ class _PlusBenefitTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -1077,11 +1107,7 @@ class _PlusBenefitTile extends StatelessWidget {
               color: const Color(0xffF59E0B).withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: const Color(0xffF59E0B),
-            ),
+            child: Icon(icon, size: 22, color: const Color(0xffF59E0B)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1090,15 +1116,13 @@ class _PlusBenefitTile extends StatelessWidget {
               children: <Widget>[
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: colors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.35,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -1114,10 +1138,7 @@ class _PlusBenefitTile extends StatelessWidget {
 }
 
 class _PlusMembershipCard extends StatelessWidget {
-  const _PlusMembershipCard({
-    required this.user,
-    required this.onTap,
-  });
+  const _PlusMembershipCard({required this.user, required this.onTap});
 
   final UserModel user;
   final VoidCallback onTap;
@@ -1144,13 +1165,10 @@ class _PlusMembershipCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: active
                 ? const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[
-                Color(0xff23180B),
-                Color(0xff4A2C0A),
-              ],
-            )
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[Color(0xff23180B), Color(0xff4A2C0A)],
+                  )
                 : null,
           ),
           child: Row(
@@ -1162,9 +1180,7 @@ class _PlusMembershipCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: active
                       ? plusColor.withValues(alpha: 0.18)
-                      : Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest,
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
@@ -1184,13 +1200,9 @@ class _PlusMembershipCard extends StatelessWidget {
                       children: <Widget>[
                         Expanded(
                           child: Text(
-                            active
-                                ? user.plusPlanLabel
-                                : 'Dört. Plus',
+                            active ? user.plusPlanLabel : 'Dört. Plus',
                             style: TextStyle(
-                              color: active
-                                  ? Colors.white
-                                  : null,
+                              color: active ? Colors.white : null,
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
                             ),
@@ -1203,11 +1215,12 @@ class _PlusMembershipCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: active
-                                ? const Color(0xff22C55E)
-                                .withValues(alpha: 0.18)
-                                : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                                ? const Color(
+                                    0xff22C55E,
+                                  ).withValues(alpha: 0.18)
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(99),
                           ),
                           child: Text(
@@ -1215,9 +1228,9 @@ class _PlusMembershipCard extends StatelessWidget {
                             style: TextStyle(
                               color: active
                                   ? const Color(0xff86EFAC)
-                                  : Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                               fontSize: 9,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.5,
@@ -1230,14 +1243,12 @@ class _PlusMembershipCard extends StatelessWidget {
                     Text(
                       active && expiry != null
                           ? 'Bitiş: ${_dateText(expiry)} · '
-                          '${user.plusRemainingDays} gün kaldı'
+                                '${user.plusRemainingDays} gün kaldı'
                           : 'Plus ayrıcalıklarını incele ve üyeliğini başlat.',
                       style: TextStyle(
                         color: active
                             ? Colors.white70
-                            : Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant,
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         height: 1.3,
                         fontWeight: FontWeight.w600,
@@ -1260,18 +1271,14 @@ class _PlusMembershipCard extends StatelessWidget {
 }
 
 class _MembershipCard extends StatelessWidget {
-  const _MembershipCard({
-    required this.user,
-    required this.onVerify,
-  });
+  const _MembershipCard({required this.user, required this.onVerify});
 
   final UserModel user;
   final VoidCallback onVerify;
 
   @override
   Widget build(BuildContext context) {
-    final String status =
-    user.verificationStatus.toLowerCase();
+    final String status = user.verificationStatus.toLowerCase();
 
     final String title;
     final String subtitle;
@@ -1279,29 +1286,65 @@ class _MembershipCard extends StatelessWidget {
     final Color color;
 
     if (user.verified) {
-      title = _profileText(context, tr: 'Doğrulanmış hesap', en: 'Verified account', de: 'Verifiziertes Konto');
-      subtitle = _profileText(context, tr: 'Kimlik doğrulaman tamamlandı.', en: 'Your identity verification is complete.', de: 'Deine Identitätsprüfung ist abgeschlossen.');
+      title = _profileText(
+        context,
+        tr: 'Doğrulanmış hesap',
+        en: 'Verified account',
+        de: 'Verifiziertes Konto',
+      );
+      subtitle = _profileText(
+        context,
+        tr: 'Kimlik doğrulaman tamamlandı.',
+        en: 'Your identity verification is complete.',
+        de: 'Deine Identitätsprüfung ist abgeschlossen.',
+      );
       icon = Icons.verified_rounded;
       color = const Color(0xff2563EB);
     } else if (status == 'pending') {
-      title = _profileText(context, tr: 'Doğrulama inceleniyor', en: 'Verification under review', de: 'Verifizierung wird geprüft');
-      subtitle = _profileText(context, tr: 'Başvurun kontrol ediliyor.', en: 'Your application is being reviewed.', de: 'Dein Antrag wird geprüft.');
+      title = _profileText(
+        context,
+        tr: 'Doğrulama inceleniyor',
+        en: 'Verification under review',
+        de: 'Verifizierung wird geprüft',
+      );
+      subtitle = _profileText(
+        context,
+        tr: 'Başvurun kontrol ediliyor.',
+        en: 'Your application is being reviewed.',
+        de: 'Dein Antrag wird geprüft.',
+      );
       icon = Icons.hourglass_top_rounded;
       color = const Color(0xffD97706);
     } else if (status == 'rejected') {
-      title = _profileText(context, tr: 'Doğrulama reddedildi', en: 'Verification rejected', de: 'Verifizierung abgelehnt');
-      subtitle = _profileText(context, tr: 'Bilgilerini kontrol ederek yeniden başvur.', en: 'Review your information and apply again.', de: 'Prüfe deine Angaben und stelle den Antrag erneut.');
+      title = _profileText(
+        context,
+        tr: 'Doğrulama reddedildi',
+        en: 'Verification rejected',
+        de: 'Verifizierung abgelehnt',
+      );
+      subtitle = _profileText(
+        context,
+        tr: 'Bilgilerini kontrol ederek yeniden başvur.',
+        en: 'Review your information and apply again.',
+        de: 'Prüfe deine Angaben und stelle den Antrag erneut.',
+      );
       icon = Icons.cancel_outlined;
-      color = Theme.of(context)
-          .colorScheme
-          .error;
+      color = Theme.of(context).colorScheme.error;
     } else {
-      title = _profileText(context, tr: 'Hesabını doğrula', en: 'Verify your account', de: 'Konto verifizieren');
-      subtitle = _profileText(context, tr: 'Güven rozetini kazan ve profilini güçlendir.', en: 'Earn the trust badge and strengthen your profile.', de: 'Erhalte das Vertrauensabzeichen und stärke dein Profil.');
-      icon =
-          Icons.verified_user_outlined;
-      color =
-          Theme.of(context).colorScheme.primary;
+      title = _profileText(
+        context,
+        tr: 'Hesabını doğrula',
+        en: 'Verify your account',
+        de: 'Konto verifizieren',
+      );
+      subtitle = _profileText(
+        context,
+        tr: 'Güven rozetini kazan ve profilini güçlendir.',
+        en: 'Earn the trust badge and strengthen your profile.',
+        de: 'Erhalte das Vertrauensabzeichen und stärke dein Profil.',
+      );
+      icon = Icons.verified_user_outlined;
+      color = Theme.of(context).colorScheme.primary;
     }
 
     return Card(
@@ -1318,46 +1361,32 @@ class _MembershipCard extends StatelessWidget {
                 height: 46,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: color.withValues(
-                    alpha: 0.12,
-                  ),
-                  borderRadius:
-                  BorderRadius.circular(14),
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                ),
+                child: Icon(icon, color: color),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontWeight:
-                        FontWeight.w900,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-              ),
+              const Icon(Icons.chevron_right_rounded),
             ],
           ),
         ),
@@ -1366,11 +1395,8 @@ class _MembershipCard extends StatelessWidget {
   }
 }
 
-class _ProfileCompletionCard
-    extends StatelessWidget {
-  const _ProfileCompletionCard({
-    required this.user,
-  });
+class _ProfileCompletionCard extends StatelessWidget {
+  const _ProfileCompletionCard({required this.user});
 
   final UserModel user;
 
@@ -1385,57 +1411,50 @@ class _ProfileCompletionCard
       user.oyuncuRozeti,
     ];
 
-    final int completed =
-        checks.where((bool value) => value).length;
-    final double progress =
-        completed / checks.length;
-    final int percent =
-    (progress * 100).round();
+    final int completed = checks.where((bool value) => value).length;
+    final double progress = completed / checks.length;
+    final int percent = (progress * 100).round();
 
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
                 const Icon(
-                  Icons
-                      .account_circle_outlined,
+                  Icons.account_circle_outlined,
                   color: Color(0xffFF9800),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _profileText(context, tr: 'Profil tamamlanma durumu', en: 'Profile completion', de: 'Profilfortschritt'),
-                    style: const TextStyle(
-                      fontWeight:
-                      FontWeight.w900,
+                    _profileText(
+                      context,
+                      tr: 'Profil tamamlanma durumu',
+                      en: 'Profile completion',
+                      de: 'Profilfortschritt',
                     ),
+                    style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
                 Text(
                   '%$percent',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             ClipRRect(
-              borderRadius:
-              BorderRadius.circular(99),
+              borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 9,
-                backgroundColor:
-                Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
               ),
             ),
           ],
@@ -1445,11 +1464,8 @@ class _ProfileCompletionCard
   }
 }
 
-class _ProfileMenuCard
-    extends StatelessWidget {
-  const _ProfileMenuCard({
-    required this.children,
-  });
+class _ProfileMenuCard extends StatelessWidget {
+  const _ProfileMenuCard({required this.children});
 
   final List<Widget> children;
 
@@ -1480,24 +1496,18 @@ class _ProfileMenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
+      dense: true,
+      visualDensity: VisualDensity.compact,
       leading: Icon(icon),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle: Text(subtitle),
-      trailing:
-      const Icon(Icons.chevron_right_rounded),
+      trailing: const Icon(Icons.chevron_right_rounded),
     );
   }
 }
 
 class _AboutCard extends StatelessWidget {
-  const _AboutCard({
-    required this.text,
-  });
+  const _AboutCard({required this.text});
 
   final String text;
 
@@ -1508,8 +1518,7 @@ class _AboutCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
@@ -1519,20 +1528,18 @@ class _AboutCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _profileText(context, tr: 'Hakkımda', en: 'About me', de: 'Über mich'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
+                  _profileText(
+                    context,
+                    tr: 'Hakkımda',
+                    en: 'About me',
+                    de: 'Über mich',
                   ),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              text,
-              style: const TextStyle(
-                height: 1.45,
-              ),
-            ),
+            Text(text, style: const TextStyle(height: 1.45)),
           ],
         ),
       ),
@@ -1540,113 +1547,108 @@ class _AboutCard extends StatelessWidget {
   }
 }
 
-class _GamesPreviewCard
-    extends StatelessWidget {
-  const _GamesPreviewCard({
-    required this.user,
-    required this.onEdit,
-  });
+class _GamesPreviewCard extends StatelessWidget {
+  const _GamesPreviewCard({required this.user, required this.onEdit});
 
   final UserModel user;
   final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    final List<UserGameSkill> skills =
-        user.sortedGameSkills;
+    final List<UserGameSkill> skills = user.sortedGameSkills;
 
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
                 const Icon(
-                  Icons
-                      .sports_esports_outlined,
+                  Icons.sports_esports_outlined,
                   color: Color(0xffFF9800),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _profileText(context, tr: 'Oyunlarım', en: 'My games', de: 'Meine Spiele'),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
+                    _profileText(
+                      context,
+                      tr: 'Oyunlarım',
+                      en: 'My games',
+                      de: 'Meine Spiele',
                     ),
+                    style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
                 TextButton(
                   onPressed: onEdit,
-                  child: Text(_profileText(context, tr: 'Düzenle', en: 'Edit', de: 'Bearbeiten')),
+                  child: Text(
+                    _profileText(
+                      context,
+                      tr: 'Düzenle',
+                      en: 'Edit',
+                      de: 'Bearbeiten',
+                    ),
+                  ),
                 ),
               ],
             ),
             if (skills.isEmpty) ...[
               const SizedBox(height: 8),
-              Text(_profileText(context, tr: 'Henüz oyun eklenmemiş. Etkinliklere başvurabilmek için oynadığın oyunları profiline ekle.', en: 'No games have been added yet. Add the games you play to your profile to apply for events.', de: 'Noch keine Spiele hinzugefügt. Füge deine Spiele zum Profil hinzu, um dich für Events zu bewerben.')),
+              Text(
+                _profileText(
+                  context,
+                  tr: 'Henüz oyun eklenmemiş. Etkinliklere başvurabilmek için oynadığın oyunları profiline ekle.',
+                  en: 'No games have been added yet. Add the games you play to your profile to apply for events.',
+                  de: 'Noch keine Spiele hinzugefügt. Füge deine Spiele zum Profil hinzu, um dich für Events zu bewerben.',
+                ),
+              ),
             ] else ...[
               const SizedBox(height: 8),
-              ...skills.take(5).map(
-                    (UserGameSkill skill) {
-                  return Padding(
-                    padding:
-                    const EdgeInsets.only(
-                      bottom: 10,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            skill.gameName,
-                            style: const TextStyle(
-                              fontWeight:
-                              FontWeight.w700,
-                            ),
+              ...skills.take(5).map((UserGameSkill skill) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          skill.gameName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          '${skill.levelLabel} · %${skill.level}',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSecondaryContainer,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        Container(
-                          padding:
-                          const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .secondaryContainer,
-                            borderRadius:
-                            BorderRadius.circular(
-                              99,
-                            ),
-                          ),
-                          child: Text(
-                            '${skill.levelLabel} · %${skill.level}',
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSecondaryContainer,
-                              fontSize: 11,
-                              fontWeight:
-                              FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               if (skills.length > 5)
                 Text(
                   '+${skills.length - 5} ${_profileText(context, tr: 'oyun daha', en: 'more games', de: 'weitere Spiele')}',
                   style: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
+                    color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1658,12 +1660,8 @@ class _GamesPreviewCard
   }
 }
 
-class _ProfileLoadError
-    extends StatelessWidget {
-  const _ProfileLoadError({
-    required this.message,
-    required this.onRetry,
-  });
+class _ProfileLoadError extends StatelessWidget {
+  const _ProfileLoadError({required this.message, required this.onRetry});
 
   final String message;
   final Future<void> Function() onRetry;
@@ -1676,22 +1674,21 @@ class _ProfileLoadError
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 56,
-            ),
+            const Icon(Icons.error_outline_rounded, size: 56),
             const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-            ),
+            Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: onRetry,
-              icon:
-              const Icon(Icons.refresh_rounded),
-              label:
-              Text(_profileText(context, tr: 'Tekrar dene', en: 'Try again', de: 'Erneut versuchen')),
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(
+                _profileText(
+                  context,
+                  tr: 'Tekrar dene',
+                  en: 'Try again',
+                  de: 'Erneut versuchen',
+                ),
+              ),
             ),
           ],
         ),

@@ -100,7 +100,7 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
       final response = await http.get(
         uri,
         headers: const {
-          'User-Agent': 'Dorduncu/1.0 (location search)',
+          'User-Agent': 'DortApp/1.0 (location search)',
         },
       );
 
@@ -171,7 +171,7 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
         final response = await http.get(
           uri,
           headers: const {
-            'User-Agent': 'Dorduncu/1.0 (reverse geocoding)',
+            'User-Agent': 'DortApp/1.0 (reverse geocoding)',
           },
         );
         if (response.statusCode == 200) {
@@ -264,7 +264,8 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                 children: [
                   TileLayer(
                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.dorduncu',
+                    userAgentPackageName: 'com.dortapp.dort',
+                    maxNativeZoom: 20,
                   ),
                   RichAttributionWidget(
                     attributions: const [
@@ -282,7 +283,9 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                   child: Column(
                     children: [
                       Material(
-                        elevation: 5,
+                        elevation: 7,
+                        color: Theme.of(context).colorScheme.surface,
+                        shadowColor: Colors.black45,
                         borderRadius: BorderRadius.circular(18),
                         child: TextField(
                           controller: _searchController,
@@ -307,6 +310,10 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                               icon: const Icon(Icons.arrow_forward_rounded),
                             ),
                             filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                            hintStyle: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(18),
                               borderSide: BorderSide.none,
@@ -352,10 +359,10 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                 child: Center(
                   child: AnimatedPadding(
                     duration: const Duration(milliseconds: 150),
-                    padding: EdgeInsets.only(bottom: moving ? 65 : 44),
+                    padding: EdgeInsets.only(bottom: moving ? 58 : 40),
                     child: const Icon(
                       Icons.location_pin,
-                      size: 64,
+                      size: 48,
                       color: Color(0xffFF9800),
                       shadows: [Shadow(blurRadius: 12, color: Colors.black38)],
                     ),
@@ -370,6 +377,15 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                   top: false,
                   child: FilledButton.icon(
                     onPressed: moving || resolving ? null : _confirm,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xff111827),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xff374151),
+                      disabledForegroundColor: Colors.white70,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
                     icon: resolving
                         ? const SizedBox(
                       width: 20,
@@ -378,7 +394,7 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
                     )
                         : const Icon(Icons.check_circle_outline),
                     label: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
                       child: Text(
                         moving
                             ? text.determiningLocation

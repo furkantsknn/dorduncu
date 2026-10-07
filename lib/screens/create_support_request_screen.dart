@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
 
+import '../services/support_attachment_service.dart';
 import '../services/support_service.dart';
 import '../utils/support_categories.dart';
+
+String _supportRequestText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 
 class CreateSupportRequestScreen extends StatefulWidget {
   const CreateSupportRequestScreen({
@@ -34,6 +52,8 @@ class _CreateSupportRequestScreenState
 
   bool _isSubmitting = false;
 
+  final List<SupportAttachmentDraft> _attachments = <SupportAttachmentDraft>[];
+
   @override
   void initState() {
     super.initState();
@@ -53,17 +73,17 @@ class _CreateSupportRequestScreenState
   String get _descriptionLabel {
     switch (widget.category) {
       case SupportCategory.suggestion:
-        return 'Önerin';
+        return _supportRequestText(context, tr: 'Önerin', en: 'Your suggestion', de: 'Dein Vorschlag');
       case SupportCategory.bugReport:
-        return 'Hata açıklaması';
+        return _supportRequestText(context, tr: 'Hata açıklaması', en: 'Bug description', de: 'Fehlerbeschreibung');
       case SupportCategory.generalSupport:
         return 'Destek talebin';
       case SupportCategory.paymentIssue:
-        return 'Ödeme sorununun açıklaması';
+        return _supportRequestText(context, tr: 'Ödeme sorununun açıklaması', en: 'Payment issue description', de: 'Beschreibung des Zahlungsproblems');
       case SupportCategory.accountAppeal:
-        return 'İtiraz açıklaması';
+        return _supportRequestText(context, tr: 'İtiraz açıklaması', en: 'Appeal description', de: 'Beschreibung des Einspruchs');
       case SupportCategory.userReport:
-        return 'Şikâyet açıklaması';
+        return _supportRequestText(context, tr: 'Şikâyet açıklaması', en: 'Complaint description', de: 'Beschwerdebeschreibung');
       case SupportCategory.eventReport:
         return 'Etkinlikle ilgili açıklama';
       case SupportCategory.messageReport:
@@ -71,7 +91,7 @@ class _CreateSupportRequestScreenState
       case SupportCategory.inappropriateImage:
         return 'Görselle ilgili açıklama';
       case SupportCategory.securityEmergency:
-        return 'Güvenlik durumu açıklaması';
+        return _supportRequestText(context, tr: 'Güvenlik durumu açıklaması', en: 'Security issue description', de: 'Beschreibung des Sicherheitsproblems');
     }
   }
 
@@ -100,6 +120,44 @@ class _CreateSupportRequestScreenState
     }
   }
 
+  Future<void> _pickScreenshots() async {
+    if (_isSubmitting ||
+        _attachments.length >= SupportAttachmentService.maxAttachmentCount) {
+      return;
+    }
+
+    try {
+      final List<SupportAttachmentDraft> selected =
+          await SupportAttachmentService.pickScreenshots(
+            remainingSlots:
+                SupportAttachmentService.maxAttachmentCount -
+                _attachments.length,
+          );
+
+      if (!mounted || selected.isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _attachments.addAll(selected);
+      });
+    } on StateError catch (error) {
+      _showError(error.message);
+    } catch (_) {
+      _showError('Ekran görüntüsü seçilemedi.');
+    }
+  }
+
+  void _removeAttachment(int index) {
+    if (_isSubmitting || index < 0 || index >= _attachments.length) {
+      return;
+    }
+
+    setState(() {
+      _attachments.removeAt(index);
+    });
+  }
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
@@ -117,7 +175,11 @@ class _CreateSupportRequestScreenState
       _isSubmitting = true;
     });
 
+    List<String> uploadedPaths = const <String>[];
+
     try {
+      uploadedPaths = await SupportAttachmentService.uploadDrafts(_attachments);
+
       await SupportService.createRequest(
         category: widget.category,
         subject: _subjectController.text,
@@ -126,6 +188,7 @@ class _CreateSupportRequestScreenState
         relatedUserId: widget.relatedUserId,
         relatedEventId: widget.relatedEventId,
         relatedMessageId: widget.relatedMessageId,
+        attachmentUrls: uploadedPaths,
       );
 
       if (!mounted) {
@@ -138,13 +201,13 @@ class _CreateSupportRequestScreenState
         builder: (dialogContext) {
           return AlertDialog(
             icon: const Icon(Icons.check_circle_outline, size: 52),
-            title: const Text(
-              'Talebin oluşturuldu',
+            title: Text(
+              _supportRequestText(context, tr: 'Talebin oluşturuldu', en: 'Request created', de: 'Anfrage erstellt'),
               textAlign: TextAlign.center,
             ),
-            content: const Text(
-              'Destek talebin başarıyla kaydedildi. '
-              'Durumunu Destek Merkezi ekranından takip edebilirsin.',
+            content: Text(
+              _supportRequestText(context, tr: 'Destek talebin başarıyla kaydedildi. ', en: 'Your support request was saved successfully. ', de: 'Deine Support-Anfrage wurde erfolgreich gespeichert. ')+
+              _supportRequestText(context, tr: 'Durumunu Destek Merkezi ekranından takip edebilirsin.', en: 'You can track its status from the Support Center.', de: 'Du kannst den Status im Support-Center verfolgen.'),
               textAlign: TextAlign.center,
             ),
             actionsAlignment: MainAxisAlignment.center,
@@ -166,15 +229,19 @@ class _CreateSupportRequestScreenState
 
       Navigator.pop(context, true);
     } on ArgumentError catch (error) {
+      await SupportAttachmentService.deletePaths(uploadedPaths);
       _showError(
         error.message?.toString() ?? 'Talep bilgileri kontrol edilemedi.',
       );
     } on StateError catch (error) {
+      await SupportAttachmentService.deletePaths(uploadedPaths);
       _showError(error.message);
     } catch (_) {
+      await SupportAttachmentService.deletePaths(uploadedPaths);
+      if (!mounted) return;
       _showError(
-        'Talep oluşturulurken bir sorun oluştu. '
-        'Lütfen tekrar dene.',
+        _supportRequestText(context, tr: 'Talep oluşturulurken bir sorun oluştu. ', en: 'There was a problem creating the request. ', de: 'Beim Erstellen der Anfrage ist ein Problem aufgetreten. ')+
+        _supportRequestText(context, tr: 'Lütfen tekrar dene.', en: 'Please try again.', de: 'Bitte versuche es erneut.'),
       );
     } finally {
       if (mounted) {
@@ -222,9 +289,9 @@ class _CreateSupportRequestScreenState
                     enabled: !_isSubmitting,
                     textInputAction: TextInputAction.next,
                     maxLength: 120,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Konu',
-                      hintText: 'Talebini kısaca özetle',
+                      hintText: _supportRequestText(context, tr: 'Talebini kısaca özetle', en: 'Briefly summarize your request', de: 'Fasse deine Anfrage kurz zusammen'),
                       prefixIcon: Icon(Icons.title),
                       border: OutlineInputBorder(),
                     ),
@@ -232,11 +299,11 @@ class _CreateSupportRequestScreenState
                       final String subject = value?.trim() ?? '';
 
                       if (subject.isEmpty) {
-                        return 'Konu boş bırakılamaz.';
+                        return _supportRequestText(context, tr: 'Konu boş bırakılamaz.', en: 'Subject cannot be empty.', de: 'Der Betreff darf nicht leer sein.');
                       }
 
                       if (subject.length < 3) {
-                        return 'Konu en az 3 karakter olmalıdır.';
+                        return _supportRequestText(context, tr: 'Konu en az 3 karakter olmalıdır.', en: 'Subject must be at least 3 characters.', de: 'Der Betreff muss mindestens 3 Zeichen lang sein.');
                       }
 
                       return null;
@@ -261,11 +328,11 @@ class _CreateSupportRequestScreenState
                       final String description = value?.trim() ?? '';
 
                       if (description.isEmpty) {
-                        return 'Açıklama boş bırakılamaz.';
+                        return _supportRequestText(context, tr: 'Açıklama boş bırakılamaz.', en: 'Description cannot be empty.', de: 'Die Beschreibung darf nicht leer sein.');
                       }
 
                       if (description.length < 10) {
-                        return 'Açıklama en az 10 karakter olmalıdır.';
+                        return _supportRequestText(context, tr: 'Açıklama en az 10 karakter olmalıdır.', en: 'Description must be at least 10 characters.', de: 'Die Beschreibung muss mindestens 10 Zeichen lang sein.');
                       }
 
                       return null;
@@ -279,6 +346,13 @@ class _CreateSupportRequestScreenState
                       relatedMessageId: widget.relatedMessageId,
                     ),
                   ],
+                  const SizedBox(height: 16),
+                  _AttachmentPickerCard(
+                    attachments: _attachments,
+                    enabled: !_isSubmitting,
+                    onAdd: _pickScreenshots,
+                    onRemove: _removeAttachment,
+                  ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<SupportUrgency>(
                     initialValue: _selectedUrgency,
@@ -324,7 +398,7 @@ class _CreateSupportRequestScreenState
                               );
                           },
                     icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: const Text('Ekran görüntüsü ekle'),
+                    label: Text(_supportRequestText(context, tr: 'Ekran görüntüsü ekle', en: 'Add screenshot', de: 'Screenshot hinzufügen')),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -340,7 +414,7 @@ class _CreateSupportRequestScreenState
                       onPressed: _isSubmitting ? null : _submit,
                       icon: const Icon(Icons.send_outlined),
                       label: Text(
-                        _isSubmitting ? 'Gönderiliyor...' : 'Talebi gönder',
+                        _isSubmitting ? _supportRequestText(context, tr: 'Gönderiliyor...', en: 'Sending...', de: 'Wird gesendet...') : _supportRequestText(context, tr: 'Talebi gönder', en: 'Send request', de: 'Anfrage senden'),
                       ),
                     ),
                   ),
@@ -364,6 +438,95 @@ class _CreateSupportRequestScreenState
     return (widget.relatedUserId?.trim().isNotEmpty ?? false) ||
         (widget.relatedEventId?.trim().isNotEmpty ?? false) ||
         (widget.relatedMessageId?.trim().isNotEmpty ?? false);
+  }
+}
+
+class _AttachmentPickerCard extends StatelessWidget {
+  const _AttachmentPickerCard({
+    required this.attachments,
+    required this.enabled,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final List<SupportAttachmentDraft> attachments;
+  final bool enabled;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canAdd =
+        enabled &&
+        attachments.length < SupportAttachmentService.maxAttachmentCount;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.add_photo_alternate_outlined),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _supportRequestText(context, tr: 'Ekran görüntüsü / kanıt', en: 'Screenshot / evidence', de: 'Screenshot / Nachweis'),
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text(
+                  '${attachments.length}/'
+                  '${SupportAttachmentService.maxAttachmentCount}',
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'İsteğe bağlı. JPG, PNG veya WEBP; dosya başına en fazla 5 MB.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (attachments.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 10),
+              ...attachments.asMap().entries.map((entry) {
+                final int index = entry.key;
+                final SupportAttachmentDraft attachment = entry.value;
+                final double sizeMb = attachment.sizeBytes / (1024 * 1024);
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.image_outlined),
+                  title: Text(
+                    attachment.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text('${sizeMb.toStringAsFixed(1)} MB'),
+                  trailing: IconButton(
+                    tooltip: _supportRequestText(context, tr: 'Kaldır', en: 'Remove', de: 'Entfernen'),
+                    onPressed: enabled ? () => onRemove(index) : null,
+                    icon: const Icon(Icons.close),
+                  ),
+                );
+              }),
+            ],
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: canAdd ? onAdd : null,
+              icon: const Icon(Icons.attach_file),
+              label: Text(
+                canAdd
+                    ? _supportRequestText(context, tr: 'Ekran görüntüsü ekle', en: 'Add screenshot', de: 'Screenshot hinzufügen')
+                    : 'En fazla 3 dosya eklenebilir',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -476,7 +639,7 @@ class _RelatedReferenceCard extends StatelessWidget {
       rows.add(
         _ReferenceRow(
           icon: Icons.person_outline,
-          label: 'İlgili kullanıcı',
+          label: _supportRequestText(context, tr: 'İlgili kullanıcı', en: 'Related user', de: 'Betroffener Nutzer'),
           value: relatedUserId!,
         ),
       );
@@ -486,7 +649,7 @@ class _RelatedReferenceCard extends StatelessWidget {
       rows.add(
         _ReferenceRow(
           icon: Icons.event_outlined,
-          label: 'İlgili etkinlik',
+          label: _supportRequestText(context, tr: 'İlgili etkinlik', en: 'Related event', de: 'Betroffene Veranstaltung'),
           value: relatedEventId!,
         ),
       );
@@ -496,7 +659,7 @@ class _RelatedReferenceCard extends StatelessWidget {
       rows.add(
         _ReferenceRow(
           icon: Icons.message_outlined,
-          label: 'İlgili mesaj',
+          label: _supportRequestText(context, tr: 'İlgili mesaj', en: 'Related message', de: 'Betroffene Nachricht'),
           value: relatedMessageId!,
         ),
       );

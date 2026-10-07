@@ -42,12 +42,18 @@ class PlusService {
     required String paymentSource,
   }) async {
     final HttpsCallable callable =
-    _functions.httpsCallable('purchasePlus');
+        _functions.httpsCallable('purchasePlus');
+
+    final String requestId = _firestore
+        .collection('_client_request_ids')
+        .doc()
+        .id;
 
     final HttpsCallableResult<dynamic> result =
-    await callable.call(<String, dynamic>{
+        await callable.call(<String, dynamic>{
       'productId': productId,
       'paymentSource': paymentSource,
+      'requestId': requestId,
     });
 
     final dynamic rawData = result.data;

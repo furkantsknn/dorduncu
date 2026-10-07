@@ -6,6 +6,7 @@ import {getFirestore} from "firebase-admin/firestore";
 export const checkDeletedPhone = onCall(
   {
     region: "europe-west1",
+    enforceAppCheck: true,
   },
   async (request) => {
     if (!request.auth) {

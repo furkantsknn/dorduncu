@@ -468,6 +468,8 @@ class _AdminVerificationListScreenState
         return 'Revizyon istendi';
       case 'rejected':
         return 'Reddedildi';
+      case 'expired':
+        return 'Süresi Doldu';
       case 'pending':
       default:
         return 'Bekliyor';
@@ -482,6 +484,8 @@ class _AdminVerificationListScreenState
         return Colors.deepOrange;
       case 'rejected':
         return Colors.red;
+      case 'expired':
+        return Colors.grey;
       case 'pending':
       default:
         return Colors.orange;

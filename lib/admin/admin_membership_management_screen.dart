@@ -1,12 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import 'admin_permission_gate.dart';
+
+String _adminMembershipText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 class AdminMembershipManagementScreen extends StatefulWidget {
-  const AdminMembershipManagementScreen({
-    super.key,
-    required this.userId,
-  });
+  const AdminMembershipManagementScreen({super.key, required this.userId});
 
   final String userId;
 
@@ -22,9 +37,7 @@ class _AdminMembershipManagementScreenState
   bool _saving = false;
 
   DocumentReference<Map<String, dynamic>> get _userReference {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(widget.userId);
+    return FirebaseFirestore.instance.collection('users').doc(widget.userId);
   }
 
   @override
@@ -33,9 +46,7 @@ class _AdminMembershipManagementScreenState
     super.dispose();
   }
 
-  Future<void> _updatePlus({
-    required bool enabled,
-  }) async {
+  Future<void> _updatePlus({required bool enabled}) async {
     if (_saving) {
       return;
     }
@@ -47,22 +58,24 @@ class _AdminMembershipManagementScreenState
       return;
     }
 
-    final String adminId =
-        FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    if (adminId.isEmpty) {
-      _showMessage('Admin oturumu bulunamadı.');
-      return;
-    }
-
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: Text(
             enabled
-                ? 'Plus Üyelik Ver'
-                : 'Plus Üyeliği Kaldır',
+                ? _adminMembershipText(
+                    context,
+                    tr: 'Plus Üyelik Ver',
+                    en: 'Grant Plus Membership',
+                    de: 'Plus-Mitgliedschaft gewähren',
+                  )
+                : _adminMembershipText(
+                    context,
+                    tr: 'Plus Üyeliği Kaldır',
+                    en: 'Remove Plus Membership',
+                    de: 'Plus-Mitgliedschaft entfernen',
+                  ),
           ),
           content: Text(
             enabled
@@ -74,7 +87,14 @@ class _AdminMembershipManagementScreenState
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(
+                _adminMembershipText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -96,49 +116,24 @@ class _AdminMembershipManagementScreenState
     });
 
     try {
-      final FirebaseFirestore firestore =
-          FirebaseFirestore.instance;
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminUpdateMembership');
 
-      final DocumentReference<Map<String, dynamic>> logReference =
-      _userReference.collection('admin_actions').doc();
-
-      final WriteBatch batch = firestore.batch();
-
-      batch.set(
-        _userReference,
-        <String, dynamic>{
-          'plus': enabled,
-          'plusUpdatedAt': FieldValue.serverTimestamp(),
-          'plusUpdatedBy': adminId,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      batch.set(logReference, <String, dynamic>{
-        'action': enabled
-            ? 'plus_membership_granted'
-            : 'plus_membership_removed',
+      await callable.call(<String, dynamic>{
+        'userId': widget.userId,
+        'action': 'plus',
+        'enabled': enabled,
         'reason': reason,
-        'adminId': adminId,
-        'performedByUid': adminId,
-        'targetUserId': widget.userId,
-        'createdAt': FieldValue.serverTimestamp(),
       });
-
-      await batch.commit();
-
-      if (!mounted) {
-        return;
-      }
 
       _reasonController.clear();
 
       _showMessage(
-        enabled
-            ? 'Plus üyelik verildi.'
-            : 'Plus üyelik kaldırıldı.',
+        enabled ? 'Plus üyelik verildi.' : 'Plus üyelik kaldırıldı.',
       );
+    } on FirebaseFunctionsException catch (error) {
+      _showMessage(error.message ?? 'İşlem tamamlanamadı.');
     } catch (error) {
       _showMessage('İşlem tamamlanamadı: $error');
     } finally {
@@ -149,26 +144,57 @@ class _AdminMembershipManagementScreenState
       }
     }
   }
-  Future<void> _updatePlayerBadge({
-    required bool approved,
-  }) async {
+
+  Future<void> _updatePlayerBadge({required bool approved}) async {
     if (_saving) {
       return;
     }
 
-    final String reason =
-    _reasonController.text.trim();
+    final String reason = _reasonController.text.trim();
 
     if (reason.length < 3) {
       _showMessage('İşlem açıklamasını yaz.');
       return;
     }
 
-    final String adminId =
-        FirebaseAuth.instance.currentUser?.uid ?? '';
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(
+            approved ? 'Oyuncu Rozeti Ver' : 'Oyuncu Rozetini Kaldır',
+          ),
+          content: Text(
+            approved
+                ? 'Kullanıcıya oyuncu rozeti verilecek.'
+                : 'Kullanıcının oyuncu rozeti kaldırılacak.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: Text(
+                _adminMembershipText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Onayla'),
+            ),
+          ],
+        );
+      },
+    );
 
-    if (adminId.isEmpty) {
-      _showMessage('Admin oturumu bulunamadı.');
+    if (confirmed != true || !mounted) {
       return;
     }
 
@@ -177,56 +203,26 @@ class _AdminMembershipManagementScreenState
     });
 
     try {
-      final FirebaseFirestore firestore =
-          FirebaseFirestore.instance;
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminUpdateMembership');
 
-      final DocumentReference<Map<String, dynamic>>
-      logReference =
-      _userReference.collection('admin_actions').doc();
-
-      final WriteBatch batch = firestore.batch();
-
-      batch.set(
-        _userReference,
-        <String, dynamic>{
-          'verified': approved,
-          'oyuncuRozeti': approved,
-          'verificationStatus':
-          approved ? 'approved' : 'rejected',
-          'verifiedAt': FieldValue.serverTimestamp(),
-          'verifiedBy': adminId,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      batch.set(
-        logReference,
-        <String, dynamic>{
-          'action': approved
-              ? 'player_badge_approved'
-              : 'player_badge_removed',
-          'reason': reason,
-          'adminId': adminId,
-          'performedByUid': adminId,
-          'targetUserId': widget.userId,
-          'createdAt': FieldValue.serverTimestamp(),
-        },
-      );
-
-      await batch.commit();
+      await callable.call(<String, dynamic>{
+        'userId': widget.userId,
+        'action': 'playerBadge',
+        'enabled': approved,
+        'reason': reason,
+      });
 
       _reasonController.clear();
 
       _showMessage(
-        approved
-            ? 'Oyuncu rozeti verildi.'
-            : 'Oyuncu rozeti kaldırıldı.',
+        approved ? 'Oyuncu rozeti verildi.' : 'Oyuncu rozeti kaldırıldı.',
       );
+    } on FirebaseFunctionsException catch (error) {
+      _showMessage(error.message ?? 'İşlem tamamlanamadı.');
     } catch (error) {
-      _showMessage(
-        'İşlem tamamlanamadı: $error',
-      );
+      _showMessage('İşlem tamamlanamadı: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -235,6 +231,7 @@ class _AdminMembershipManagementScreenState
       }
     }
   }
+
   void _showMessage(String message) {
     if (!mounted) {
       return;
@@ -242,254 +239,281 @@ class _AdminMembershipManagementScreenState
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _userReference.snapshots(),
-      builder: (
-          BuildContext context,
-          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
           ) {
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Üyelik Yönetimi'),
-            ),
-            body: const Center(
-              child: Text(
-                'Üyelik bilgileri yüklenemedi.',
-              ),
-            ),
-          );
-        }
+            if (snapshot.hasError) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text(
+                    _adminMembershipText(
+                      context,
+                      tr: 'Üyelik Yönetimi',
+                      en: 'Membership Management',
+                      de: 'Mitgliedschaftsverwaltung',
+                    ),
+                  ),
+                ),
+                body: const Center(
+                  child: Text('Üyelik bilgileri yüklenemedi.'),
+                ),
+              );
+            }
 
-        if (!snapshot.hasData) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Üyelik Yönetimi'),
-            ),
-            body: const Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
+            if (!snapshot.hasData) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text(
+                    _adminMembershipText(
+                      context,
+                      tr: 'Üyelik Yönetimi',
+                      en: 'Membership Management',
+                      de: 'Mitgliedschaftsverwaltung',
+                    ),
+                  ),
+                ),
+                body: const Center(child: CircularProgressIndicator()),
+              );
+            }
 
-        final Map<String, dynamic> data =
-            snapshot.data?.data() ?? <String, dynamic>{};
+            final Map<String, dynamic> data =
+                snapshot.data?.data() ?? <String, dynamic>{};
 
-        final bool isPlus = data['plus'] == true;
+            final bool isPlus = data['plus'] == true;
 
-        final bool isPlayer =
-            data['oyuncuRozeti'] == true ||
+            final bool isPlayer =
+                data['oyuncuRozeti'] == true ||
                 data['verified'] == true ||
                 data['verificationStatus'] == 'approved';
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text(
-              'Üyelik Yönetimi',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              32,
-            ),
-            children: <Widget>[
-              Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Mevcut üyelik',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _StatusRow(
-                        title: 'Plus üyelik',
-                        enabled: isPlus,
-                        enabledText: 'Plus üye',
-                        disabledText: 'Normal üye',
-                      ),
-                      const Divider(height: 26),
-                      _StatusRow(
-                        title: 'Oyuncu rozeti',
-                        enabled: isPlayer,
-                        enabledText: 'Oyuncu rozeti aktif',
-                        disabledText: 'Oyuncu doğrulaması yok',
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Admin isterse oyuncu rozetini verebilir veya kaldırabilir. Yapılan tüm işlemler admin işlem geçmişine kaydedilir.',
-                        style: TextStyle(
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
+            return Scaffold(
+              appBar: AppBar(
+                title: Text(
+                  _adminMembershipText(
+                    context,
+                    tr: 'Üyelik Yönetimi',
+                    en: 'Membership Management',
+                    de: 'Mitgliedschaftsverwaltung',
                   ),
+                  style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
-              const SizedBox(height: 14),
-              Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Admin işlemi',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                children: <Widget>[
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            _adminMembershipText(
+                              context,
+                              tr: 'Mevcut üyelik',
+                              en: 'Current membership',
+                              de: 'Aktuelle Mitgliedschaft',
+                            ),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _adminMembershipText(
+                              context,
+                              tr: 'Bu ekran eski admin bayrağını değiştirir. Google Play hakkı, süre ve Play ürün kimliği buradan açılmaz.',
+                              en: 'This screen changes the legacy admin flag. It does not grant a Google Play entitlement, expiry, or Play product id.',
+                              de: 'Dieser Bildschirm ändert nur die alte Admin-Markierung. Er vergibt kein Google-Play-Recht, kein Ablaufdatum und keine Play-Produkt-ID.',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _StatusRow(
+                            title: 'Eski Plus bayrağı',
+                            enabled: isPlus,
+                            enabledText: _adminMembershipText(
+                              context,
+                              tr: 'Plus üye',
+                              en: 'Plus member',
+                              de: 'Plus-Mitglied',
+                            ),
+                            disabledText: _adminMembershipText(
+                              context,
+                              tr: 'Normal üye',
+                              en: 'Standard member',
+                              de: 'Standardmitglied',
+                            ),
+                          ),
+                          const Divider(height: 26),
+                          _StatusRow(
+                            title: 'Oyuncu rozeti',
+                            enabled: isPlayer,
+                            enabledText: 'Oyuncu rozeti aktif',
+                            disabledText: 'Oyuncu doğrulaması yok',
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Oyuncu rozeti normalde doğrulama süreci üzerinden yönetilir. Manuel rozet müdahalesi yalnızca super admin tarafından yapılabilir.',
+                            style: TextStyle(height: 1.4),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _reasonController,
-                        enabled: !_saving,
-                        minLines: 3,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          labelText: 'İşlem açıklaması',
-                          hintText:
-                          'Örnek: Kampanya, satın alma düzeltmesi veya iade',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _saving || isPlus
-                              ? null
-                              : () {
-                            _updatePlus(
-                              enabled: true,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.workspace_premium_outlined,
-                          ),
-                          label: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
-                            child: Text(
-                              'Plus Üyelik Ver',
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _saving || !isPlus
-                              ? null
-                              : () {
-                            _updatePlus(
-                              enabled: false,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.remove_circle_outline,
-                          ),
-                          label: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
-                            child: Text(
-                              'Plus Üyeliği Kaldır',
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _saving || isPlayer
-                              ? null
-                              : () {
-                            _updatePlayerBadge(
-                              approved: true,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.verified_outlined,
-                          ),
-                          label: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
-                            child: Text(
-                              'Oyuncu Rozeti Ver',
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _saving || !isPlayer
-                              ? null
-                              : () {
-                            _updatePlayerBadge(
-                              approved: false,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.remove_circle_outline,
-                          ),
-                          label: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
-                            child: Text(
-                              'Oyuncu Rozetini Kaldır',
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_saving) ...<Widget>[
-                        const SizedBox(height: 16),
-                        const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            _adminMembershipText(
+                              context,
+                              tr: 'Admin işlemi',
+                              en: 'Admin action',
+                              de: 'Admin-Aktion',
+                            ),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: _reasonController,
+                            enabled: !_saving,
+                            minLines: 3,
+                            maxLines: 5,
+                            decoration: InputDecoration(
+                              labelText: _adminMembershipText(
+                                context,
+                                tr: 'İşlem açıklaması',
+                                en: 'Action description',
+                                de: 'Aktionsbeschreibung',
+                              ),
+                              hintText:
+                                  'Örnek: Kampanya, satın alma düzeltmesi veya iade',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _saving || isPlus
+                                  ? null
+                                  : () {
+                                      _updatePlus(enabled: true);
+                                    },
+                              icon: const Icon(
+                                Icons.workspace_premium_outlined,
+                              ),
+                              label: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                child: Text(
+                                  _adminMembershipText(
+                                    context,
+                                    tr: 'Plus Üyelik Ver',
+                                    en: 'Grant Plus Membership',
+                                    de: 'Plus-Mitgliedschaft gewähren',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _saving || !isPlus
+                                  ? null
+                                  : () {
+                                      _updatePlus(enabled: false);
+                                    },
+                              icon: const Icon(Icons.remove_circle_outline),
+                              label: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                child: Text(
+                                  _adminMembershipText(
+                                    context,
+                                    tr: 'Plus Üyeliği Kaldır',
+                                    en: 'Remove Plus Membership',
+                                    de: 'Plus-Mitgliedschaft entfernen',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          AdminRoleGate(
+                            allowedRoles: const <String>{'super_admin'},
+                            child: Column(
+                              children: <Widget>[
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: _saving || isPlayer
+                                        ? null
+                                        : () {
+                                            _updatePlayerBadge(approved: true);
+                                          },
+                                    icon: const Icon(Icons.verified_outlined),
+                                    label: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      child: Text('Oyuncu Rozeti Ver'),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _saving || !isPlayer
+                                        ? null
+                                        : () {
+                                            _updatePlayerBadge(approved: false);
+                                          },
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                    ),
+                                    label: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      child: Text('Oyuncu Rozetini Kaldır'),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_saving) ...<Widget>[
+                            const SizedBox(height: 16),
+                            const Center(child: CircularProgressIndicator()),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }
@@ -515,16 +539,12 @@ class _StatusRow extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
         const SizedBox(width: 12),
         Icon(
-          enabled
-              ? Icons.check_circle_rounded
-              : Icons.remove_circle_outline,
+          enabled ? Icons.check_circle_rounded : Icons.remove_circle_outline,
           size: 20,
           color: enabled ? Colors.green : null,
         ),
@@ -533,9 +553,7 @@ class _StatusRow extends StatelessWidget {
           child: Text(
             enabled ? enabledText : disabledText,
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
       ],

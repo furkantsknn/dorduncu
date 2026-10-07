@@ -13,6 +13,12 @@ import {
   MAXIMUM_DURATION_MINUTES,
   MINIMUM_DURATION_MINUTES,
 } from "./eventCatalog";
+import {
+  ACCESS_MODEL_FREE,
+  APPLICATION_LIFECYCLE_VERSION,
+  applicationPaymentStatus,
+} from "./eventLifecycle";
+import {isPlusMembershipActive} from "../users/plusMembership";
 
 interface CreateEventRequest {
   gameId?: unknown;
@@ -379,7 +385,7 @@ export const createEvent = onCall(
       );
     }
 
-    const isPlus = userData.plus === true;
+    const isPlus = isPlusMembershipActive(userData);
 
     const today = new Date(
       now.getFullYear(),
@@ -491,9 +497,12 @@ export const createEvent = onCall(
       basvuruSayisi: 0,
       chatMemberUids: [uid],
 
-      paymentRequired: true,
+      lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+      accessModel: ACCESS_MODEL_FREE,
+      paymentRequired: false,
       paymentId: "",
-      paymentStatus: "notCreated",
+      paymentStatus: applicationPaymentStatus.notRequired,
+      customerTotal: 0,
 
       durationMinutes:
         pricing.durationMinutes,
@@ -507,8 +516,6 @@ export const createEvent = onCall(
       playerGrossEarning: 0,
       totalPlayerGross: 0,
       platformShare: 0,
-      customerTotal:
-        pricing.customerTotal,
       pricingVersion:
         pricing.pricingVersion,
 
@@ -557,8 +564,7 @@ export const createEvent = onCall(
       success: true,
       eventId: eventReference.id,
       pricing: {
-        customerTotal:
-          pricing.customerTotal,
+        customerTotal: 0,
         durationMinutes:
           pricing.durationMinutes,
         pricingVersion:

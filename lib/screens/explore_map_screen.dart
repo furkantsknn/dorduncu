@@ -4,16 +4,31 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../home_v2/home_event_map.dart';
+import '../home_v2/home_listed_event.dart';
 import '../services/event_service.dart';
 import 'event_detail_screen.dart';
+
+String _mapText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
 
 class ExploreMapScreen extends StatefulWidget {
   final String selectedCity;
 
-  const ExploreMapScreen({
-    super.key,
-    this.selectedCity = '',
-  });
+  const ExploreMapScreen({super.key, this.selectedCity = ''});
 
   @override
   State<ExploreMapScreen> createState() => _ExploreMapScreenState();
@@ -26,6 +41,13 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
   double radiusKm = 0;
   String category = 'Tümü';
   bool locating = false;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _events;
+
+  @override
+  void initState() {
+    super.initState();
+    _events = EventService.watchListedEvents(city: widget.selectedCity);
+  }
 
   static const List<String> categories = [
     'Tümü',
@@ -44,11 +66,18 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     });
 
     try {
-      final serviceEnabled =
-      await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
+      if (!mounted) return;
       if (!serviceEnabled) {
-        _showMessage('Telefonun konum servisi kapalı.');
+        _showMessage(
+          _mapText(
+            context,
+            tr: 'Telefonun konum servisi kapalı.',
+            en: 'Location services are turned off.',
+            de: 'Die Standortdienste sind deaktiviert.',
+          ),
+        );
         return;
       }
 
@@ -64,9 +93,9 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
       }
 
       if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
         _showMessage(
-          'Konum izni kalıcı olarak kapatılmış. '
-              'Telefon ayarlarından izin verebilirsin.',
+          'Konum izni kalıcı olarak kapatılmış. ${_mapText(context, tr: 'Telefon ayarlarından izin verebilirsin.', en: 'You can grant permission from your phone settings.', de: 'Du kannst die Berechtigung in den Telefoneinstellungen erteilen.')}',
         );
         return;
       }
@@ -83,13 +112,17 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
         userPosition = value;
       });
 
-      controller.move(
-        LatLng(value.latitude, value.longitude),
-        13,
-      );
+      controller.move(LatLng(value.latitude, value.longitude), 13);
     } catch (_) {
       if (mounted) {
-        _showMessage('Konum alınamadı.');
+        _showMessage(
+          _mapText(
+            context,
+            tr: 'Konum alınamadı.',
+            en: 'Location could not be obtained.',
+            de: 'Standort konnte nicht ermittelt werden.',
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -104,10 +137,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -115,33 +145,46 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Haritada Keşfet'),
+        title: Text(
+          _mapText(
+            context,
+            tr: 'Haritada Keşfet',
+            en: 'Explore on Map',
+            de: 'Auf Karte entdecken',
+          ),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
             onPressed: locating ? null : _locate,
             icon: locating
                 ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
-            )
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.my_location),
           ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: EventService.getEvents(),
+        stream: _events,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(
-              child: Text('Etkinlikler yüklenemedi.'),
+            return Center(
+              child: Text(
+                _mapText(
+                  context,
+                  tr: 'Etkinlikler yüklenemedi.',
+                  en: 'Events could not be loaded.',
+                  de: 'Veranstaltungen konnten nicht geladen werden.',
+                ),
+              ),
             );
           }
 
-          final allDocs = snapshot.data?.docs ??
+          final allDocs =
+              snapshot.data?.docs ??
               const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
           final docs = allDocs
@@ -151,10 +194,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
 
           final center = userPosition == null
               ? _center(docs)
-              : LatLng(
-            userPosition!.latitude,
-            userPosition!.longitude,
-          );
+              : LatLng(userPosition!.latitude, userPosition!.longitude);
 
           return Stack(
             children: [
@@ -169,9 +209,9 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                 children: [
                   TileLayer(
                     urlTemplate:
-                    'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.dorduncu.app',
-                    maxNativeZoom: 20,
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.dortapp.dort',
+                    maxNativeZoom: 19,
                   ),
                   if (userPosition != null)
                     MarkerLayer(
@@ -186,10 +226,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.blue,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 3,
-                              ),
+                              border: Border.all(color: Colors.white, width: 3),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -198,50 +235,19 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                     ),
                   MarkerLayer(
                     markers: docs.map((doc) {
-                      final data = doc.data();
-                      final point = _point(data);
-                      final game =
-                          data['oyun']?.toString() ?? '';
+                      final HomeListedEvent event =
+                          HomeListedEvent.fromDocument(doc);
+                      final point = _point(doc.data());
 
                       return Marker(
                         point: point,
-                        width: 68,
-                        height: 72,
+                        width: 46,
+                        height: 46,
+                        alignment: Alignment.center,
                         child: GestureDetector(
-                          onTap: () => _preview(doc.id, data),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(9),
-                                decoration: BoxDecoration(
-                                  color: _color(game),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black26,
-                                      blurRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  _emoji(game),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                Icons.arrow_drop_down,
-                                color: _color(game),
-                                size: 16,
-                              ),
-                            ],
+                          onTap: () => _preview(event),
+                          child: HomeEventPhotoMarker(
+                            assetPath: event.imageAsset,
                           ),
                         ),
                       );
@@ -258,26 +264,25 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                   child: Column(
                     children: [
                       Container(
-                        height: 48,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                        ),
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surface
-                              .withValues(alpha: 0.95),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0.95),
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: categories.length,
-                          separatorBuilder: (_, _) =>
-                          const SizedBox(width: 6),
+                          separatorBuilder: (_, _) => const SizedBox(width: 6),
                           itemBuilder: (_, index) {
                             final value = categories[index];
 
                             return ChoiceChip(
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
                               label: Text(value),
                               selected: category == value,
                               onSelected: (_) {
@@ -289,42 +294,42 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Container(
-                        height: 46,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                        ),
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surface
-                              .withValues(alpha: 0.95),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withValues(alpha: 0.95),
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: ListView(
                           scrollDirection: Axis.horizontal,
                           children: [0, 3, 5, 10, 25].map((value) {
                             return Padding(
-                              padding: const EdgeInsets.only(
-                                right: 6,
-                              ),
+                              padding: const EdgeInsets.only(right: 6),
                               child: ChoiceChip(
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
                                 label: Text(
                                   value == 0
-                                      ? 'Tüm şehir'
+                                      ? _mapText(
+                                          context,
+                                          tr: 'Tüm şehir',
+                                          en: 'Entire city',
+                                          de: 'Ganze Stadt',
+                                        )
                                       : '$value km',
                                 ),
-                                selected:
-                                radiusKm == value.toDouble(),
+                                selected: radiusKm == value.toDouble(),
                                 onSelected: (_) {
                                   setState(() {
-                                    radiusKm =
-                                        value.toDouble();
+                                    radiusKm = value.toDouble();
                                   });
 
-                                  if (value > 0 &&
-                                      userPosition == null) {
+                                  if (value > 0 && userPosition == null) {
                                     _locate();
                                   }
                                 },
@@ -343,13 +348,8 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                 child: SafeArea(
                   top: false,
                   child: Chip(
-                    avatar: const Icon(
-                      Icons.place,
-                      size: 18,
-                    ),
-                    label: Text(
-                      '${docs.length} etkinlik',
-                    ),
+                    avatar: const Icon(Icons.place, size: 18),
+                    label: Text('${docs.length} etkinlik'),
                   ),
                 ),
               ),
@@ -360,17 +360,13 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     );
   }
 
-  bool _hasValidCoordinates(
-      QueryDocumentSnapshot<Map<String, dynamic>> doc,
-      ) {
+  bool _hasValidCoordinates(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final point = _point(doc.data());
 
     return point.latitude != 0 && point.longitude != 0;
   }
 
-  bool _matches(
-      QueryDocumentSnapshot<Map<String, dynamic>> doc,
-      ) {
+  bool _matches(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final game = data['oyun']?.toString() ?? '';
 
@@ -378,7 +374,8 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     if (status != 'aktif') return false;
 
     final timestamp = data['tarih'];
-    if (timestamp is! Timestamp || !timestamp.toDate().isAfter(DateTime.now())) {
+    if (timestamp is! Timestamp ||
+        !timestamp.toDate().isAfter(DateTime.now())) {
       return false;
     }
 
@@ -394,7 +391,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     final eventCity = _normalize(data['sehir']?.toString() ?? '');
     if (selectedCity.isNotEmpty && eventCity != selectedCity) return false;
 
-    if (category != 'Tümü') {
+    if (category != _mapText(context, tr: 'Tümü', en: 'All', de: 'Alle')) {
       final selectedCategory = _normalize(_clean(category));
       final eventGame = _normalize(_clean(game));
 
@@ -426,82 +423,16 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
         .trim();
   }
 
-  void _preview(
-      String id,
-      Map<String, dynamic> data,
-      ) {
-    final game = data['oyun']?.toString() ?? 'Etkinlik';
-    final district = data['ilce']?.toString().trim() ?? '';
-    final city = data['sehir']?.toString().trim() ?? '';
-    final cityLine = [
-      district,
-      city,
-    ].where((value) => value.isNotEmpty).join(', ');
-
-    // Harita önizlemesinde yalnızca genel konum gösterilir.
-    final locationText = cityLine;
-
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              0,
-              20,
-              24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _clean(game),
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                if (locationText.isNotEmpty)
-                  Text(
-                    '📍 $locationText',
-                    textAlign: TextAlign.center,
-                  ),
-                if (locationText.isEmpty)
-                  const Text(
-                    'Konum bilgisi belirtilmedi',
-                    textAlign: TextAlign.center,
-                  ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => EventDetailScreen(
-                            eventId: id,
-                            initialData: data,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'Etkinlik detayını aç',
-                    ),
-                  ),
-                ),
-              ],
-            ),
+  void _preview(HomeListedEvent event) {
+    showHomeEventPreview(
+      context,
+      event,
+      onOpenDetail: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                EventDetailScreen(eventId: event.id, initialData: event.source),
           ),
         );
       },
@@ -511,12 +442,12 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
   LatLng _point(Map<String, dynamic> data) {
     final double latitude =
         (data['approxLatitude'] as num?)?.toDouble() ??
-            (data['latitude'] as num?)?.toDouble() ??
-            0.0;
+        (data['latitude'] as num?)?.toDouble() ??
+        0.0;
     final double longitude =
         (data['approxLongitude'] as num?)?.toDouble() ??
-            (data['longitude'] as num?)?.toDouble() ??
-            0.0;
+        (data['longitude'] as num?)?.toDouble() ??
+        0.0;
 
     if (latitude == 0 || longitude == 0) {
       return const LatLng(0, 0);
@@ -525,15 +456,10 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     return LatLng(latitude, longitude);
   }
 
-  LatLng _center(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-      ) {
+  LatLng _center(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
     final validPoints = docs
         .map((doc) => _point(doc.data()))
-        .where(
-          (point) =>
-      point.latitude != 0 && point.longitude != 0,
-    )
+        .where((point) => point.latitude != 0 && point.longitude != 0)
         .toList();
 
     if (validPoints.isEmpty) {
@@ -541,61 +467,17 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     }
 
     final latitudeAverage =
-        validPoints.map((point) => point.latitude).reduce(
-              (a, b) => a + b,
-        ) /
-            validPoints.length;
+        validPoints.map((point) => point.latitude).reduce((a, b) => a + b) /
+        validPoints.length;
 
     final longitudeAverage =
-        validPoints.map((point) => point.longitude).reduce(
-              (a, b) => a + b,
-        ) /
-            validPoints.length;
+        validPoints.map((point) => point.longitude).reduce((a, b) => a + b) /
+        validPoints.length;
 
-    return LatLng(
-      latitudeAverage,
-      longitudeAverage,
-    );
-  }
-
-  String _emoji(String value) {
-    final trimmed = value.trim();
-
-    return trimmed.isEmpty
-        ? '🎯'
-        : trimmed.split(' ').first;
+    return LatLng(latitudeAverage, longitudeAverage);
   }
 
   String _clean(String value) {
-    return value.replaceFirst(
-      RegExp(r'^[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+\s*'),
-      '',
-    );
-  }
-
-  Color _color(String value) {
-    final normalized = value.toLowerCase();
-
-    if (normalized.contains('futbol')) {
-      return Colors.green;
-    }
-
-    if (normalized.contains('basket')) {
-      return Colors.orange;
-    }
-
-    if (normalized.contains('tenis')) {
-      return Colors.blue;
-    }
-
-    if (normalized.contains('batak')) {
-      return const Color(0xff111827);
-    }
-
-    if (normalized.contains('voley')) {
-      return Colors.purple;
-    }
-
-    return const Color(0xffFF9800);
+    return value.replaceFirst(RegExp(r'^[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+\s*'), '');
   }
 }

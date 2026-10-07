@@ -6,13 +6,14 @@ import '../services/notification_service.dart';
 import 'event_chat_screen.dart';
 import 'event_detail_screen.dart';
 import 'public_profile_screen.dart';
+import 'friend_requests_screen.dart';
 
 String _notificationText(
-    BuildContext context, {
-      required String tr,
-      required String en,
-      required String de,
-    }) {
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
   switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
     case 'en':
       return en;
@@ -61,21 +62,12 @@ String _filterText(BuildContext context, String filter) {
         de: 'Konto',
       );
     default:
-      return _notificationText(
-        context,
-        tr: 'Tümü',
-        en: 'All',
-        de: 'Alle',
-      );
+      return _notificationText(context, tr: 'Tümü', en: 'All', de: 'Alle');
   }
 }
 
-String _notificationTypeText(
-    BuildContext context,
-    NotificationType type,
-    ) {
+String _notificationTypeText(BuildContext context, NotificationType type) {
   switch (type) {
-
     case NotificationType.application:
       return _notificationText(
         context,
@@ -178,24 +170,19 @@ String _notificationTypeText(
   }
 }
 
-class NotificationCenterScreen
-    extends StatefulWidget {
-  const NotificationCenterScreen({
-    super.key,
-  });
+class NotificationCenterScreen extends StatefulWidget {
+  const NotificationCenterScreen({super.key});
 
   @override
   State<NotificationCenterScreen> createState() =>
       _NotificationCenterScreenState();
 }
 
-class _NotificationCenterScreenState
-    extends State<NotificationCenterScreen> {
+class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   String _selectedFilter = 'Tümü';
   bool _actionBusy = false;
 
-  static const List<String> _filters =
-  <String>[
+  static const List<String> _filters = <String>[
     'Tümü',
     'Okunmamış',
     'Etkinlik',
@@ -214,8 +201,7 @@ class _NotificationCenterScreenState
     });
 
     try {
-      final int updatedCount =
-      await NotificationService.markAllRead();
+      final int updatedCount = await NotificationService.markAllRead();
 
       if (!mounted) {
         return;
@@ -240,8 +226,7 @@ class _NotificationCenterScreenState
           ),
         );
       }
-    } on NotificationServiceException
-    catch (error) {
+    } on NotificationServiceException catch (error) {
       _showMessage(error.message);
     } catch (_) {
       _showMessage(
@@ -269,9 +254,7 @@ class _NotificationCenterScreenState
     final bool confirmed =
         await showDialog<bool>(
           context: context,
-          builder: (
-              BuildContext dialogContext,
-              ) {
+          builder: (BuildContext dialogContext) {
             return AlertDialog(
               title: Text(
                 _notificationText(
@@ -292,10 +275,7 @@ class _NotificationCenterScreenState
               actions: <Widget>[
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                      false,
-                    );
+                    Navigator.pop(dialogContext, false);
                   },
                   child: Text(
                     _notificationText(
@@ -308,10 +288,7 @@ class _NotificationCenterScreenState
                 ),
                 FilledButton(
                   onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                      true,
-                    );
+                    Navigator.pop(dialogContext, true);
                   },
                   child: Text(
                     _notificationText(
@@ -326,7 +303,7 @@ class _NotificationCenterScreenState
             );
           },
         ) ??
-            false;
+        false;
 
     if (!confirmed) {
       return;
@@ -341,8 +318,7 @@ class _NotificationCenterScreenState
     });
 
     try {
-      final int deletedCount =
-      await NotificationService.deleteAll();
+      final int deletedCount = await NotificationService.deleteAll();
 
       if (!mounted) {
         return;
@@ -367,8 +343,7 @@ class _NotificationCenterScreenState
           ),
         );
       }
-    } on NotificationServiceException
-    catch (error) {
+    } on NotificationServiceException catch (error) {
       _showMessage(error.message);
     } catch (_) {
       if (!mounted) {
@@ -391,20 +366,16 @@ class _NotificationCenterScreenState
     }
   }
 
-  Future<void> _deleteNotification(
-      AppNotification notification,
-      ) async {
+  Future<void> _deleteNotification(AppNotification notification) async {
     try {
-      await NotificationService
-          .deleteNotification(
+      await NotificationService.deleteNotification(
         notificationId: notification.id,
       );
 
       if (!mounted) {
         return;
       }
-    } on NotificationServiceException
-    catch (error) {
+    } on NotificationServiceException catch (error) {
       _showMessage(error.message);
     } catch (_) {
       if (!mounted) {
@@ -422,25 +393,18 @@ class _NotificationCenterScreenState
     }
   }
 
-  Future<void> _toggleRead(
-      AppNotification notification,
-      ) async {
+  Future<void> _toggleRead(AppNotification notification) async {
     try {
       if (notification.isRead) {
-        await NotificationService.markUnread(
-          notificationId: notification.id,
-        );
+        await NotificationService.markUnread(notificationId: notification.id);
       } else {
-        await NotificationService.markRead(
-          notificationId: notification.id,
-        );
+        await NotificationService.markRead(notificationId: notification.id);
       }
 
       if (!mounted) {
         return;
       }
-    } on NotificationServiceException
-    catch (error) {
+    } on NotificationServiceException catch (error) {
       _showMessage(error.message);
     } catch (_) {
       _showMessage(
@@ -454,14 +418,10 @@ class _NotificationCenterScreenState
     }
   }
 
-  Future<void> _openNotification(
-      AppNotification notification,
-      ) async {
+  Future<void> _openNotification(AppNotification notification) async {
     if (!notification.isRead) {
       try {
-        await NotificationService.markRead(
-          notificationId: notification.id,
-        );
+        await NotificationService.markRead(notificationId: notification.id);
       } catch (_) {
         // Okundu işlemi başarısız olsa da
         // bildirimin hedefi açılabilir.
@@ -472,40 +432,42 @@ class _NotificationCenterScreenState
       return;
     }
 
-    if ((notification.type == NotificationType.friendRequest ||
-        notification.type == NotificationType.friendAccepted) &&
+    if (notification.type == NotificationType.friendRequest) {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const FriendRequestsScreen()),
+      );
+
+      return;
+    }
+
+    if (notification.type == NotificationType.friendAccepted &&
         notification.senderUid.isNotEmpty) {
       await Navigator.push<void>(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => PublicProfileScreen(
-            userId: notification.senderUid,
-          ),
+          builder: (_) => PublicProfileScreen(userId: notification.senderUid),
         ),
       );
 
       return;
     }
-    if (notification.type ==
-        NotificationType.message &&
+    if (notification.type == NotificationType.message &&
         notification.eventId.isNotEmpty) {
-      final String title =
-      notification.eventTitle.isEmpty
+      final String title = notification.eventTitle.isEmpty
           ? _notificationText(
-        context,
-        tr: 'Etkinlik Sohbeti',
-        en: 'Event Chat',
-        de: 'Veranstaltungs-Chat',
-      )
+              context,
+              tr: 'Etkinlik Sohbeti',
+              en: 'Event Chat',
+              de: 'Veranstaltungs-Chat',
+            )
           : notification.eventTitle;
 
       await Navigator.push<void>(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => EventChatScreen(
-            eventId: notification.eventId,
-            eventTitle: title,
-          ),
+          builder: (_) =>
+              EventChatScreen(eventId: notification.eventId, eventTitle: title),
         ),
       );
 
@@ -513,35 +475,26 @@ class _NotificationCenterScreenState
     }
 
     if (notification.eventId.isNotEmpty) {
-      await _openEvent(
-        notification.eventId,
-      );
+      await _openEvent(notification.eventId);
       return;
     }
 
-    _showNotificationDetails(
-      notification,
-    );
+    _showNotificationDetails(notification);
   }
 
-  Future<void> _openEvent(
-      String eventId,
-      ) async {
+  Future<void> _openEvent(String eventId) async {
     try {
-      final DocumentSnapshot<
-          Map<String, dynamic>>
-      snapshot = await FirebaseFirestore
-          .instance
-          .collection('events')
-          .doc(eventId)
-          .get();
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance
+              .collection('events')
+              .doc(eventId)
+              .get(const GetOptions(source: Source.server));
 
       if (!mounted) {
         return;
       }
 
-      final Map<String, dynamic>? data =
-      snapshot.data();
+      final Map<String, dynamic>? data = snapshot.data();
 
       if (!snapshot.exists || data == null) {
         _showMessage(
@@ -558,10 +511,8 @@ class _NotificationCenterScreenState
       await Navigator.push<void>(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => EventDetailScreen(
-            eventId: eventId,
-            initialData: data,
-          ),
+          builder: (_) =>
+              EventDetailScreen(eventId: eventId, initialData: data),
         ),
       );
     } on FirebaseException catch (error) {
@@ -593,53 +544,28 @@ class _NotificationCenterScreenState
     }
   }
 
-  void _showNotificationDetails(
-      AppNotification notification,
-      ) {
+  void _showNotificationDetails(AppNotification notification) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (
-          BuildContext sheetContext,
-          ) {
+      builder: (BuildContext sheetContext) {
         return SafeArea(
           child: Padding(
-            padding:
-            const EdgeInsets.fromLTRB(
-              22,
-              4,
-              22,
-              24,
-            ),
+            padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
             child: Column(
-              mainAxisSize:
-              MainAxisSize.min,
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    CircleAvatar(
-                      child: Icon(
-                        _iconForType(
-                          notification.type,
-                        ),
-                      ),
-                    ),
+                    CircleAvatar(child: Icon(_iconForType(notification.type))),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         notification.title,
-                        style: Theme.of(
-                          sheetContext,
-                        )
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(
-                          fontWeight:
-                          FontWeight.w900,
-                        ),
+                        style: Theme.of(sheetContext).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                     ),
                   ],
@@ -647,20 +573,13 @@ class _NotificationCenterScreenState
                 const SizedBox(height: 16),
                 Text(
                   notification.body,
-                  style: Theme.of(
-                    sheetContext,
-                  ).textTheme.bodyLarge,
+                  style: Theme.of(sheetContext).textTheme.bodyLarge,
                 ),
-                if (notification.createdAt !=
-                    null) ...<Widget>[
+                if (notification.createdAt != null) ...<Widget>[
                   const SizedBox(height: 14),
                   Text(
-                    _fullDateText(
-                      notification.createdAt!,
-                    ),
-                    style: Theme.of(
-                      sheetContext,
-                    ).textTheme.bodySmall,
+                    _fullDateText(notification.createdAt!),
+                    style: Theme.of(sheetContext).textTheme.bodySmall,
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -668,9 +587,7 @@ class _NotificationCenterScreenState
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () {
-                      Navigator.pop(
-                        sheetContext,
-                      );
+                      Navigator.pop(sheetContext);
                     },
                     child: Text(
                       _notificationText(
@@ -690,50 +607,31 @@ class _NotificationCenterScreenState
     );
   }
 
-  bool _matchesFilter(
-      AppNotification notification,
-      ) {
+  bool _matchesFilter(AppNotification notification) {
     switch (_selectedFilter) {
       case 'Okunmamış':
         return !notification.isRead;
       case 'Etkinlik':
-        return notification.type ==
-            NotificationType.application ||
-            notification.type ==
-                NotificationType
-                    .applicationAccepted ||
-            notification.type ==
-                NotificationType
-                    .applicationRejected ||
-            notification.type ==
-                NotificationType
-                    .eventCancelled ||
-            notification.type ==
-                NotificationType.eventUpdated ||
-            notification.type ==
-                NotificationType
-                    .eventReminder;
+        return notification.type == NotificationType.application ||
+            notification.type == NotificationType.applicationAccepted ||
+            notification.type == NotificationType.applicationRejected ||
+            notification.type == NotificationType.eventCancelled ||
+            notification.type == NotificationType.eventUpdated ||
+            notification.type == NotificationType.eventReminder;
       case 'Mesaj':
-        return notification.type ==
-            NotificationType.message;
+        return notification.type == NotificationType.message;
       case 'Ödeme':
-        return notification.type ==
-            NotificationType.payment ||
-            notification.type ==
-                NotificationType.refund;
+        return notification.type == NotificationType.payment ||
+            notification.type == NotificationType.refund;
       case 'Hesap':
-        return notification.type ==
-            NotificationType.verification ||
-            notification.type ==
-                NotificationType.system;
+        return notification.type == NotificationType.verification ||
+            notification.type == NotificationType.system;
       default:
         return true;
     }
   }
 
-  void _showMessage(
-      String text,
-      ) {
+  void _showMessage(String text) {
     if (!mounted) {
       return;
     }
@@ -741,18 +639,13 @@ class _NotificationCenterScreenState
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(text),
-          behavior:
-          SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
       );
   }
 
   @override
   Widget build(BuildContext context) {
-    final User? user =
-        FirebaseAuth.instance.currentUser;
+    final User? user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return Scaffold(
@@ -767,9 +660,7 @@ class _NotificationCenterScreenState
                 de: 'Du musst dich anmelden, um Benachrichtigungen zu sehen.',
               ),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ),
@@ -789,19 +680,14 @@ class _NotificationCenterScreenState
         centerTitle: true,
         actions: <Widget>[
           IconButton(
-            tooltip:
-            _notificationText(
+            tooltip: _notificationText(
               context,
               tr: 'Tümünü okundu yap',
               en: 'Mark all as read',
               de: 'Alle als gelesen markieren',
             ),
-            onPressed: _actionBusy
-                ? null
-                : _markAllRead,
-            icon: const Icon(
-              Icons.done_all_rounded,
-            ),
+            onPressed: _actionBusy ? null : _markAllRead,
+            icon: const Icon(Icons.done_all_rounded),
           ),
           PopupMenuButton<String>(
             tooltip: _notificationText(
@@ -811,27 +697,18 @@ class _NotificationCenterScreenState
               de: 'Benachrichtigungsoptionen',
             ),
             enabled: !_actionBusy,
-            onSelected: (
-                String value,
-                ) {
+            onSelected: (String value) {
               if (value == 'clear') {
                 _clearNotifications();
               }
             },
-            itemBuilder: (
-                BuildContext context,
-                ) {
-              return <
-                  PopupMenuEntry<String>>[
+            itemBuilder: (BuildContext context) {
+              return <PopupMenuEntry<String>>[
                 PopupMenuItem<String>(
                   value: 'clear',
                   child: ListTile(
-                    contentPadding:
-                    EdgeInsets.zero,
-                    leading: Icon(
-                      Icons
-                          .delete_sweep_outlined,
-                    ),
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.delete_sweep_outlined),
                     title: Text(
                       _notificationText(
                         context,
@@ -849,51 +726,29 @@ class _NotificationCenterScreenState
       ),
       body: Column(
         children: <Widget>[
-          if (_actionBusy)
-            const LinearProgressIndicator(),
+          if (_actionBusy) const LinearProgressIndicator(),
           SizedBox(
             height: 58,
             child: ListView.separated(
-              padding:
-              const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 8,
-              ),
-              scrollDirection:
-              Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              scrollDirection: Axis.horizontal,
               itemCount: _filters.length,
-              separatorBuilder: (
-                  BuildContext context,
-                  int index,
-                  ) {
-                return const SizedBox(
-                  width: 8,
-                );
+              separatorBuilder: (BuildContext context, int index) {
+                return const SizedBox(width: 8);
               },
-              itemBuilder: (
-                  BuildContext context,
-                  int index,
-                  ) {
-                final String filter =
-                _filters[index];
+              itemBuilder: (BuildContext context, int index) {
+                final String filter = _filters[index];
 
                 return ChoiceChip(
-                  label: Text(
-                    _filterText(context, filter),
-                  ),
-                  selected:
-                  _selectedFilter ==
-                      filter,
-                  onSelected: (
-                      bool selected,
-                      ) {
+                  label: Text(_filterText(context, filter)),
+                  selected: _selectedFilter == filter,
+                  onSelected: (bool selected) {
                     if (!selected) {
                       return;
                     }
 
                     setState(() {
-                      _selectedFilter =
-                          filter;
+                      _selectedFilter = filter;
                     });
                   },
                 );
@@ -901,147 +756,82 @@ class _NotificationCenterScreenState
             ),
           ),
           Expanded(
-            child: StreamBuilder<
-                List<AppNotification>>(
-              stream: NotificationService
-                  .watchNotifications(
-                limit: 150,
-              ),
-              builder: (
-                  BuildContext context,
-                  AsyncSnapshot<
-                      List<AppNotification>>
-                  snapshot,
-                  ) {
+            child: StreamBuilder<List<AppNotification>>(
+              stream: NotificationService.watchNotifications(limit: 150),
+              builder: (BuildContext context, AsyncSnapshot<List<AppNotification>> snapshot) {
                 if (snapshot.hasError) {
                   final Object error =
                       snapshot.error ??
-                          _notificationText(
-                            context,
-                            tr: 'Bilinmeyen hata',
-                            en: 'Unknown error',
-                            de: 'Unbekannter Fehler',
-                          );
+                      _notificationText(
+                        context,
+                        tr: 'Bilinmeyen hata',
+                        en: 'Unknown error',
+                        de: 'Unbekannter Fehler',
+                      );
 
                   return _ErrorState(
-                    message: error
-                    is NotificationServiceException
+                    message: error is NotificationServiceException
                         ? error.message
                         : _notificationText(
-                      context,
-                      tr: 'Bildirimler yüklenemedi.',
-                      en: 'Notifications could not be loaded.',
-                      de: 'Benachrichtigungen konnten nicht geladen werden.',
-                    ),
+                            context,
+                            tr: 'Bildirimler yüklenemedi.',
+                            en: 'Notifications could not be loaded.',
+                            de: 'Benachrichtigungen konnten nicht geladen werden.',
+                          ),
                   );
                 }
 
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting &&
+                if (snapshot.connectionState == ConnectionState.waiting &&
                     !snapshot.hasData) {
-                  return const Center(
-                    child:
-                    CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
 
-                final List<AppNotification>
-                notifications =
-                (snapshot.data ??
-                    <AppNotification>[])
-                    .where(_matchesFilter)
-                    .toList(
-                  growable: false,
-                );
+                final List<AppNotification> notifications =
+                    (snapshot.data ?? <AppNotification>[])
+                        .where(_matchesFilter)
+                        .toList(growable: false);
 
                 if (notifications.isEmpty) {
-                  return _EmptyState(
-                    filtered:
-                    _selectedFilter !=
-                        'Tümü',
-                  );
+                  return _EmptyState(filtered: _selectedFilter != 'Tümü');
                 }
 
                 return RefreshIndicator(
                   onRefresh: () async {
                     await Future<void>.delayed(
-                      const Duration(
-                        milliseconds: 350,
-                      ),
+                      const Duration(milliseconds: 350),
                     );
                   },
                   child: ListView.separated(
-                    physics:
-                    const AlwaysScrollableScrollPhysics(),
-                    padding:
-                    const EdgeInsets.fromLTRB(
-                      14,
-                      4,
-                      14,
-                      18,
-                    ),
-                    itemCount:
-                    notifications.length,
-                    separatorBuilder: (
-                        BuildContext context,
-                        int index,
-                        ) {
-                      return const SizedBox(
-                        height: 8,
-                      );
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
+                    itemCount: notifications.length,
+                    separatorBuilder: (BuildContext context, int index) {
+                      return const SizedBox(height: 8);
                     },
-                    itemBuilder: (
-                        BuildContext context,
-                        int index,
-                        ) {
-                      final AppNotification
-                      notification =
-                      notifications[index];
+                    itemBuilder: (BuildContext context, int index) {
+                      final AppNotification notification = notifications[index];
 
                       return Dismissible(
-                        key: ValueKey<String>(
-                          notification.id,
-                        ),
-                        direction:
-                        DismissDirection
-                            .endToStart,
+                        key: ValueKey<String>(notification.id),
+                        direction: DismissDirection.endToStart,
                         background: Container(
-                          alignment:
-                          Alignment.centerRight,
-                          padding:
-                          const EdgeInsets.only(
-                            right: 22,
-                          ),
-                          decoration:
-                          BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            )
-                                .colorScheme
-                                .errorContainer,
-                            borderRadius:
-                            BorderRadius
-                                .circular(14),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 22),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Icon(
-                            Icons
-                                .delete_outline_rounded,
+                            Icons.delete_outline_rounded,
                             color: Theme.of(
                               context,
-                            )
-                                .colorScheme
-                                .onErrorContainer,
+                            ).colorScheme.onErrorContainer,
                           ),
                         ),
-                        confirmDismiss:
-                            (_) async {
-                          return await showDialog<
-                              bool>(
+                        confirmDismiss: (_) async {
+                          return await showDialog<bool>(
                             context: context,
-                            builder: (
-                                BuildContext
-                                dialogContext,
-                                ) {
+                            builder: (BuildContext dialogContext) {
                               return AlertDialog(
                                 title: Text(
                                   _notificationText(
@@ -1059,15 +849,10 @@ class _NotificationCenterScreenState
                                     de: 'Diese Benachrichtigung wird dauerhaft gelöscht.',
                                   ),
                                 ),
-                                actions: <
-                                    Widget>[
+                                actions: <Widget>[
                                   TextButton(
-                                    onPressed:
-                                        () {
-                                      Navigator.pop(
-                                        dialogContext,
-                                        false,
-                                      );
+                                    onPressed: () {
+                                      Navigator.pop(dialogContext, false);
                                     },
                                     child: Text(
                                       _notificationText(
@@ -1079,12 +864,8 @@ class _NotificationCenterScreenState
                                     ),
                                   ),
                                   FilledButton(
-                                    onPressed:
-                                        () {
-                                      Navigator.pop(
-                                        dialogContext,
-                                        true,
-                                      );
+                                    onPressed: () {
+                                      Navigator.pop(dialogContext, true);
                                     },
                                     child: Text(
                                       _notificationText(
@@ -1101,23 +882,15 @@ class _NotificationCenterScreenState
                           );
                         },
                         onDismissed: (_) {
-                          _deleteNotification(
-                            notification,
-                          );
+                          _deleteNotification(notification);
                         },
-                        child:
-                        _NotificationCard(
-                          notification:
-                          notification,
+                        child: _NotificationCard(
+                          notification: notification,
                           onTap: () {
-                            _openNotification(
-                              notification,
-                            );
+                            _openNotification(notification);
                           },
                           onReadToggle: () {
-                            _toggleRead(
-                              notification,
-                            );
+                            _toggleRead(notification);
                           },
                         ),
                       );
@@ -1133,8 +906,7 @@ class _NotificationCenterScreenState
   }
 }
 
-class _NotificationCard
-    extends StatelessWidget {
+class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
     required this.notification,
     required this.onTap,
@@ -1147,37 +919,23 @@ class _NotificationCard
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors =
-        Theme.of(context).colorScheme;
+    final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Card(
-      color: notification.isRead
-          ? null
-          : colors.primaryContainer,
+      color: notification.isRead ? null : colors.primaryContainer,
       child: InkWell(
-        borderRadius:
-        BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding:
-          const EdgeInsets.fromLTRB(
-            12,
-            12,
-            6,
-            12,
-          ),
+          padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
           child: Row(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              _NotificationAvatar(
-                notification: notification,
-              ),
+              _NotificationAvatar(notification: notification),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Row(
                       children: <Widget>[
@@ -1185,54 +943,34 @@ class _NotificationCard
                           child: Text(
                             notification.title,
                             maxLines: 2,
-                            overflow:
-                            TextOverflow
-                                .ellipsis,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontWeight:
-                              notification
-                                  .isRead
-                                  ? FontWeight
-                                  .w700
-                                  : FontWeight
-                                  .w900,
+                              fontWeight: notification.isRead
+                                  ? FontWeight.w700
+                                  : FontWeight.w900,
                             ),
                           ),
                         ),
-                        if (!notification
-                            .isRead)
+                        if (!notification.isRead)
                           Container(
                             width: 9,
                             height: 9,
-                            margin:
-                            const EdgeInsets
-                                .only(
-                              left: 8,
-                            ),
-                            decoration:
-                            const BoxDecoration(
-                              color: Color(
-                                0xffFF9800,
-                              ),
-                              shape:
-                              BoxShape.circle,
+                            margin: const EdgeInsets.only(left: 8),
+                            decoration: const BoxDecoration(
+                              color: Color(0xffFF9800),
+                              shape: BoxShape.circle,
                             ),
                           ),
                       ],
                     ),
-                    if (notification
-                        .body.isNotEmpty) ...<
-                        Widget>[
+                    if (notification.body.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 5),
                       Text(
                         notification.body,
                         maxLines: 3,
-                        overflow:
-                        TextOverflow
-                            .ellipsis,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: colors
-                              .onSurfaceVariant,
+                          color: colors.onSurfaceVariant,
                           height: 1.35,
                         ),
                       ),
@@ -1241,30 +979,20 @@ class _NotificationCard
                     Row(
                       children: <Widget>[
                         Text(
-                          _timeText(
-                            context,
-                            notification.createdAt,
-                          ),
+                          _timeText(context, notification.createdAt),
                           style: TextStyle(
-                            color: colors
-                                .onSurfaceVariant,
+                            color: colors.onSurfaceVariant,
                             fontSize: 11,
-                            fontWeight:
-                            FontWeight.w600,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const Spacer(),
                         Text(
-                          _notificationTypeText(
-                            context,
-                            notification.type,
-                          ),
+                          _notificationTypeText(context, notification.type),
                           style: TextStyle(
-                            color:
-                            colors.primary,
+                            color: colors.primary,
                             fontSize: 11,
-                            fontWeight:
-                            FontWeight.w800,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
@@ -1275,24 +1003,22 @@ class _NotificationCard
               IconButton(
                 tooltip: notification.isRead
                     ? _notificationText(
-                  context,
-                  tr: 'Okunmamış yap',
-                  en: 'Mark as unread',
-                  de: 'Als ungelesen markieren',
-                )
+                        context,
+                        tr: 'Okunmamış yap',
+                        en: 'Mark as unread',
+                        de: 'Als ungelesen markieren',
+                      )
                     : _notificationText(
-                  context,
-                  tr: 'Okundu yap',
-                  en: 'Mark as read',
-                  de: 'Als gelesen markieren',
-                ),
+                        context,
+                        tr: 'Okundu yap',
+                        en: 'Mark as read',
+                        de: 'Als gelesen markieren',
+                      ),
                 onPressed: onReadToggle,
                 icon: Icon(
                   notification.isRead
-                      ? Icons
-                      .mark_email_unread_outlined
-                      : Icons
-                      .done_all_rounded,
+                      ? Icons.mark_email_unread_outlined
+                      : Icons.done_all_rounded,
                   size: 21,
                 ),
               ),
@@ -1304,39 +1030,25 @@ class _NotificationCard
   }
 }
 
-class _NotificationAvatar
-    extends StatelessWidget {
-  const _NotificationAvatar({
-    required this.notification,
-  });
+class _NotificationAvatar extends StatelessWidget {
+  const _NotificationAvatar({required this.notification});
 
   final AppNotification notification;
 
   @override
   Widget build(BuildContext context) {
-    final String photoUrl =
-        notification.senderPhotoUrl;
+    final String photoUrl = notification.senderPhotoUrl;
 
     return CircleAvatar(
       radius: 24,
-      backgroundImage: photoUrl.isEmpty
-          ? null
-          : NetworkImage(photoUrl),
-      child: photoUrl.isEmpty
-          ? Icon(
-        _iconForType(
-          notification.type,
-        ),
-      )
-          : null,
+      backgroundImage: photoUrl.isEmpty ? null : NetworkImage(photoUrl),
+      child: photoUrl.isEmpty ? Icon(_iconForType(notification.type)) : null,
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.filtered,
-  });
+  const _EmptyState({required this.filtered});
 
   final bool filtered;
 
@@ -1353,64 +1065,53 @@ class _EmptyState extends StatelessWidget {
               height: 84,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .secondaryContainer,
+                color: Theme.of(context).colorScheme.secondaryContainer,
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons
-                    .notifications_none_rounded,
+                Icons.notifications_none_rounded,
                 size: 42,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSecondaryContainer,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               filtered
                   ? _notificationText(
-                context,
-                tr: 'Bu filtrede bildirim yok',
-                en: 'No notifications in this filter',
-                de: 'Keine Benachrichtigungen in diesem Filter',
-              )
+                      context,
+                      tr: 'Bu filtrede bildirim yok',
+                      en: 'No notifications in this filter',
+                      de: 'Keine Benachrichtigungen in diesem Filter',
+                    )
                   : _notificationText(
-                context,
-                tr: 'Henüz bildirimin yok',
-                en: 'You have no notifications yet',
-                de: 'Du hast noch keine Benachrichtigungen',
-              ),
+                      context,
+                      tr: 'Henüz bildirimin yok',
+                      en: 'You have no notifications yet',
+                      de: 'Du hast noch keine Benachrichtigungen',
+                    ),
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(
-                fontWeight:
-                FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
               filtered
                   ? _notificationText(
-                context,
-                tr: 'Başka bir filtre seçerek bildirimlerini görüntüleyebilirsin.',
-                en: 'Select another filter to view your notifications.',
-                de: 'Wähle einen anderen Filter, um deine Benachrichtigungen anzuzeigen.',
-              )
+                      context,
+                      tr: 'Başka bir filtre seçerek bildirimlerini görüntüleyebilirsin.',
+                      en: 'Select another filter to view your notifications.',
+                      de: 'Wähle einen anderen Filter, um deine Benachrichtigungen anzuzeigen.',
+                    )
                   : _notificationText(
-                context,
-                tr: 'Etkinlik, mesaj ve hesap bildirimlerin burada görünecek.',
-                en: 'Your event, message and account notifications will appear here.',
-                de: 'Deine Veranstaltungs-, Nachrichten- und Kontobenachrichtigungen werden hier angezeigt.',
-              ),
+                      context,
+                      tr: 'Etkinlik, mesaj ve hesap bildirimlerin burada görünecek.',
+                      en: 'Your event, message and account notifications will appear here.',
+                      de: 'Deine Veranstaltungs-, Nachrichten- und Kontobenachrichtigungen werden hier angezeigt.',
+                    ),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
             ),
@@ -1422,9 +1123,7 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-  });
+  const _ErrorState({required this.message});
 
   final String message;
 
@@ -1436,18 +1135,12 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 54,
-            ),
+            const Icon(Icons.error_outline_rounded, size: 54),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                height: 1.4,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4),
             ),
           ],
         ),
@@ -1456,18 +1149,13 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-IconData _iconForType(
-    NotificationType type,
-    ) {
+IconData _iconForType(NotificationType type) {
   switch (type) {
     case NotificationType.application:
       return Icons.person_add_alt_1_rounded;
-    case NotificationType
-        .applicationAccepted:
-      return Icons
-          .check_circle_outline_rounded;
-    case NotificationType
-        .applicationRejected:
+    case NotificationType.applicationAccepted:
+      return Icons.check_circle_outline_rounded;
+    case NotificationType.applicationRejected:
       return Icons.cancel_outlined;
     case NotificationType.message:
       return Icons.chat_bubble_outline_rounded;
@@ -1495,10 +1183,7 @@ IconData _iconForType(
   }
 }
 
-String _timeText(
-    BuildContext context,
-    DateTime? date,
-    ) {
+String _timeText(BuildContext context, DateTime? date) {
   if (date == null) {
     return '';
   }
@@ -1511,12 +1196,7 @@ String _timeText(
   }
 
   if (difference.inMinutes < 1) {
-    return _notificationText(
-      context,
-      tr: 'Şimdi',
-      en: 'Now',
-      de: 'Jetzt',
-    );
+    return _notificationText(context, tr: 'Şimdi', en: 'Now', de: 'Jetzt');
   }
 
   if (difference.inMinutes < 60) {
@@ -1558,9 +1238,7 @@ String _timeText(
   return _fullDateText(date);
 }
 
-String _fullDateText(
-    DateTime date,
-    ) {
+String _fullDateText(DateTime date) {
   return '${date.day.toString().padLeft(2, '0')}.'
       '${date.month.toString().padLeft(2, '0')}.'
       '${date.year} • '

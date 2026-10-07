@@ -9,6 +9,8 @@ class PlusProductModel {
     required this.durationDays,
     required this.active,
     required this.sortOrder,
+    required this.googlePlayProductId,
+    required this.googlePlayBasePlanId,
   });
 
   final String id;
@@ -18,12 +20,13 @@ class PlusProductModel {
   final int durationDays;
   final bool active;
   final int sortOrder;
+  final String googlePlayProductId;
+  final String googlePlayBasePlanId;
 
   factory PlusProductModel.fromDocument(
-      DocumentSnapshot<Map<String, dynamic>> document,
-      ) {
-    final Map<String, dynamic> data =
-        document.data() ?? <String, dynamic>{};
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final Map<String, dynamic> data = document.data() ?? <String, dynamic>{};
 
     return PlusProductModel(
       id: document.id,
@@ -37,6 +40,9 @@ class PlusProductModel {
       durationDays: _readInt(data['durationDays']),
       active: data['active'] == true,
       sortOrder: _readInt(data['sortOrder']),
+      googlePlayProductId: data['googlePlayProductId']?.toString().trim() ?? '',
+      googlePlayBasePlanId:
+          data['googlePlayBasePlanId']?.toString().trim() ?? '',
     );
   }
 

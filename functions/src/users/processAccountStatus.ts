@@ -8,7 +8,10 @@ import {
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
-import {assertAdmin} from "../security/assertAdmin";
+import {
+  assertAdminPermission,
+  getAdminRole,
+} from "../security/adminAuthorization";
 import {writeAuditLog} from "../audit/writeAuditLog";
 
 interface ProcessAccountStatusRequest {
@@ -28,10 +31,11 @@ const ALLOWED_STATUSES = [
 export const processAccountStatus = onCall(
   {
     region: "europe-west1",
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
-    assertAdmin(request);
+    assertAdminPermission(request, "users.moderate");
+    const adminRole = getAdminRole(request);
 
     const data =
       request.data as ProcessAccountStatusRequest;
@@ -280,6 +284,7 @@ export const processAccountStatus = onCall(
         newStatus: status,
         reason,
         suspensionDays,
+        performedByRole: adminRole,
       },
     });
 

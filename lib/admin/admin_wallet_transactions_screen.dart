@@ -1,6 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminWalletTransactionsScreen extends StatelessWidget {
   const AdminWalletTransactionsScreen({
     super.key,
@@ -188,7 +205,7 @@ class _TransactionCard extends StatelessWidget {
                       _InfoLabel(
                         text: status.isEmpty
                             ? 'Durum yok'
-                            : _statusTitle(status),
+                            : _statusTitle(context, status),
                         icon: Icons.info_outline,
                       ),
                       if (createdAt != null)
@@ -289,17 +306,17 @@ class _TransactionCard extends StatelessWidget {
     }
   }
 
-  static String _statusTitle(String status) {
+  String _statusTitle(BuildContext context, String status) {
     switch (status.toLowerCase()) {
       case 'completed':
       case 'success':
-        return 'Tamamlandı';
+        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
       case 'pending':
         return 'Bekliyor';
       case 'failed':
-        return 'Başarısız';
+        return _locText(context, tr: 'Başarısız', en: 'Failed', de: 'Fehlgeschlagen');
       case 'cancelled':
-        return 'İptal edildi';
+        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
       default:
         return status;
     }
@@ -321,7 +338,7 @@ class _TransactionCard extends StatelessWidget {
     return null;
   }
 
-  static String _formatDate(DateTime value) {
+  String _formatDate(DateTime value) {
     final String day = value.day.toString().padLeft(2, '0');
     final String month = value.month.toString().padLeft(2, '0');
     final String year = value.year.toString();

@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'Dördüncü';
+  String get appName => 'Dört.';
 
   @override
   String get loading => 'Loading...';
@@ -258,7 +258,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get minimumAgeRegistrationMessage =>
-      'Only people who are at least 18 years old can register for Dördüncü.';
+      'Only people who are at least 18 years old can register for Dört.';
 
   @override
   String get profileCreated => 'Your profile was created successfully.';
@@ -667,7 +667,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountDeletionPendingDescription =>
-      'A deletion request has been created for your account. You cannot use the application until the process is complete.';
+      'A deletion request has been created for your account. You cannot use the application until the process is complete. If you cannot open the app, write to destek@dortapp.com.';
 
   @override
   String get accountDeleted => 'Account Deleted';
@@ -969,13 +969,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get legalTermsBody =>
-      'Dördüncü helps users create and join sports and gaming events. Users are responsible for the accuracy of the information they provide, their behavior at events, and compliance with applicable rules. Membership and payment terms will be presented separately before payment and wallet features are enabled.';
+      'Dört. helps people find missing players for games, sports and social activities. Creating and joining events is free. Users are responsible for the accuracy of the information they provide, their behavior at events, and compliance with applicable rules.';
 
   @override
   String get privacyPolicyBody =>
-      'Profile information, selected games, events, and in-app communications are processed to provide the service. Identity and verification documents should be used only for the verification process; access rules and retention periods must be configured separately before production. Users may request account deletion.';
+      'Profile, phone verification, event, location, messaging, notification and Google Play purchase records are processed to provide the service. Identity and verification documents are used for the verification process. An account deletion request can be made in the app or through destek@dortapp.com.';
 
   @override
   String get communityRulesBody =>
       'Be respectful. Harassment, threats, discrimination, fraud, and misleading events are prohibited. Do not apply to events you cannot attend; notify the organizer promptly if you need to cancel. Report users who pose a safety risk through the support channel.';
+
+  @override
+  String get onlinePlay => 'Play online';
+
+  @override
+  String get onlinePlayIntro =>
+      'Okey, 101, Batak and backgammon. This section appears only when the development flag is on.';
+
+  @override
+  String get playWithBots => 'Play with bots';
+
+  @override
+  String get multiplayerClosed =>
+      'Multiplayer tables are off in this build. The app does not connect them to the production database. A table cannot be created without the emulator define.';
+
+  @override
+  String get multiplayerUnverified =>
+      'The emulator define is on. A multiplayer table still does not open: a two-user session was not verified, and the client cannot write a score, dice, or hand.';
+
+  @override
+  String get yourTurnLabel => 'Your turn';
+
+  @override
+  String get botTurnLabel => 'Bot is playing';
+
+  @override
+  String get localSession => 'Local session';
+
+  @override
+  String get drawWallAction => 'Draw from the wall';
+
+  @override
+  String get takeDiscardAction => 'Take the discard';
+
+  @override
+  String get openAction => 'Open';
+
+  @override
+  String get addMeldAction => 'Add to my meld';
+
+  @override
+  String get finishedTitle => 'Game over';
+
+  @override
+  String get okeyRule =>
+      'Four-player classic Okey. 106 tiles, the indicator sets the okey. Sets and runs need at least three tiles; 13-1 does not wrap. The winner arranges 14 tiles.';
+
+  @override
+  String get okey101Rule =>
+      'Four-player 101. Opening needs at least 101. Tiles can be added only to your own melds. A taken discard must be played in a meld that turn. An unopened hand is penalized 202.';
+
+  @override
+  String get batakRule =>
+      'Four-player one-deal auction Batak. Bids run from 5 to 13. If everyone passes, the dealer must bid 5. Trump is chosen. Suit must be followed. The declarer scores the bid if made, or loses that bid.';
+
+  @override
+  String get tavlaRule =>
+      'Two-player standard backgammon. No doubling cube. A checker on the bar must enter first. A normal win scores 1, a gammon 2 and a backgammon 3.';
+
+  @override
+  String get rollDice => 'Roll dice';
+
+  @override
+  String get passAction => 'Pass';
+
+  @override
+  String get youLabel => 'You';
+
+  @override
+  String get discardAction => 'Discard';
 }

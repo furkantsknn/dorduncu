@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 
 import 'legal_document.dart';
@@ -6,21 +8,12 @@ import 'legal_versions.dart';
 class LegalService {
   LegalService._();
 
-  static final Map<String, String> _documentCache =
-  <String, String>{};
+  static final Map<String, String> _documentCache = <String, String>{};
 
-  static const List<String> supportedLanguageCodes =
-  <String>[
-    'tr',
-    'en',
-    'de',
-  ];
+  static const List<String> supportedLanguageCodes = <String>['tr', 'en', 'de'];
 
-  static String normalizeLanguageCode(
-      String? languageCode,
-      ) {
-    final String normalized =
-        languageCode?.trim().toLowerCase() ?? 'tr';
+  static String normalizeLanguageCode(String? languageCode) {
+    final String normalized = languageCode?.trim().toLowerCase() ?? 'tr';
 
     if (normalized.startsWith('en')) {
       return 'en';
@@ -33,15 +26,11 @@ class LegalService {
     return 'tr';
   }
 
-  static LegalDocumentDefinition getDocument(
-      LegalDocumentType type,
-      ) {
+  static LegalDocumentDefinition getDocument(LegalDocumentType type) {
     return LegalVersions.byType(type);
   }
 
-  static LegalDocumentDefinition getDocumentByCode(
-      String documentCode,
-      ) {
+  static LegalDocumentDefinition getDocumentByCode(String documentCode) {
     return LegalVersions.byCode(documentCode);
   }
 
@@ -49,23 +38,18 @@ class LegalService {
     required LegalDocumentType type,
     required String? languageCode,
   }) {
-    final LegalDocumentDefinition document =
-    getDocument(type);
+    final LegalDocumentDefinition document = getDocument(type);
 
-    final String normalizedLanguageCode =
-    normalizeLanguageCode(languageCode);
+    final String normalizedLanguageCode = normalizeLanguageCode(languageCode);
 
-    return document.assetPathForLanguageCode(
-      normalizedLanguageCode,
-    );
+    return document.assetPathForLanguageCode(normalizedLanguageCode);
   }
 
   static Future<String> loadDocument({
     required LegalDocumentType type,
     required String? languageCode,
   }) async {
-    final LegalDocumentDefinition document =
-    getDocument(type);
+    final LegalDocumentDefinition document = getDocument(type);
 
     return loadDocumentDefinition(
       document: document,
@@ -77,8 +61,7 @@ class LegalService {
     required String documentCode,
     required String? languageCode,
   }) async {
-    final LegalDocumentDefinition document =
-    getDocumentByCode(documentCode);
+    final LegalDocumentDefinition document = getDocumentByCode(documentCode);
 
     return loadDocumentDefinition(
       document: document,
@@ -90,25 +73,20 @@ class LegalService {
     required LegalDocumentDefinition document,
     required String? languageCode,
   }) async {
-    final String normalizedLanguageCode =
-    normalizeLanguageCode(languageCode);
+    final String normalizedLanguageCode = normalizeLanguageCode(languageCode);
 
-    final String requestedAssetPath =
-    document.assetPathForLanguageCode(
+    final String requestedAssetPath = document.assetPathForLanguageCode(
       normalizedLanguageCode,
     );
 
-    final String? cachedDocument =
-    _documentCache[requestedAssetPath];
+    final String? cachedDocument = _documentCache[requestedAssetPath];
 
     if (cachedDocument != null) {
       return cachedDocument;
     }
 
     try {
-      final String content = await rootBundle.loadString(
-        requestedAssetPath,
-      );
+      final String content = await rootBundle.loadString(requestedAssetPath);
 
       _documentCache[requestedAssetPath] = content;
 
@@ -117,16 +95,14 @@ class LegalService {
       if (normalizedLanguageCode == 'tr') {
         throw LegalDocumentLoadException(
           documentCode: document.code,
-          requestedLanguageCode:
-          normalizedLanguageCode,
+          requestedLanguageCode: normalizedLanguageCode,
           requestedAssetPath: requestedAssetPath,
         );
       }
 
       return _loadTurkishFallback(
         document: document,
-        requestedLanguageCode:
-        normalizedLanguageCode,
+        requestedLanguageCode: normalizedLanguageCode,
         requestedAssetPath: requestedAssetPath,
       );
     }
@@ -137,31 +113,26 @@ class LegalService {
     required String requestedLanguageCode,
     required String requestedAssetPath,
   }) async {
-    final String fallbackAssetPath =
-    document.assetPathForLanguageCode('tr');
+    final String fallbackAssetPath = document.assetPathForLanguageCode('tr');
 
-    final String? cachedFallback =
-    _documentCache[fallbackAssetPath];
+    final String? cachedFallback = _documentCache[fallbackAssetPath];
 
     if (cachedFallback != null) {
       return cachedFallback;
     }
 
     try {
-      final String fallbackContent =
-      await rootBundle.loadString(
+      final String fallbackContent = await rootBundle.loadString(
         fallbackAssetPath,
       );
 
-      _documentCache[fallbackAssetPath] =
-          fallbackContent;
+      _documentCache[fallbackAssetPath] = fallbackContent;
 
       return fallbackContent;
     } catch (_) {
       throw LegalDocumentLoadException(
         documentCode: document.code,
-        requestedLanguageCode:
-        requestedLanguageCode,
+        requestedLanguageCode: requestedLanguageCode,
         requestedAssetPath: requestedAssetPath,
         fallbackAssetPath: fallbackAssetPath,
       );
@@ -172,11 +143,9 @@ class LegalService {
     required String documentCode,
     required String acceptedVersion,
   }) {
-    final LegalDocumentDefinition document =
-    getDocumentByCode(documentCode);
+    final LegalDocumentDefinition document = getDocumentByCode(documentCode);
 
-    return document.version.trim() ==
-        acceptedVersion.trim();
+    return document.version.trim() == acceptedVersion.trim();
   }
 
   static bool requiresNewAcceptance({
@@ -185,8 +154,7 @@ class LegalService {
     bool accepted = false,
     DateTime? withdrawnAt,
   }) {
-    final LegalDocumentDefinition document =
-    getDocumentByCode(documentCode);
+    final LegalDocumentDefinition document = getDocumentByCode(documentCode);
 
     if (!document.requiresAcceptance) {
       return false;
@@ -196,8 +164,7 @@ class LegalService {
       return true;
     }
 
-    if (acceptedVersion == null ||
-        acceptedVersion.trim().isEmpty) {
+    if (acceptedVersion == null || acceptedVersion.trim().isEmpty) {
       return true;
     }
 
@@ -211,34 +178,91 @@ class LegalService {
     );
   }
 
-  static List<LegalDocumentDefinition>
-  getMandatoryDocuments() {
+  static List<LegalDocumentDefinition> getMandatoryDocuments() {
     return LegalVersions.documents
-        .where(
-          (LegalDocumentDefinition document) =>
-      document.isMandatory,
-    )
+        .where((LegalDocumentDefinition document) => document.isMandatory)
         .toList(growable: false);
   }
 
-  static List<LegalDocumentDefinition>
-  getOptionalDocuments() {
+  static List<LegalDocumentDefinition> getOptionalDocuments() {
     return LegalVersions.documents
-        .where(
-          (LegalDocumentDefinition document) =>
-      document.isOptional,
-    )
+        .where((LegalDocumentDefinition document) => document.isOptional)
         .toList(growable: false);
   }
 
-  static List<LegalDocumentDefinition>
-  getContextualDocuments() {
+  static List<LegalDocumentDefinition> getContextualDocuments() {
     return LegalVersions.documents
-        .where(
-          (LegalDocumentDefinition document) =>
-      document.isContextual,
-    )
+        .where((LegalDocumentDefinition document) => document.isContextual)
         .toList(growable: false);
+  }
+
+  static const String onboardingAcceptanceSource = 'onboarding/login';
+
+  static String acceptanceDocumentId({
+    required String documentCode,
+    required String version,
+  }) {
+    return '${documentCode}_$version';
+  }
+
+  /// Writes one active acceptance per mandatory [LegalVersions] document.
+  ///
+  /// `acceptedAt` is a Firestore server timestamp. The document id is
+  /// `{code}_{version}`, so the same version is not written twice. A newer
+  /// version creates a new document and marks older copies inactive.
+  static Future<void> recordOnboardingAcceptances({
+    required String userId,
+    required String locale,
+  }) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.uid != userId) {
+      throw StateError('Legal acceptance requires the signed-in user.');
+    }
+
+    final String language = normalizeLanguageCode(locale);
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final CollectionReference<Map<String, dynamic>> collection = firestore
+        .collection('users')
+        .doc(userId)
+        .collection('legal_acceptances');
+
+    for (final LegalDocumentDefinition document in getMandatoryDocuments()) {
+      final String documentId = acceptanceDocumentId(
+        documentCode: document.code,
+        version: document.version,
+      );
+      final DocumentReference<Map<String, dynamic>> currentRef = collection.doc(
+        documentId,
+      );
+      final DocumentSnapshot<Map<String, dynamic>> current = await currentRef
+          .get();
+      if (current.exists) {
+        continue;
+      }
+
+      final QuerySnapshot<Map<String, dynamic>> previous = await collection
+          .where('documentCode', isEqualTo: document.code)
+          .get();
+
+      final WriteBatch batch = firestore.batch();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> old
+          in previous.docs) {
+        if (old.id == documentId || old.data()['active'] != true) {
+          continue;
+        }
+        batch.update(old.reference, <String, Object>{'active': false});
+      }
+      batch.set(currentRef, <String, Object>{
+        'userId': userId,
+        'documentCode': document.code,
+        'version': document.version,
+        'acceptedAt': FieldValue.serverTimestamp(),
+        'locale': language,
+        'source': onboardingAcceptanceSource,
+        'active': true,
+      });
+      await batch.commit();
+    }
   }
 
   static void clearCache() {
@@ -273,11 +297,10 @@ class LegalDocumentLoadException implements Exception {
 
   @override
   String toString() {
-    final String fallbackInformation =
-    fallbackAssetPath == null
+    final String fallbackInformation = fallbackAssetPath == null
         ? ''
         : ' Türkçe yedek dosya da bulunamadı: '
-        '$fallbackAssetPath.';
+              '$fallbackAssetPath.';
 
     return 'Hukuki belge yüklenemedi. '
         'Belge: $documentCode, '

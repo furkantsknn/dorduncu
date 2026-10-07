@@ -103,7 +103,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In tr, this message translates to:
-  /// **'Dördüncü'**
+  /// **'Dört.'**
   String get appName;
 
   /// No description provided for @loading.
@@ -583,7 +583,7 @@ abstract class AppLocalizations {
   /// No description provided for @minimumAgeRegistrationMessage.
   ///
   /// In tr, this message translates to:
-  /// **'Dördüncü uygulamasına yalnızca 18 yaşını doldurmuş kişiler kayıt olabilir.'**
+  /// **'Dört. uygulamasına yalnızca 18 yaşını doldurmuş kişiler kayıt olabilir.'**
   String get minimumAgeRegistrationMessage;
 
   /// No description provided for @profileCreated.
@@ -1339,7 +1339,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountDeletionPendingDescription.
   ///
   /// In tr, this message translates to:
-  /// **'Hesabın için silme talebi oluşturulmuş. İşlem tamamlanana kadar uygulamayı kullanamazsın.'**
+  /// **'Hesabın için silme talebi oluşturulmuş. İşlem tamamlanana kadar uygulamayı kullanamazsın. Uygulamaya giremiyorsan destek@dortapp.com adresine yazabilirsin.'**
   String get accountDeletionPendingDescription;
 
   /// No description provided for @accountDeleted.
@@ -1837,13 +1837,13 @@ abstract class AppLocalizations {
   /// No description provided for @legalTermsBody.
   ///
   /// In tr, this message translates to:
-  /// **'Dördüncü, kullanıcıların spor ve oyun etkinlikleri oluşturmasına ve bu etkinliklere katılmasına yardımcı olur. Kullanıcılar verdikleri bilgilerin doğruluğundan, etkinliklerdeki davranışlarından ve yürürlükteki kurallara uymaktan sorumludur. Ödeme ve cüzdan özellikleri etkinleştirilmeden önce ayrıca üyelik ve ödeme koşulları sunulacaktır.'**
+  /// **'Dört., kullanıcıların oyun, spor ve sosyal etkinlikler için eksik oyuncu bulmasına yardımcı olur. Etkinlik oluşturma ve katılım ücretsizdir. Kullanıcılar verdikleri bilgilerin doğruluğundan, etkinliklerdeki davranışlarından ve yürürlükteki kurallara uymaktan sorumludur.'**
   String get legalTermsBody;
 
   /// No description provided for @privacyPolicyBody.
   ///
   /// In tr, this message translates to:
-  /// **'Profil bilgileri, seçilen oyunlar, etkinlikler ve uygulama içi iletişim hizmeti sunmak amacıyla işlenir. Kimlik ve doğrulama belgeleri yalnızca doğrulama süreci için kullanılmalı; erişim kuralları ve saklama süreleri üretim öncesinde ayrıca yapılandırılmalıdır. Kullanıcı hesap silme talebinde bulunabilir.'**
+  /// **'Profil, telefon doğrulama, etkinlik, konum, mesajlaşma, bildirim ve Google Play satın alma kayıtları hizmeti sunmak için işlenir. Kimlik ve doğrulama belgeleri doğrulama süreci için kullanılır. Hesap silme talebi uygulama içinden veya destek@dortapp.com üzerinden oluşturulabilir.'**
   String get privacyPolicyBody;
 
   /// No description provided for @communityRulesBody.
@@ -1851,6 +1851,132 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir.'**
   String get communityRulesBody;
+
+  /// No description provided for @onlinePlay.
+  ///
+  /// In tr, this message translates to:
+  /// **'Online Oyna'**
+  String get onlinePlay;
+
+  /// No description provided for @onlinePlayIntro.
+  ///
+  /// In tr, this message translates to:
+  /// **'Okey, 101, Batak ve Tavla. Bu bölüm yalnızca geliştirme bayrağı açıkken görünür.'**
+  String get onlinePlayIntro;
+
+  /// No description provided for @playWithBots.
+  ///
+  /// In tr, this message translates to:
+  /// **'Botla oyna'**
+  String get playWithBots;
+
+  /// No description provided for @multiplayerClosed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Çok oyunculu masa bu derlemede kapalı. Production veritabanına bağlanılmaz. Emülatör tanımı olmadan masa oluşturulamaz.'**
+  String get multiplayerClosed;
+
+  /// No description provided for @multiplayerUnverified.
+  ///
+  /// In tr, this message translates to:
+  /// **'Emülatör tanımı açık. Çok oyunculu masa yine de açılmaz: iki kullanıcılı oturum doğrulanmadı ve istemci skor, zar veya el yazamaz.'**
+  String get multiplayerUnverified;
+
+  /// No description provided for @yourTurnLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sıra sende'**
+  String get yourTurnLabel;
+
+  /// No description provided for @botTurnLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bot oynuyor'**
+  String get botTurnLabel;
+
+  /// No description provided for @localSession.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yerel oturum'**
+  String get localSession;
+
+  /// No description provided for @drawWallAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Desteden çek'**
+  String get drawWallAction;
+
+  /// No description provided for @takeDiscardAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Atığı al'**
+  String get takeDiscardAction;
+
+  /// No description provided for @openAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Aç'**
+  String get openAction;
+
+  /// No description provided for @addMeldAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kendi perime ekle'**
+  String get addMeldAction;
+
+  /// No description provided for @finishedTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Oyun bitti'**
+  String get finishedTitle;
+
+  /// No description provided for @okeyRule.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dört kişilik klasik Okey. 106 taş, gösterge okeyi belirler. Per ve seri en az üç taş; 13-1 sarması yoktur. Kazanan 14 taşı dizer.'**
+  String get okeyRule;
+
+  /// No description provided for @okey101Rule.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dört kişilik 101. Açmak için en az 101. Taş yalnızca kendi perlerine eklenir. Atıktan alınan taş aynı turda perde kullanılmadan atılamaz. Açmamış el 202 ceza yer.'**
+  String get okey101Rule;
+
+  /// No description provided for @batakRule.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dört kişilik tek el ihaleli Batak. İhale 5-13. Herkes pas geçerse dağıtan 5 der. Koz seçilir. Renk zorunlu. Yapan tutarsa ihale kadar puan alır, kaçırırsa o kadar eksi yer.'**
+  String get batakRule;
+
+  /// No description provided for @tavlaRule.
+  ///
+  /// In tr, this message translates to:
+  /// **'İki kişilik standart Tavla. Katlama küpü yok. Bar’daki pul önce girer. Normal 1, mars 2, geri mars 3.'**
+  String get tavlaRule;
+
+  /// No description provided for @rollDice.
+  ///
+  /// In tr, this message translates to:
+  /// **'Zar at'**
+  String get rollDice;
+
+  /// No description provided for @passAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Pas'**
+  String get passAction;
+
+  /// No description provided for @youLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sen'**
+  String get youLabel;
+
+  /// No description provided for @discardAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'At'**
+  String get discardAction;
 }
 
 class _AppLocalizationsDelegate

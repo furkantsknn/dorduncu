@@ -7,10 +7,19 @@ import {
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
+import {
+  assertLegacyDigitalWalletPurchaseAllowed,
+} from "../commercial/digitalCommercePolicy";
+import {
+  buildCommercialOperationIdentity,
+  reserveCommercialOperation,
+  transitionCommercialOperation,
+} from "../commercial/commercialLedger";
 
 interface PurchaseBadgeRequest {
   badgeId?: unknown;
   paymentSource?: unknown;
+  requestId?: unknown;
 }
 
 type PaymentSource = "market" | "available";
@@ -55,24 +64,11 @@ function requireString(
 }
 
 /**
- * Cüzdan bakiye alanını güvenli şekilde okur.
- *
- * @param {Record<string, unknown>} data Cüzdan verisi.
- * @param {string} field Okunacak alan.
- * @return {number} Negatif olmayan bakiye değeri.
- */
-/**
  * Ödeme kaynağını doğrular.
  *
  * @param {unknown} value Gelen ödeme kaynağı.
  * @return {PaymentSource} Doğrulanmış ödeme kaynağı.
  */
-/**
-  * Ödeme kaynağını doğrular.
-  *
-  * @param {unknown} value Gelen ödeme kaynağı.
-  * @return {PaymentSource} Doğrulanmış ödeme kaynağı.
-  */
 function requirePaymentSource(value: unknown): PaymentSource {
   const normalizedValue = requireString(
     value,
@@ -126,6 +122,8 @@ export const purchaseBadge = onCall(
       );
     }
 
+    await assertLegacyDigitalWalletPurchaseAllowed();
+
     const uid = request.auth.uid;
     const data = request.data as PurchaseBadgeRequest;
 
@@ -139,8 +137,18 @@ export const purchaseBadge = onCall(
       data.paymentSource
     );
 
-    console.log("PAYMENT SOURCE =", paymentSource);
-    console.log("PAYMENT SOURCE =", paymentSource);
+    const requestId = requireString(
+      data.requestId,
+      "requestId",
+      160
+    );
+
+    const commercialIdentity =
+      buildCommercialOperationIdentity(
+        `legacy_badge_wallet:${uid}`,
+        requestId
+      );
+
     const productReference = firestore
       .collection("badge_products")
       .doc(badgeId);
@@ -157,11 +165,13 @@ export const purchaseBadge = onCall(
 
     const walletTransactionReference = walletReference
       .collection("transactions")
-      .doc(`badge_purchase_${badgeId}`);
+      .doc(
+        `badge_purchase_${commercialIdentity.operationId}`
+      );
 
     const saleReference = firestore
       .collection("market_sales")
-      .doc();
+      .doc(commercialIdentity.operationId);
 
     return firestore.runTransaction(async (transaction) => {
       const [
@@ -191,13 +201,6 @@ export const purchaseBadge = onCall(
         );
       }
 
-      if (ownedBadgeSnapshot.exists) {
-        throw new HttpsError(
-          "already-exists",
-          "Bu rozete zaten sahipsiniz."
-        );
-      }
-
       const priceKurus =
         typeof productData.priceKurus === "number" ?
           Math.trunc(productData.priceKurus) :
@@ -207,6 +210,55 @@ export const purchaseBadge = onCall(
         throw new HttpsError(
           "failed-precondition",
           "Rozet fiyatı geçerli değil."
+        );
+      }
+
+      const reservation =
+        await reserveCommercialOperation(
+          firestore,
+          transaction,
+          {
+            userUid: uid,
+            type: "digital_badge_purchase",
+            provider: "internal_legacy",
+            idempotencyScope:
+              `legacy_badge_wallet:${uid}`,
+            idempotencyKey: requestId,
+            money: {
+              currency: "TRY",
+              grossAmountMinor: priceKurus,
+              feeAmountMinor: 0,
+              netAmountMinor: priceKurus,
+            },
+            relatedProductId: badgeId,
+            metadata: {
+              paymentSource,
+              legacyWalletPurchase: true,
+            },
+          },
+          {
+            actorUid: uid,
+            source: "purchaseBadge",
+          }
+        );
+
+      if (!reservation.created) {
+        return {
+          success: true,
+          idempotentReplay: true,
+          operationId: reservation.operationId,
+          badgeId,
+          title:
+            productData.title?.toString().trim() ||
+            "Oyun Rozeti",
+          priceKurus,
+        };
+      }
+
+      if (ownedBadgeSnapshot.exists) {
+        throw new HttpsError(
+          "already-exists",
+          "Bu rozete zaten sahipsiniz."
         );
       }
 
@@ -306,6 +358,8 @@ export const purchaseBadge = onCall(
         {
           badgeId,
           productId: badgeId,
+          commercialOperationId:
+            reservation.operationId,
           gameId,
           gameName,
           title,
@@ -339,6 +393,8 @@ export const purchaseBadge = onCall(
             `${title} marketten satın alındı.`,
           productId: badgeId,
           badgeId,
+          commercialOperationId:
+            reservation.operationId,
           metadata: {
             gameId,
             gameName,
@@ -358,6 +414,8 @@ export const purchaseBadge = onCall(
         saleReference,
         {
           saleId: saleReference.id,
+          commercialOperationId:
+            reservation.operationId,
           uid,
           productId: badgeId,
           badgeId,
@@ -379,8 +437,26 @@ export const purchaseBadge = onCall(
         }
       );
 
+      transitionCommercialOperation(
+        firestore,
+        transaction,
+        reservation.operationId,
+        "paid",
+        {
+          actorUid: uid,
+          source: "purchaseBadge",
+        },
+        {
+          badgeId,
+          paymentSource,
+          entitlement: "badge",
+        }
+      );
+
       return {
         success: true,
+        idempotentReplay: false,
+        operationId: reservation.operationId,
         badgeId,
         title,
         priceKurus,

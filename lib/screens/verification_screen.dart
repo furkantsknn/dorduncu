@@ -22,19 +22,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
   final ImagePicker imagePicker = ImagePicker();
 
   PlatformFile? identityFront;
-  PlatformFile? identityBack;
-  PlatformFile? criminalRecord;
 
   XFile? selfiePhoto;
 
   bool loading = false;
 
   Map<String, dynamic>? verificationData;
+  Map<String, dynamic>? userData;
 
   bool loadingVerification = true;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   verificationSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userSubscription;
 
   _VerificationText get text {
     return _VerificationText(LanguageController.language.value);
@@ -62,36 +62,46 @@ class _VerificationScreenState extends State<VerificationScreen> {
         .snapshots()
         .listen(
           (DocumentSnapshot<Map<String, dynamic>> snapshot) {
-        if (!mounted) return;
+            if (!mounted) return;
 
-        setState(() {
-          verificationData = snapshot.data();
-          loadingVerification = false;
+            setState(() {
+              verificationData = snapshot.data();
+              loadingVerification = false;
+            });
+          },
+          onError: (_) {
+            if (!mounted) return;
+
+            setState(() {
+              loadingVerification = false;
+            });
+
+            showMessage('Başvuru bilgileri yüklenemedi.');
+          },
+        );
+
+    userSubscription = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((DocumentSnapshot<Map<String, dynamic>> snapshot) {
+          if (!mounted) return;
+
+          setState(() {
+            userData = snapshot.data();
+          });
         });
-      },
-      onError: (_) {
-        if (!mounted) return;
-
-        setState(() {
-          loadingVerification = false;
-        });
-
-        showMessage('Başvuru bilgileri yüklenemedi.');
-      },
-    );
   }
 
   @override
   void dispose() {
     verificationSubscription?.cancel();
+    userSubscription?.cancel();
     super.dispose();
   }
 
   bool get documentsComplete {
-    return identityFront != null &&
-        identityBack != null &&
-        criminalRecord != null &&
-        selfiePhoto != null;
+    return identityFront != null && selfiePhoto != null;
   }
 
   Future<PlatformFile?> selectDocument() async {
@@ -132,9 +142,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         context: context,
         backgroundColor: const Color(0xff171A20),
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(24),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         builder: (BuildContext sheetContext) {
           return SafeArea(
@@ -153,10 +161,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                     onTap: () {
-                      Navigator.pop(
-                        sheetContext,
-                        ImageSource.camera,
-                      );
+                      Navigator.pop(sheetContext, ImageSource.camera);
                     },
                   ),
                   ListTile(
@@ -169,10 +174,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                     onTap: () {
-                      Navigator.pop(
-                        sheetContext,
-                        ImageSource.gallery,
-                      );
+                      Navigator.pop(sheetContext, ImageSource.gallery);
                     },
                   ),
                 ],
@@ -206,11 +208,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         return null;
       }
 
-      return PlatformFile(
-        name: image.name,
-        path: image.path,
-        size: size,
-      );
+      return PlatformFile(name: image.name, path: image.path, size: size);
     } catch (_) {
       showMessage(text.documentSelectionFailed);
       return null;
@@ -224,26 +222,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     setState(() {
       identityFront = file;
-    });
-  }
-
-  Future<void> selectIdentityBack() async {
-    final PlatformFile? file = await selectIdentityImage();
-
-    if (file == null || !mounted) return;
-
-    setState(() {
-      identityBack = file;
-    });
-  }
-
-  Future<void> selectCriminalRecord() async {
-    final PlatformFile? file = await selectDocument();
-
-    if (file == null || !mounted) return;
-
-    setState(() {
-      criminalRecord = file;
     });
   }
 
@@ -280,7 +258,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     final TaskSnapshot snapshot = await reference.putFile(file);
 
-    return snapshot.ref.getDownloadURL();
+    return snapshot.ref.fullPath;
   }
 
   Future<void> submitVerification() async {
@@ -305,39 +283,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
       final String basePath = 'verification_documents/${user.uid}';
 
-      final String identityFrontUrl = await uploadFile(
+      final String identityFrontPath = await uploadFile(
         file: File(identityFront!.path!),
         path:
             '$basePath/identity_front_$timestamp.${fileExtension(identityFront!.name)}',
       );
 
-      final String identityBackUrl = await uploadFile(
-        file: File(identityBack!.path!),
-        path:
-            '$basePath/identity_back_$timestamp.${fileExtension(identityBack!.name)}',
-      );
-
-      final String criminalRecordUrl = await uploadFile(
-        file: File(criminalRecord!.path!),
-        path:
-            '$basePath/criminal_record_$timestamp.${fileExtension(criminalRecord!.name)}',
-      );
-
-      final String selfieUrl = await uploadFile(
+      final String selfiePath = await uploadFile(
         file: File(selfiePhoto!.path),
         path: '$basePath/selfie_$timestamp.jpg',
       );
 
-      final HttpsCallable callable =
-      FirebaseFunctions.instanceFor(
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('submitVerification');
 
       await callable.call(<String, dynamic>{
-        'identityFrontUrl': identityFrontUrl,
-        'identityBackUrl': identityBackUrl,
-        'criminalRecordUrl': criminalRecordUrl,
-        'selfieUrl': selfieUrl,
+        'identityFrontPath': identityFrontPath,
+        'selfiePath': selfiePath,
       });
 
       if (!mounted) return;
@@ -346,14 +309,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
         loading = false;
       });
 
-
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(text.verificationApplicationSent),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(text.verificationApplicationSent)));
     } on FirebaseException catch (error) {
       if (!mounted) return;
 
@@ -381,6 +341,38 @@ class _VerificationScreenState extends State<VerificationScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // ignore: unused_element
+  Future<void> _requestDocumentDeletion() async {
+    try {
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('requestVerificationDocumentDeletion');
+
+      await callable.call(<String, dynamic>{});
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Doğrulama belgelerin silindi. '
+            'Doğrulama sonucu ve güvenlik kayıtları saklanabilir.',
+          ),
+        ),
+      );
+
+      setState(() {});
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message ?? 'Belge silme işlemi tamamlanamadı.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppLanguage>(
@@ -388,15 +380,27 @@ class _VerificationScreenState extends State<VerificationScreen> {
       builder: (context, language, _) {
         final _VerificationText text = _VerificationText(language);
 
-        final String status = verificationData?['status']?.toString() ?? '';
+        final String requestStatus =
+            verificationData?['status']?.toString() ?? '';
+
+        final bool userApproved =
+            userData?['oyuncuRozeti'] == true ||
+            userData?['verified'] == true ||
+            userData?['verificationStatus'] == 'approved';
+
+        final String status = userApproved ? 'approved' : requestStatus;
 
         final bool isApproved = status == 'approved';
         final bool isPending = status == 'pending';
         final bool isRevision = status == 'revision';
         final bool isRejected = status == 'rejected';
+        final bool isExpired = status == 'expired';
 
-        final String adminNote =
-            verificationData?['adminNote']?.toString() ?? '';
+        final String decisionReason =
+            verificationData?['decisionReason']?.toString().trim().isNotEmpty ==
+                true
+            ? verificationData!['decisionReason'].toString()
+            : verificationData?['adminNote']?.toString() ?? '';
 
         final Timestamp? reviewedAt =
             verificationData?['reviewedAt'] as Timestamp?;
@@ -404,7 +408,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
         final DateTime? reviewDate = reviewedAt?.toDate();
 
         final bool canSendDocuments =
-            verificationData == null || isRevision || isRejected;
+            !userApproved &&
+            (verificationData == null || isRevision || isRejected || isExpired);
 
         if (loadingVerification) {
           return const Scaffold(
@@ -455,9 +460,130 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     height: 1.5,
                   ),
                 ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff171A20),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isApproved
+                          ? Colors.blue
+                          : const Color(0xffFF9800).withValues(alpha: 0.7),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Icon(
+                            isApproved
+                                ? Icons.verified_rounded
+                                : Icons.verified_outlined,
+                            color: isApproved ? Colors.blue : Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isApproved
+                                  ? _verificationMeaning(
+                                      language,
+                                      tr: 'Hesabın doğrulanmış',
+                                      en: 'Your account is verified',
+                                      de: 'Dein Konto ist verifiziert',
+                                    )
+                                  : isPending
+                                  ? _verificationMeaning(
+                                      language,
+                                      tr: 'Doğrulama inceleniyor',
+                                      en: 'Verification is in review',
+                                      de: 'Verifizierung wird geprüft',
+                                    )
+                                  : _verificationMeaning(
+                                      language,
+                                      tr: 'Hesap henüz doğrulanmadı',
+                                      en: 'Account is not verified yet',
+                                      de: 'Konto ist noch nicht verifiziert',
+                                    ),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _verificationMeaning(
+                          language,
+                          tr: 'Doğrulanmış hesap, kimlik kontrolünün Dört. tarafından onaylandığını gösterir. Mavi tik yalnızca sunucu kararıyla görünür.',
+                          en: 'A verified account means identity review was approved by Dört. The blue check is granted only by the server.',
+                          de: 'Ein verifiziertes Konto bedeutet, dass die Identitätsprüfung von Dört. genehmigt wurde. Das blaue Häkchen vergibt nur der Server.',
+                        ),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff171A20),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.privacy_tip_outlined,
+                        color: Colors.orange,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          text.verificationPrivacyNotice,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff171A20),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.orangeAccent),
+                  ),
+                  child: Text(
+                    text.verificationBadgeDisclaimer,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 30),
 
-                if (verificationData != null)
+                if (verificationData != null || userApproved)
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 20),
@@ -472,6 +598,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             ? Colors.orange
                             : status == 'rejected'
                             ? Colors.red
+                            : isExpired
+                            ? Colors.grey
                             : Colors.blueGrey,
                       ),
                     ),
@@ -494,6 +622,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               ? '🟠 Revizyon Bekleniyor'
                               : status == 'rejected'
                               ? '🔴 Reddedildi'
+                              : isExpired
+                              ? '⚪ Süresi Doldu'
                               : '⏳ İnceleniyor',
                           style: TextStyle(
                             color: isApproved
@@ -502,17 +632,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                 ? Colors.orange
                                 : status == 'rejected'
                                 ? Colors.red
+                                : isExpired
+                                ? Colors.grey
                                 : Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        if (adminNote.isNotEmpty) ...[
+                        if (decisionReason.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           const Divider(color: Colors.white12),
                           const SizedBox(height: 12),
                           const Text(
-                            'Yönetici Notu',
+                            'İnceleme Nedeni',
                             style: TextStyle(
                               color: Colors.orange,
                               fontWeight: FontWeight.bold,
@@ -520,7 +652,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            adminNote,
+                            decisionReason,
                             style: const TextStyle(
                               color: Colors.white70,
                               height: 1.5,
@@ -588,6 +720,20 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                   ),
 
+                if (isExpired)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      text.verificationExpiredMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+
                 if (status == 'rejected')
                   const Padding(
                     padding: EdgeInsets.only(bottom: 20),
@@ -614,23 +760,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         onTap: selectIdentityFront,
                       ),
                       const SizedBox(height: 13),
-                      _documentCard(
-                        title: text.identityBack,
-                        subtitle: identityBack?.name,
-                        emptySubtitle: text.tapToSelect,
-                        icon: Icons.credit_card,
-                        selected: identityBack != null,
-                        onTap: selectIdentityBack,
-                      ),
-                      const SizedBox(height: 13),
-                      _documentCard(
-                        title: text.criminalRecordDocument,
-                        subtitle: criminalRecord?.name,
-                        emptySubtitle: text.tapToSelect,
-                        icon: Icons.description_outlined,
-                        selected: criminalRecord != null,
-                        onTap: selectCriminalRecord,
-                      ),
                       const SizedBox(height: 13),
                       _documentCard(
                         title: text.takeSelfie,
@@ -795,9 +924,27 @@ class _VerificationText {
       value('Hesabını Doğrula', 'Verify Your Account', 'Bestätige dein Konto');
 
   String get verificationDescription => value(
-    'Belgelerin incelendikten sonra hesabına doğrulanmış üye rozeti eklenecek.',
-    'After your documents are reviewed, a verified member badge will be added to your account.',
-    'Nach der Prüfung deiner Dokumente wird deinem Konto ein Verifizierungsabzeichen hinzugefügt.',
+    'Gönderdiğin belgeler, oyuncu doğrulama adımlarını tamamlayıp tamamlamadığını değerlendirmek için incelenir.',
+    'The documents you submit are reviewed to determine whether you completed the player verification steps.',
+    'Die von dir eingereichten Dokumente werden geprüft, um festzustellen, ob du die Schritte der Spielerverifizierung abgeschlossen hast.',
+  );
+
+  String get verificationPrivacyNotice => value(
+    'Yalnızca kimlik ön yüzü ve selfie oyuncu doğrulama amacıyla işlenir. Kimlik arka yüzü veya adli sicil belgesi istenmez. Bu işlem için gerekli olmayan ek kişisel verileri paylaşmamaya dikkat et.',
+    'Only the front of your ID and a selfie are processed for player verification. The back of the ID and a criminal record document are not requested. Avoid sharing unnecessary personal data.',
+    'Für die Spielerverifizierung werden nur die Vorderseite des Ausweises und ein Selfie verarbeitet. Ausweisrückseite und Führungszeugnis werden nicht angefordert. Teile keine unnötigen personenbezogenen Daten.',
+  );
+
+  String get verificationBadgeDisclaimer => value(
+    'Doğrulama rozeti yalnızca belirtilen doğrulama adımlarının tamamlandığını gösterir. Bir kişinin güvenilir, güvenli veya risksiz olduğunu garanti etmez.',
+    'The verification badge only indicates that the stated verification steps were completed. It does not guarantee that a person is trustworthy, safe or risk-free.',
+    'Das Verifizierungsabzeichen zeigt nur, dass die angegebenen Verifizierungsschritte abgeschlossen wurden. Es garantiert nicht, dass eine Person vertrauenswürdig, sicher oder risikofrei ist.',
+  );
+
+  String get verificationExpiredMessage => value(
+    'Önceki doğrulamanın süresi dolmuş. Güncel belgelerle yeniden başvuru yapabilirsin.',
+    'Your previous verification has expired. You can apply again with current documents.',
+    'Deine vorherige Verifizierung ist abgelaufen. Du kannst dich mit aktuellen Dokumenten erneut bewerben.',
   );
 
   String get identityFront =>
@@ -889,5 +1036,21 @@ class _VerificationText {
       'An error occurred while uploading the documents: $error',
       'Beim Hochladen der Dokumente ist ein Fehler aufgetreten: $error',
     );
+  }
+}
+
+String _verificationMeaning(
+  AppLanguage language, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (language) {
+    case AppLanguage.english:
+      return en;
+    case AppLanguage.german:
+      return de;
+    case AppLanguage.turkish:
+      return tr;
   }
 }

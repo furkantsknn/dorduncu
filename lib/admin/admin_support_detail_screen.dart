@@ -1,11 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminSupportDetailScreen extends StatefulWidget {
-  const AdminSupportDetailScreen({
-    super.key,
-    required this.requestId,
-  });
+  const AdminSupportDetailScreen({super.key, required this.requestId});
 
   final String requestId;
 
@@ -14,13 +29,10 @@ class AdminSupportDetailScreen extends StatefulWidget {
       _AdminSupportDetailScreenState();
 }
 
-class _AdminSupportDetailScreenState
-    extends State<AdminSupportDetailScreen> {
-  final TextEditingController _responseController =
-  TextEditingController();
+class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
+  final TextEditingController _responseController = TextEditingController();
 
-  final TextEditingController _notesController =
-  TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
 
   bool _saving = false;
   bool _controllersInitialized = false;
@@ -29,6 +41,10 @@ class _AdminSupportDetailScreenState
     return FirebaseFirestore.instance
         .collection('support_requests')
         .doc(widget.requestId);
+  }
+
+  DocumentReference<Map<String, dynamic>> get _privateAdminReference {
+    return _requestReference.collection('private').doc('admin');
   }
 
   @override
@@ -46,26 +62,14 @@ class _AdminSupportDetailScreenState
     setState(() => _saving = true);
 
     try {
-      final Map<String, dynamic> updateData = <String, dynamic>{
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminUpdateSupportRequest');
+
+      await callable.call(<String, dynamic>{
+        'requestId': widget.requestId,
         'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (status == 'closed') {
-        updateData['closedAt'] = FieldValue.serverTimestamp();
-      } else {
-        updateData['closedAt'] = null;
-      }
-
-      await _requestReference.update(updateData);
-
-      await _requestReference.collection('history').add(
-        <String, dynamic>{
-          'type': 'status_changed',
-          'status': status,
-          'createdAt': FieldValue.serverTimestamp(),
-        },
-      );
+      });
 
       if (!mounted) {
         return;
@@ -78,10 +82,8 @@ class _AdminSupportDetailScreenState
           ),
         ),
       );
-    } on FirebaseException catch (error) {
-      _showError(
-        error.message ?? 'Talep durumu güncellenemedi.',
-      );
+    } on FirebaseFunctionsException catch (error) {
+      _showError(error.message ?? 'Talep durumu güncellenemedi.');
     } catch (_) {
       _showError('Talep durumu güncellenemedi.');
     } finally {
@@ -99,31 +101,23 @@ class _AdminSupportDetailScreenState
     final String response = _responseController.text.trim();
     final String notes = _notesController.text.trim();
 
+    if (response.isEmpty && notes.isEmpty) {
+      _showError('Cevap veya admin notu gir.');
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
-      final Map<String, dynamic> updateData = <String, dynamic>{
-        'adminResponse': response,
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminReplySupportRequest');
+
+      await callable.call(<String, dynamic>{
+        'requestId': widget.requestId,
+        'response': response,
         'adminNotes': notes,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (response.isNotEmpty) {
-        updateData['status'] = 'answered';
-      }
-
-      await _requestReference.update(updateData);
-
-      await _requestReference.collection('history').add(
-        <String, dynamic>{
-          'type': response.isEmpty
-              ? 'admin_notes_updated'
-              : 'admin_response_added',
-          'adminResponse': response,
-          'adminNotes': notes,
-          'createdAt': FieldValue.serverTimestamp(),
-        },
-      );
+      });
 
       if (!mounted) {
         return;
@@ -134,14 +128,16 @@ class _AdminSupportDetailScreenState
           content: Text(
             response.isEmpty
                 ? 'Admin notu kaydedildi.'
-                : 'Admin cevabı kaydedildi.',
+                : 'Admin cevabı gönderildi.',
           ),
         ),
       );
-    } on FirebaseException catch (error) {
-      _showError(
-        error.message ?? 'Değişiklikler kaydedilemedi.',
-      );
+
+      if (response.isNotEmpty) {
+        _responseController.clear();
+      }
+    } on FirebaseFunctionsException catch (error) {
+      _showError(error.message ?? 'Değişiklikler kaydedilemedi.');
     } catch (_) {
       _showError('Değişiklikler kaydedilemedi.');
     } finally {
@@ -151,229 +147,198 @@ class _AdminSupportDetailScreenState
     }
   }
 
+  Future<void> _loadPrivateAdminNotes() async {
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await _privateAdminReference.get();
+
+      if (!mounted) {
+        return;
+      }
+
+      _notesController.text = snapshot.data()?['adminNotes']?.toString() ?? '';
+    } catch (_) {
+      // Internal note loading must not block the support ticket itself.
+    }
+  }
+
   void _showError(String message) {
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _requestReference.snapshots(),
-      builder: (
-          BuildContext context,
-          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
           ) {
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Talep Detayı'),
-            ),
-            body: const Center(
-              child: Text(
-                'Destek talebi yüklenirken bir hata oluştu.',
+            if (snapshot.hasError) {
+              return Scaffold(
+                appBar: AppBar(title: Text(_locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'))),
+                body: const Center(
+                  child: Text('Destek talebi yüklenirken bir hata oluştu.'),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return Scaffold(
+                appBar: AppBar(title: Text(_locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'))),
+                body: const Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final DocumentSnapshot<Map<String, dynamic>> document =
+                snapshot.data!;
+
+            final Map<String, dynamic>? data = document.data();
+
+            if (!document.exists || data == null) {
+              return Scaffold(
+                appBar: AppBar(title: Text(_locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'))),
+                body: Center(child: Text(_locText(context, tr: 'Destek talebi bulunamadı.', en: 'Support request not found.', de: 'Support-Anfrage nicht gefunden.'))),
+              );
+            }
+
+            if (!_controllersInitialized) {
+              _responseController.text =
+                  data['adminResponse']?.toString() ?? '';
+
+              _controllersInitialized = true;
+              _loadPrivateAdminNotes();
+            }
+
+            final String category = data['category']?.toString() ?? '';
+
+            final String subject = data['subject']?.toString() ?? '';
+
+            final String description = data['description']?.toString() ?? '';
+
+            final String status = data['status']?.toString() ?? 'new';
+
+            final String urgency = data['urgency']?.toString() ?? 'normal';
+
+            final String userId = data['userId']?.toString() ?? '';
+
+            final String relatedUserId =
+                data['relatedUserId']?.toString() ?? '';
+
+            final String relatedEventId =
+                data['relatedEventId']?.toString() ?? '';
+
+            final String relatedMessageId =
+                data['relatedMessageId']?.toString() ?? '';
+
+            final List<String> attachmentUrls = List<String>.from(
+              data['attachmentUrls'] ?? const <String>[],
+            );
+
+            return Scaffold(
+              appBar: AppBar(
+                title: Text(
+                  _locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'),
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                actions: <Widget>[
+                  if (_saving)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 18),
+                      child: Center(
+                        child: SizedBox(
+                          width: 21,
+                          height: 21,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Talep Detayı'),
-            ),
-            body: const Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        final DocumentSnapshot<Map<String, dynamic>> document =
-        snapshot.data!;
-
-        final Map<String, dynamic>? data = document.data();
-
-        if (!document.exists || data == null) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Talep Detayı'),
-            ),
-            body: const Center(
-              child: Text('Destek talebi bulunamadı.'),
-            ),
-          );
-        }
-
-        if (!_controllersInitialized) {
-          _responseController.text =
-              data['adminResponse']?.toString() ?? '';
-
-          _notesController.text =
-              data['adminNotes']?.toString() ?? '';
-
-          _controllersInitialized = true;
-        }
-
-        final String category =
-            data['category']?.toString() ?? '';
-
-        final String subject =
-            data['subject']?.toString() ?? '';
-
-        final String description =
-            data['description']?.toString() ?? '';
-
-        final String status =
-            data['status']?.toString() ?? 'new';
-
-        final String urgency =
-            data['urgency']?.toString() ?? 'normal';
-
-        final String userId =
-            data['userId']?.toString() ?? '';
-
-        final String relatedUserId =
-            data['relatedUserId']?.toString() ?? '';
-
-        final String relatedEventId =
-            data['relatedEventId']?.toString() ?? '';
-
-        final String relatedMessageId =
-            data['relatedMessageId']?.toString() ?? '';
-
-        final List<String> attachmentUrls =
-        List<String>.from(
-          data['attachmentUrls'] ?? const <String>[],
-        );
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text(
-              'Talep Detayı',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            actions: <Widget>[
-              if (_saving)
-                const Padding(
-                  padding: EdgeInsets.only(right: 18),
-                  child: Center(
-                    child: SizedBox(
-                      width: 21,
-                      height: 21,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  _buildHeaderCard(
+                    context: context,
+                    category: category,
+                    subject: subject,
+                    status: status,
+                    urgency: urgency,
+                  ),
+                  const SizedBox(height: 14),
+                  _buildInformationCard(
+                    context: context,
+                    title: 'Talep bilgileri',
+                    children: <Widget>[
+                      _DetailRow(label: 'Talep numarası', value: document.id),
+                      _DetailRow(label: 'Oluşturan kullanıcı', value: userId),
+                      if (relatedUserId.isNotEmpty)
+                        _DetailRow(
+                          label: 'İlgili kullanıcı',
+                          value: relatedUserId,
+                        ),
+                      if (relatedEventId.isNotEmpty)
+                        _DetailRow(
+                          label: 'İlgili etkinlik',
+                          value: relatedEventId,
+                        ),
+                      if (relatedMessageId.isNotEmpty)
+                        _DetailRow(
+                          label: 'İlgili mesaj',
+                          value: relatedMessageId,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _buildInformationCard(
+                    context: context,
+                    title: _locText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'),
+                    children: <Widget>[
+                      Text(
+                        description.isEmpty
+                            ? 'Açıklama bulunmuyor.'
+                            : description,
+                        style: const TextStyle(
+                          height: 1.45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (attachmentUrls.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 14),
+                    _buildAttachmentsCard(context, attachmentUrls),
+                  ],
+                  const SizedBox(height: 14),
+                  _buildStatusCard(context: context, currentStatus: status),
+                  const SizedBox(height: 14),
+                  _buildAdminResponseCard(context),
+                  const SizedBox(height: 14),
+                  _buildAdminNotesCard(context),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _saveAdminContent,
+                    icon: const Icon(Icons.save_outlined),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Text(
+                        _saving
+                            ? 'Kaydediliyor...'
+                            : 'Admin işlemlerini kaydet',
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              32,
-            ),
-            children: <Widget>[
-              _buildHeaderCard(
-                context: context,
-                category: category,
-                subject: subject,
-                status: status,
-                urgency: urgency,
-              ),
-              const SizedBox(height: 14),
-              _buildInformationCard(
-                context: context,
-                title: 'Talep bilgileri',
-                children: <Widget>[
-                  _DetailRow(
-                    label: 'Talep numarası',
-                    value: document.id,
-                  ),
-                  _DetailRow(
-                    label: 'Oluşturan kullanıcı',
-                    value: userId,
-                  ),
-                  if (relatedUserId.isNotEmpty)
-                    _DetailRow(
-                      label: 'İlgili kullanıcı',
-                      value: relatedUserId,
-                    ),
-                  if (relatedEventId.isNotEmpty)
-                    _DetailRow(
-                      label: 'İlgili etkinlik',
-                      value: relatedEventId,
-                    ),
-                  if (relatedMessageId.isNotEmpty)
-                    _DetailRow(
-                      label: 'İlgili mesaj',
-                      value: relatedMessageId,
-                    ),
                 ],
               ),
-              const SizedBox(height: 14),
-              _buildInformationCard(
-                context: context,
-                title: 'Açıklama',
-                children: <Widget>[
-                  Text(
-                    description.isEmpty
-                        ? 'Açıklama bulunmuyor.'
-                        : description,
-                    style: const TextStyle(
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              if (attachmentUrls.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 14),
-                _buildAttachmentsCard(
-                  context,
-                  attachmentUrls,
-                ),
-              ],
-              const SizedBox(height: 14),
-              _buildStatusCard(
-                context: context,
-                currentStatus: status,
-              ),
-              const SizedBox(height: 14),
-              _buildAdminResponseCard(context),
-              const SizedBox(height: 14),
-              _buildAdminNotesCard(context),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed:
-                _saving ? null : _saveAdminContent,
-                icon: const Icon(Icons.save_outlined),
-                label: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                  ),
-                  child: Text(
-                    _saving
-                        ? 'Kaydediliyor...'
-                        : 'Admin işlemlerini kaydet',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 
@@ -416,15 +381,10 @@ class _AdminSupportDetailScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              subject.isEmpty
-                  ? _categoryTitle(category)
-                  : subject,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              subject.isEmpty ? _categoryTitle(category) : subject,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
           ],
         ),
@@ -446,12 +406,9 @@ class _AdminSupportDetailScreenState
           children: <Widget>[
             Text(
               title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             ...children,
@@ -461,10 +418,7 @@ class _AdminSupportDetailScreenState
     );
   }
 
-  Widget _buildAttachmentsCard(
-      BuildContext context,
-      List<String> urls,
-      ) {
+  Widget _buildAttachmentsCard(BuildContext context, List<String> urls) {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -474,48 +428,40 @@ class _AdminSupportDetailScreenState
           children: <Widget>[
             Text(
               'Ek dosyalar',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: urls.length,
-              gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
               ),
-              itemBuilder: (
-                  BuildContext context,
-                  int index,
-                  ) {
+              itemBuilder: (BuildContext context, int index) {
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: Image.network(
                     urls[index],
                     fit: BoxFit.cover,
-                    errorBuilder: (
-                        BuildContext context,
-                        Object error,
-                        StackTrace? stackTrace,
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
                         ) {
-                      return Container(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.broken_image_outlined,
-                        ),
-                      );
-                    },
+                          return Container(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.broken_image_outlined),
+                          );
+                        },
                   ),
                 );
               },
@@ -539,27 +485,19 @@ class _AdminSupportDetailScreenState
           children: <Widget>[
             Text(
               'Talep durumu',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               initialValue: currentStatus,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(
-                  Icons.sync_alt_rounded,
-                ),
+                prefixIcon: Icon(Icons.sync_alt_rounded),
               ),
               items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem<String>(
-                  value: 'new',
-                  child: Text('Yeni'),
-                ),
+                DropdownMenuItem<String>(value: 'new', child: Text('Yeni')),
                 DropdownMenuItem<String>(
                   value: 'reviewing',
                   child: Text('İnceleniyor'),
@@ -576,11 +514,10 @@ class _AdminSupportDetailScreenState
               onChanged: _saving
                   ? null
                   : (String? value) {
-                if (value != null &&
-                    value != currentStatus) {
-                  _updateStatus(value);
-                }
-              },
+                      if (value != null && value != currentStatus) {
+                        _updateStatus(value);
+                      }
+                    },
             ),
           ],
         ),
@@ -598,20 +535,15 @@ class _AdminSupportDetailScreenState
           children: <Widget>[
             Text(
               'Kullanıcıya verilecek cevap',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
               'Bu alan kullanıcı tarafından görüntülenebilir.',
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
@@ -640,20 +572,15 @@ class _AdminSupportDetailScreenState
           children: <Widget>[
             Text(
               'Dahili admin notu',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
               'Bu alan yalnızca yöneticiler içindir.',
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
@@ -704,9 +631,7 @@ class _AdminSupportDetailScreenState
       case 'security_emergency':
         return 'Güvenlik Bildirimi';
       default:
-        return category.isEmpty
-            ? 'Destek Talebi'
-            : category;
+        return category.isEmpty ? 'Destek Talebi' : category;
     }
   }
 
@@ -770,10 +695,7 @@ class _AdminSupportDetailScreenState
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-  });
+  const _DetailRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -790,9 +712,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -800,9 +720,7 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: SelectableText(
               value.isEmpty ? '-' : value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -825,10 +743,7 @@ class _LabelChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(99),
@@ -836,11 +751,7 @@ class _LabelChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            icon,
-            size: 16,
-            color: color,
-          ),
+          Icon(icon, size: 16, color: color),
           const SizedBox(width: 6),
           Text(
             label,

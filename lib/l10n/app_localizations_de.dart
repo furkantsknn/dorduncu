@@ -9,7 +9,7 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
-  String get appName => 'Dördüncü';
+  String get appName => 'Dört.';
 
   @override
   String get loading => 'Wird geladen...';
@@ -260,7 +260,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get minimumAgeRegistrationMessage =>
-      'Nur Personen ab 18 Jahren können sich bei Dördüncü registrieren.';
+      'Nur Personen ab 18 Jahren können sich bei Dört. registrieren.';
 
   @override
   String get profileCreated => 'Dein Profil wurde erfolgreich erstellt.';
@@ -675,7 +675,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get accountDeletionPendingDescription =>
-      'Für dein Konto wurde ein Löschantrag erstellt. Bis zum Abschluss des Vorgangs kannst du die Anwendung nicht verwenden.';
+      'Für dein Konto wurde ein Löschantrag erstellt. Bis zum Abschluss des Vorgangs kannst du die Anwendung nicht verwenden. Wenn du die App nicht öffnen kannst, schreibe an destek@dortapp.com.';
 
   @override
   String get accountDeleted => 'Konto gelöscht';
@@ -978,13 +978,83 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get legalTermsBody =>
-      'Dördüncü hilft Nutzern, Sport- und Spieleveranstaltungen zu erstellen und daran teilzunehmen. Die Nutzer sind für die Richtigkeit ihrer Angaben, ihr Verhalten bei Veranstaltungen und die Einhaltung der geltenden Regeln verantwortlich. Bevor Zahlungs- und Wallet-Funktionen aktiviert werden, werden separate Mitgliedschafts- und Zahlungsbedingungen bereitgestellt.';
+      'Dört. hilft Menschen, fehlende Mitspieler für Spiele, Sport und soziale Aktivitäten zu finden. Das Erstellen von und die Teilnahme an Veranstaltungen ist kostenlos. Die Nutzer sind für die Richtigkeit ihrer Angaben, ihr Verhalten bei Veranstaltungen und die Einhaltung der geltenden Regeln verantwortlich.';
 
   @override
   String get privacyPolicyBody =>
-      'Profilinformationen, ausgewählte Spiele, Veranstaltungen und die In-App-Kommunikation werden zur Bereitstellung des Dienstes verarbeitet. Identitäts- und Verifizierungsdokumente dürfen nur für den Verifizierungsprozess verwendet werden; Zugriffsregeln und Aufbewahrungsfristen müssen vor dem Produktivbetrieb separat konfiguriert werden. Nutzer können die Löschung ihres Kontos beantragen.';
+      'Profil-, Telefonbestätigungs-, Veranstaltungs-, Standort-, Nachrichten-, Benachrichtigungs- und Google-Play-Kaufdaten werden zur Bereitstellung des Dienstes verarbeitet. Identitäts- und Verifizierungsdokumente werden für den Verifizierungsprozess verwendet. Eine Kontolöschung kann in der App oder über destek@dortapp.com beantragt werden.';
 
   @override
   String get communityRulesBody =>
       'Sei respektvoll. Belästigung, Drohungen, Diskriminierung, Betrug und irreführende Veranstaltungen sind verboten. Bewirb dich nicht für Veranstaltungen, an denen du nicht teilnehmen kannst; informiere den Veranstalter rechtzeitig, wenn du absagen musst. Melde Nutzer, die ein Sicherheitsrisiko darstellen, über den Support-Kanal.';
+
+  @override
+  String get onlinePlay => 'Online spielen';
+
+  @override
+  String get onlinePlayIntro =>
+      'Okey, 101, Batak und Backgammon. Dieser Bereich erscheint nur, wenn das Entwicklungsflag aktiv ist.';
+
+  @override
+  String get playWithBots => 'Mit Bots spielen';
+
+  @override
+  String get multiplayerClosed =>
+      'Mehrspieler-Tische sind in diesem Build aus. Es gibt keine Verbindung zur Produktionsdatenbank. Ohne Emulator-Define kann kein Tisch erstellt werden.';
+
+  @override
+  String get multiplayerUnverified =>
+      'Das Emulator-Define ist an. Ein Mehrspieler-Tisch öffnet trotzdem nicht: eine Sitzung mit zwei Nutzern wurde nicht geprüft, und der Client kann kein Ergebnis, keine Würfel und keine Hand schreiben.';
+
+  @override
+  String get yourTurnLabel => 'Du bist am Zug';
+
+  @override
+  String get botTurnLabel => 'Bot spielt';
+
+  @override
+  String get localSession => 'Lokale Sitzung';
+
+  @override
+  String get drawWallAction => 'Vom Stapel ziehen';
+
+  @override
+  String get takeDiscardAction => 'Ablage nehmen';
+
+  @override
+  String get openAction => 'Eröffnen';
+
+  @override
+  String get addMeldAction => 'An eigene Reihe legen';
+
+  @override
+  String get finishedTitle => 'Spiel beendet';
+
+  @override
+  String get okeyRule =>
+      'Klassisches Okey zu viert. 106 Steine, der Zeiger bestimmt den Okey. Reihen brauchen mindestens drei Steine; 13-1 schließt nicht. Der Gewinner ordnet 14 Steine.';
+
+  @override
+  String get okey101Rule =>
+      '101 zu viert. Zum Eröffnen sind mindestens 101 nötig. Steine dürfen nur an eigene Reihen gelegt werden. Ein aufgenommener Abwurfstein muss in derselben Runde in eine Reihe gelegt werden. Eine nicht eröffnete Hand kostet 202.';
+
+  @override
+  String get batakRule =>
+      'Einmaliges Biet-Batak zu viert. Gebote von 5 bis 13. Passen alle, muss der Geber 5 bieten. Trumpf wird gewählt. Farbe ist Pflicht. Der Alleinspieler erhält das Gebot bei Erfolg, sonst den gleichen Abzug.';
+
+  @override
+  String get tavlaRule =>
+      'Standard-Backgammon zu zweit. Kein Verdopplungswürfel. Ein Stein auf der Bar muss zuerst eintreten. Normal 1, Gammon 2, Backgammon 3.';
+
+  @override
+  String get rollDice => 'Würfeln';
+
+  @override
+  String get passAction => 'Passen';
+
+  @override
+  String get youLabel => 'Du';
+
+  @override
+  String get discardAction => 'Abwerfen';
 }

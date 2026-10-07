@@ -168,6 +168,11 @@ export const syncPublicProfile = onDocumentWritten(
         profileName :
         fallbackName;
 
+    const existingPublic =
+      await publicProfileReference.get();
+    const existingMarketBadges =
+      existingPublic.data()?.marketBadges;
+
     const plusExpiresAt =
       readTimestamp(data, "plusExpiresAt");
 
@@ -213,6 +218,9 @@ export const syncPublicProfile = onDocumentWritten(
           readStringArray(data, "oyunlar"),
         badges:
           readStringArray(data, "badges"),
+        marketBadges: Array.isArray(existingMarketBadges) ?
+          existingMarketBadges :
+          [],
         updatedAt:
           FieldValue.serverTimestamp(),
       },

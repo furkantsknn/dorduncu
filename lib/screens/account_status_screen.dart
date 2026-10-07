@@ -5,6 +5,23 @@ import '../services/session_service.dart';
 import 'login_screen.dart';
 import 'support_home_screen.dart';
 
+String _accountStatusText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AccountStatusScreen extends StatefulWidget {
   const AccountStatusScreen({
     super.key,
@@ -48,9 +65,9 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Oturum kapatılamadı. İnternet bağlantını kontrol edip tekrar dene.',
+              _accountStatusText(context, tr: 'Oturum kapatılamadı. İnternet bağlantını kontrol edip tekrar dene.', en: 'Could not sign out. Check your internet connection and try again.', de: 'Abmeldung fehlgeschlagen. Prüfe deine Internetverbindung und versuche es erneut.'),
             ),
           ),
         );
@@ -121,8 +138,8 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      const Text(
-                        'Bu durumun hatalı olduğunu düşünüyorsan destek ekibimize talep gönderebilirsin.',
+                      Text(
+                        _accountStatusText(context, tr: 'Bu durumun hatalı olduğunu düşünüyorsan destek ekibimize talep gönderebilirsin.', en: 'If you think this status is incorrect, you can send a request to our support team.', de: 'Wenn du diesen Status für falsch hältst, kannst du eine Anfrage an unser Support-Team senden.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white54,
@@ -165,7 +182,7 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
                               : const Icon(Icons.logout),
                           label: Text(
                             isLoggingOut
-                                ? 'Oturum Kapatılıyor...'
+                                ? _accountStatusText(context, tr: 'Oturum Kapatılıyor...', en: 'Signing out...', de: 'Abmeldung läuft...')
                                 : 'Oturumu Kapat',
                           ),
                           style: ElevatedButton.styleFrom(

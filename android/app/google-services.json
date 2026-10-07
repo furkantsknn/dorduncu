@@ -7,6 +7,28 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:256435983692:android:91eb5d3dbe06a349c9abe9",
+        "android_client_info": {
+          "package_name": "com.dortapp.dort"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbFBDxTH6tEpYRRbds4fSSUlNgaJlLLwM"
+        },
+        {
+          "current_key": "AIzaSyCK3FLXlRUkTBxCHpWoAbUa580uYMNB4Zg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:256435983692:android:75907774816e0110c9abe9",
         "android_client_info": {
           "package_name": "com.example.dorduncu"
@@ -23,6 +45,9 @@
         }
       ],
       "api_key": [
+        {
+          "current_key": "AIzaSyDbFBDxTH6tEpYRRbds4fSSUlNgaJlLLwM"
+        },
         {
           "current_key": "AIzaSyCK3FLXlRUkTBxCHpWoAbUa580uYMNB4Zg"
         }

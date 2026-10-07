@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,6 +43,8 @@ class SessionService {
 
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _sessionSubscription;
@@ -132,12 +135,12 @@ class SessionService {
       return;
     }
 
-    await _firestore.collection('sessions').doc(user.uid).set(
+    await _functions.httpsCallable('registerSession').call(
       <String, dynamic>{
+        'action': 'updateAppVersion',
+        'sessionId': sessionId,
         'appVersion': normalizedVersion,
-        'lastSeenAt': FieldValue.serverTimestamp(),
       },
-      SetOptions(merge: true),
     );
   }
 
@@ -177,17 +180,14 @@ class SessionService {
       return;
     }
 
-    await _firestore.collection('sessions').doc(user.uid).set(
+    await _functions.httpsCallable('registerSession').call(
       <String, dynamic>{
-        'uid': user.uid,
+        'action': 'register',
         'sessionId': session.sessionId,
         'deviceId': session.deviceId,
         'platform': session.platform,
         'appVersion': session.appVersion,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastSeenAt': FieldValue.serverTimestamp(),
       },
-      SetOptions(merge: true),
     );
   }
 
@@ -265,39 +265,15 @@ class SessionService {
 
     final SessionInfo newSession = await createNewSession();
 
-    final DocumentReference<Map<String, dynamic>> userReference =
-    _firestore.collection('users').doc(user.uid);
-    final DocumentReference<Map<String, dynamic>> sessionReference =
-    _firestore.collection('sessions').doc(user.uid);
-
-    final WriteBatch batch = _firestore.batch();
-
-    batch.set(
-      userReference,
+    await _functions.httpsCallable('registerSession').call(
       <String, dynamic>{
-        'activeSessionId': newSession.sessionId,
-        'lastSeenAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'guncellemeTarihi': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-
-    batch.set(
-      sessionReference,
-      <String, dynamic>{
-        'uid': user.uid,
+        'action': 'register',
         'sessionId': newSession.sessionId,
         'deviceId': newSession.deviceId,
         'platform': newSession.platform,
         'appVersion': newSession.appVersion,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastSeenAt': FieldValue.serverTimestamp(),
       },
-      SetOptions(merge: true),
     );
-
-    await batch.commit();
 
     return newSession;
   }
@@ -332,37 +308,19 @@ class SessionService {
       return;
     }
 
-    final DocumentReference<Map<String, dynamic>> userReference =
-    _firestore.collection('users').doc(user.uid);
-    final DocumentSnapshot<Map<String, dynamic>> snapshot =
-    await userReference.get();
-
-    final String remoteSessionId =
-        snapshot.data()?['activeSessionId']?.toString().trim() ?? '';
-
-    if (remoteSessionId != sessionId) {
-      return;
+    try {
+      await _functions.httpsCallable('registerSession').call(
+        <String, dynamic>{
+          'action': 'heartbeat',
+          'sessionId': sessionId,
+        },
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'failed-precondition') {
+        return;
+      }
+      rethrow;
     }
-
-    final WriteBatch batch = _firestore.batch();
-
-    batch.set(
-      userReference,
-      <String, dynamic>{
-        'lastSeenAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-
-    batch.set(
-      _firestore.collection('sessions').doc(user.uid),
-      <String, dynamic>{
-        'lastSeenAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-
-    await batch.commit();
   }
 
   static Future<void> startListening({

@@ -49,6 +49,11 @@ app.*.map.json
 
 # Project-specific secrets
 /android/androidkey.properties
+.env
+.env.*
+*serviceAccount*.json
+*service-account*.json
+*firebase-adminsdk*.json
 
 # Generated build outputs
 /android/build/

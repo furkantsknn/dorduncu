@@ -4,7 +4,7 @@
       "android": {
         "default": {
           "projectId": "dorduncu-8e599",
-          "appId": "1:256435983692:android:75907774816e0110c9abe9",
+          "appId": "1:256435983692:android:91eb5d3dbe06a349c9abe9",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -12,21 +12,19 @@
         "lib/firebase_options.dart": {
           "projectId": "dorduncu-8e599",
           "configurations": {
-            "android": "1:256435983692:android:75907774816e0110c9abe9"
+            "android": "1:256435983692:android:91eb5d3dbe06a349c9abe9"
           }
         }
       }
     }
   },
-
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
-
   "storage": {
     "rules": "storage.rules"
   },
-
   "functions": [
     {
       "source": "functions",
@@ -40,9 +38,37 @@
         "*.local"
       ],
       "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint",
-        "npm --prefix \"$RESOURCE_DIR\" run build"
+        "npm --prefix functions run lint",
+        "npm --prefix functions run build"
       ]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5001
+    },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 4000
+    },
+    "singleProjectMode": true
+  }
 }

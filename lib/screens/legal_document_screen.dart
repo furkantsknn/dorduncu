@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
-import '../../legal/legal_service.dart';
+import '../legal/legal_service.dart';
 
 class LegalDocumentScreen extends StatefulWidget {
   const LegalDocumentScreen({
@@ -14,8 +14,7 @@ class LegalDocumentScreen extends StatefulWidget {
   final String? title;
 
   @override
-  State<LegalDocumentScreen> createState() =>
-      _LegalDocumentScreenState();
+  State<LegalDocumentScreen> createState() => _LegalDocumentScreenState();
 }
 
 class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
@@ -26,11 +25,9 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final String languageCode =
-        Localizations.localeOf(context).languageCode;
+    final String languageCode = Localizations.localeOf(context).languageCode;
 
-    if (_documentFuture == null ||
-        _loadedLanguageCode != languageCode) {
+    if (_documentFuture == null || _loadedLanguageCode != languageCode) {
       _loadedLanguageCode = languageCode;
       _documentFuture = _loadDocument();
     }
@@ -46,8 +43,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   Future<String> _loadDocument() {
-    final String languageCode =
-        Localizations.localeOf(context).languageCode;
+    final String languageCode = Localizations.localeOf(context).languageCode;
 
     return LegalService.loadDocumentByCode(
       documentCode: widget.documentCode,
@@ -68,8 +64,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
       return customTitle;
     }
 
-    final String languageCode =
-    LegalService.normalizeLanguageCode(
+    final String languageCode = LegalService.normalizeLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
 
@@ -77,20 +72,65 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
       case 'kvkk_notice':
         switch (languageCode) {
           case 'en':
-            return 'Privacy Notice';
+            return 'KVKK Privacy Notice';
           case 'de':
-            return 'Datenschutzhinweis';
+            return 'KVKK-Hinweis';
           default:
             return 'KVKK Aydınlatma Metni';
         }
-      case 'terms_of_service':
+      case 'privacy_policy':
         switch (languageCode) {
           case 'en':
-            return 'Terms of Service';
+            return 'Privacy Policy';
+          case 'de':
+            return 'Datenschutzerklärung';
+          default:
+            return 'Gizlilik Politikası';
+        }
+      case 'terms_of_use':
+        switch (languageCode) {
+          case 'en':
+            return 'Terms of Use';
           case 'de':
             return 'Nutzungsbedingungen';
           default:
             return 'Kullanım Koşulları';
+        }
+      case 'community_rules':
+        switch (languageCode) {
+          case 'en':
+            return 'Community Rules';
+          case 'de':
+            return 'Community-Regeln';
+          default:
+            return 'Topluluk Kuralları';
+        }
+      case 'plus_subscription':
+        switch (languageCode) {
+          case 'en':
+            return 'Plus Subscription Terms';
+          case 'de':
+            return 'Plus-Abonnementbedingungen';
+          default:
+            return 'Plus Abonelik Koşulları';
+        }
+      case 'automatic_renewal':
+        switch (languageCode) {
+          case 'en':
+            return 'Automatic Renewal';
+          case 'de':
+            return 'Automatische Verlängerung';
+          default:
+            return 'Otomatik Yenileme';
+        }
+      case 'digital_products':
+        switch (languageCode) {
+          case 'en':
+            return 'Digital Product Terms';
+          case 'de':
+            return 'Digitale Produkte';
+          default:
+            return 'Dijital Ürün Koşulları';
         }
       default:
         switch (languageCode) {
@@ -105,8 +145,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   String _loadingText(BuildContext context) {
-    final String languageCode =
-    LegalService.normalizeLanguageCode(
+    final String languageCode = LegalService.normalizeLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
 
@@ -121,8 +160,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   String _errorTitle(BuildContext context) {
-    final String languageCode =
-    LegalService.normalizeLanguageCode(
+    final String languageCode = LegalService.normalizeLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
 
@@ -137,8 +175,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   String _errorDescription(BuildContext context) {
-    final String languageCode =
-    LegalService.normalizeLanguageCode(
+    final String languageCode = LegalService.normalizeLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
 
@@ -153,8 +190,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   String _retryText(BuildContext context) {
-    final String languageCode =
-    LegalService.normalizeLanguageCode(
+    final String languageCode = LegalService.normalizeLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
 
@@ -169,12 +205,9 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   String _versionText(BuildContext context) {
-    final document = LegalService.getDocumentByCode(
-      widget.documentCode,
-    );
+    final document = LegalService.getDocumentByCode(widget.documentCode);
 
-    final String languageCode =
-    LegalService.normalizeLanguageCode(
+    final String languageCode = LegalService.normalizeLanguageCode(
       Localizations.localeOf(context).languageCode,
     );
 
@@ -232,20 +265,11 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
       blockquoteDecoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(
-            color: colorScheme.primary,
-            width: 4,
-          ),
-        ),
+        border: Border(left: BorderSide(color: colorScheme.primary, width: 4)),
       ),
       blockquotePadding: const EdgeInsets.all(12),
       horizontalRuleDecoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: colorScheme.outlineVariant,
-          ),
-        ),
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
       ),
       tableHead: textTheme.bodyMedium?.copyWith(
         fontWeight: FontWeight.w700,
@@ -255,9 +279,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
         height: 1.4,
         color: colorScheme.onSurface,
       ),
-      tableBorder: TableBorder.all(
-        color: colorScheme.outlineVariant,
-      ),
+      tableBorder: TableBorder.all(color: colorScheme.outlineVariant),
       tableHeadAlign: TextAlign.left,
       tableCellsPadding: const EdgeInsets.all(10),
       code: textTheme.bodySmall?.copyWith(
@@ -284,25 +306,17 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
     final ColorScheme colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_screenTitle(context)),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: Text(_screenTitle(context)), centerTitle: false),
       body: SafeArea(
         child: Column(
           children: <Widget>[
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerLow,
                 border: Border(
-                  bottom: BorderSide(
-                    color: colorScheme.outlineVariant,
-                  ),
+                  bottom: BorderSide(color: colorScheme.outlineVariant),
                 ),
               ),
               child: Text(
@@ -316,40 +330,30 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
             Expanded(
               child: FutureBuilder<String>(
                 future: _documentFuture,
-                builder: (
-                    BuildContext context,
-                    AsyncSnapshot<String> snapshot,
-                    ) {
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return _LoadingView(
-                      message: _loadingText(context),
-                    );
-                  }
+                builder:
+                    (BuildContext context, AsyncSnapshot<String> snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return _LoadingView(message: _loadingText(context));
+                      }
 
-                  if (snapshot.hasError ||
-                      !snapshot.hasData ||
-                      snapshot.data!.trim().isEmpty) {
-                    return _ErrorView(
-                      title: _errorTitle(context),
-                      description: _errorDescription(context),
-                      retryText: _retryText(context),
-                      onRetry: _retry,
-                    );
-                  }
+                      if (snapshot.hasError ||
+                          !snapshot.hasData ||
+                          snapshot.data!.trim().isEmpty) {
+                        return _ErrorView(
+                          title: _errorTitle(context),
+                          description: _errorDescription(context),
+                          retryText: _retryText(context),
+                          onRetry: _retry,
+                        );
+                      }
 
-                  return Markdown(
-                    data: snapshot.data!,
-                    selectable: true,
-                    padding: const EdgeInsets.fromLTRB(
-                      20,
-                      20,
-                      20,
-                      40,
-                    ),
-                    styleSheet: _markdownStyleSheet(context),
-                  );
-                },
+                      return Markdown(
+                        data: snapshot.data!,
+                        selectable: true,
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+                        styleSheet: _markdownStyleSheet(context),
+                      );
+                    },
               ),
             ),
           ],
@@ -360,9 +364,7 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
 }
 
 class _LoadingView extends StatelessWidget {
-  const _LoadingView({
-    required this.message,
-  });
+  const _LoadingView({required this.message});
 
   final String message;
 
@@ -412,9 +414,7 @@ class _ErrorView extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 480,
-          ),
+          constraints: const BoxConstraints(maxWidth: 480),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[

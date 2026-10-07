@@ -43,6 +43,7 @@ class EventModel {
     this.basePricePerPlayer = 0,
     this.durationFactor = 0,
     this.paymentId = '',
+    this.accessModel = '',
     this.durationMinutes = 0,
     this.updatedAt,
     this.cancelledAt,
@@ -108,6 +109,7 @@ class EventModel {
 
   final bool paymentRequired;
   final String paymentStatus;
+  final String accessModel;
   final String paymentId;
 
   /// Bir oyuncunun ilk saat için kategori taban fiyatı.
@@ -132,20 +134,96 @@ class EventModel {
 
   bool get isCancelled =>
       status == 'iptal' ||
-          status == 'cancelled' ||
-          status == 'cancelledByCustomer' ||
-          status == 'cancelledByPlayer' ||
-          status == 'forceMajeure';
+      status == 'cancelled' ||
+      status == 'cancelledByCustomer' ||
+      status == 'cancelledByPlayer' ||
+      status == 'forceMajeure';
 
-  bool get isCompleted =>
-      status == 'tamamlandi' || status == 'completed';
+  bool get isCompleted => status == 'tamamlandi' || status == 'completed';
 
   bool get hasLocation => latitude != 0 && longitude != 0;
 
+  bool get isFreeAccessEvent =>
+      accessModel == 'free' &&
+      !paymentRequired &&
+      paymentStatus.trim().toLowerCase() == 'not_required';
+
   bool get hasPayment =>
-      paymentRequired ||
+      !isFreeAccessEvent &&
+      (paymentRequired ||
           paymentId.isNotEmpty ||
-          paymentStatus != 'notRequired';
+          (_normalizedPaymentStatus != 'notrequired' &&
+              _normalizedPaymentStatus != 'not_required' &&
+              _normalizedPaymentStatus != 'notcreated' &&
+              _normalizedPaymentStatus != 'not_created' &&
+              _normalizedPaymentStatus.isNotEmpty));
+
+  String get _normalizedPaymentStatus =>
+      paymentStatus.trim().toLowerCase().replaceAll('_', '');
+
+  static bool mapIsFreeAccess(Map<String, dynamic> data) {
+    final String payment =
+        data['paymentStatus']?.toString().trim().toLowerCase() ?? '';
+    return data['accessModel']?.toString() == 'free' &&
+        data['paymentRequired'] == false &&
+        payment == 'not_required';
+  }
+
+  static bool mapIsTerminal(Map<String, dynamic> data) {
+    final String status = (data['durum'] ?? data['status'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    return status == 'iptal' ||
+        status == 'cancelled' ||
+        status == 'completed' ||
+        status == 'tamamlandi' ||
+        status == 'tamamlandı';
+  }
+
+  static DateTime? mapEndAt(Map<String, dynamic> data) {
+    DateTime? read(Object? value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+      if (value is DateTime) {
+        return value;
+      }
+      return null;
+    }
+
+    final DateTime? explicitEnd =
+        read(data['endAt']) ??
+        read(data['bitisTarihi']) ??
+        read(data['eventEndDate']);
+    if (explicitEnd != null) {
+      return explicitEnd;
+    }
+
+    final DateTime? start = read(data['startAt']) ?? read(data['tarih']);
+    if (start == null) {
+      return null;
+    }
+
+    final int minutes = (data['durationMinutes'] as num?)?.toInt() ?? 0;
+    if (minutes > 0) {
+      return start.add(Duration(minutes: minutes));
+    }
+
+    return start.add(const Duration(hours: 1));
+  }
+
+  static bool mapHasEnded(Map<String, dynamic> data) {
+    final DateTime? end = mapEndAt(data);
+    if (end == null) {
+      return false;
+    }
+    return !end.isAfter(DateTime.now());
+  }
+
+  static bool mapIsInactive(Map<String, dynamic> data) {
+    return mapIsTerminal(data) || mapHasEnded(data);
+  }
 
   DateTime get resolvedStartAt => startAt ?? eventDate;
 
@@ -166,8 +244,7 @@ class EventModel {
       return durationMinutes;
     }
 
-    final difference =
-        resolvedEndAt.difference(resolvedStartAt).inMinutes;
+    final difference = resolvedEndAt.difference(resolvedStartAt).inMinutes;
     return difference > 0 ? difference : 0;
   }
 
@@ -176,9 +253,7 @@ class EventModel {
       return durationFactor;
     }
 
-    return GameCatalog.durationFactorForMinutes(
-      resolvedDurationMinutes,
-    );
+    return GameCatalog.durationFactorForMinutes(resolvedDurationMinutes);
   }
 
   String get resolvedGameId {
@@ -196,7 +271,7 @@ class EventModel {
 
     final catalogGame =
         GameCatalog.gameById(resolvedGameId) ??
-            GameCatalog.gameByLegacyValue(game);
+        GameCatalog.gameByLegacyValue(game);
 
     return catalogGame?.name ?? game;
   }
@@ -222,9 +297,7 @@ class EventModel {
       return basePricePerPlayer;
     }
 
-    return GameCatalog.categoryById(
-      resolvedCategoryId,
-    )?.basePricePerPlayer ??
+    return GameCatalog.categoryById(resolvedCategoryId)?.basePricePerPlayer ??
         0;
   }
 
@@ -261,9 +334,7 @@ class EventModel {
   }
 
   int get joinedPlayerCount {
-    return participantIds
-        .where((userId) => userId != creatorId)
-        .length;
+    return participantIds.where((userId) => userId != creatorId).length;
   }
 
   int get remainingPlayerCount {
@@ -280,8 +351,8 @@ class EventModel {
   }
 
   factory EventModel.fromDocument(
-      DocumentSnapshot<Map<String, dynamic>> document,
-      ) {
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     return EventModel.fromMap(
       document.data() ?? const <String, dynamic>{},
       documentId: document.id,
@@ -289,192 +360,127 @@ class EventModel {
   }
 
   factory EventModel.fromMap(
-      Map<String, dynamic> map, {
-        String documentId = '',
-      }) {
-    final resolvedId = _firstString(
-      map,
-      const <String>[
-        'eventId',
-        'id',
-      ],
-      fallback: documentId,
-    );
+    Map<String, dynamic> map, {
+    String documentId = '',
+  }) {
+    final resolvedId = _firstString(map, const <String>[
+      'eventId',
+      'id',
+    ], fallback: documentId);
 
-    final legacyGameValue = _firstString(
-      map,
-      const <String>[
-        'oyun',
-        'game',
-      ],
-      fallback: '🎯 Etkinlik',
-    );
+    final legacyGameValue = _firstString(map, const <String>[
+      'oyun',
+      'game',
+    ], fallback: '🎯 Etkinlik');
 
-    final storedGameId = _firstString(
-      map,
-      const <String>[
-        'gameId',
-        'oyunId',
-      ],
-    );
+    final storedGameId = _firstString(map, const <String>['gameId', 'oyunId']);
 
     final catalogGame =
         GameCatalog.gameById(storedGameId) ??
-            GameCatalog.gameByLegacyValue(legacyGameValue);
+        GameCatalog.gameByLegacyValue(legacyGameValue);
 
-    final resolvedGameId =
-    storedGameId.isNotEmpty ? storedGameId : catalogGame?.id ?? '';
+    final resolvedGameId = storedGameId.isNotEmpty
+        ? storedGameId
+        : catalogGame?.id ?? '';
 
-    final resolvedGameName = _firstString(
-      map,
-      const <String>[
-        'gameName',
-        'oyunAdi',
-      ],
-      fallback: catalogGame?.name ?? legacyGameValue,
-    );
+    final resolvedGameName = _firstString(map, const <String>[
+      'gameName',
+      'oyunAdi',
+    ], fallback: catalogGame?.name ?? legacyGameValue);
 
-    final storedCategoryId = _firstString(
-      map,
-      const <String>[
-        'categoryId',
-        'kategoriId',
-      ],
-    );
+    final storedCategoryId = _firstString(map, const <String>[
+      'categoryId',
+      'kategoriId',
+    ]);
 
     final catalogCategory =
         GameCatalog.categoryById(storedCategoryId) ??
-            GameCatalog.categoryForGame(resolvedGameId);
+        GameCatalog.categoryForGame(resolvedGameId);
 
-    final resolvedCategoryId =
-    storedCategoryId.isNotEmpty
+    final resolvedCategoryId = storedCategoryId.isNotEmpty
         ? storedCategoryId
         : catalogCategory?.id ?? '';
 
-    final resolvedCategoryName = _firstString(
-      map,
-      const <String>[
-        'categoryName',
-        'kategoriAdi',
-        'kategori',
-      ],
-      fallback: catalogCategory?.name ?? '',
-    );
+    final resolvedCategoryName = _firstString(map, const <String>[
+      'categoryName',
+      'kategoriAdi',
+      'kategori',
+    ], fallback: catalogCategory?.name ?? '');
 
-    final resolvedPlayerCount = _firstInt(
-      map,
-      const <String>[
-        'oyuncuSayisi',
-        'playerCount',
-        'arananOyuncuSayisi',
-      ],
-      fallback: 1,
-    ).clamp(1, 20);
+    final resolvedPlayerCount = _firstInt(map, const <String>[
+      'oyuncuSayisi',
+      'playerCount',
+      'arananOyuncuSayisi',
+    ], fallback: 1).clamp(1, 20);
 
-    final legacyEventDate = _firstDate(
-      map,
-      const <String>[
-        'tarih',
-        'eventDate',
-        'etkinlikTarihi',
-      ],
-    );
+    final legacyEventDate = _firstDate(map, const <String>[
+      'tarih',
+      'eventDate',
+      'etkinlikTarihi',
+    ]);
 
     final resolvedStartAt =
         _nullableDate(
-          _firstValue(
-            map,
-            const <String>[
-              'startAt',
-              'baslangicTarihi',
-              'baslangicZamani',
-            ],
-          ),
+          _firstValue(map, const <String>[
+            'startAt',
+            'baslangicTarihi',
+            'baslangicZamani',
+          ]),
         ) ??
-            legacyEventDate;
+        legacyEventDate;
 
-    final storedDurationMinutes = _firstInt(
-      map,
-      const <String>[
-        'durationMinutes',
-        'sureDakika',
-      ],
-    );
+    final storedDurationMinutes = _firstInt(map, const <String>[
+      'durationMinutes',
+      'sureDakika',
+    ]);
 
     final storedEndAt = _nullableDate(
-      _firstValue(
-        map,
-        const <String>[
-          'endAt',
-          'bitisTarihi',
-          'bitisZamani',
-        ],
-      ),
+      _firstValue(map, const <String>['endAt', 'bitisTarihi', 'bitisZamani']),
     );
 
     final resolvedEndAt =
         storedEndAt ??
-            (storedDurationMinutes > 0
-                ? resolvedStartAt.add(
-              Duration(minutes: storedDurationMinutes),
-            )
-                : null);
+        (storedDurationMinutes > 0
+            ? resolvedStartAt.add(Duration(minutes: storedDurationMinutes))
+            : null);
 
-    final calculatedDurationMinutes =
-    storedDurationMinutes > 0
+    final calculatedDurationMinutes = storedDurationMinutes > 0
         ? storedDurationMinutes
-        : resolvedEndAt
-        ?.difference(resolvedStartAt)
-        .inMinutes ??
-        0;
+        : resolvedEndAt?.difference(resolvedStartAt).inMinutes ?? 0;
 
-    final storedBasePrice = _firstDouble(
-      map,
-      const <String>[
-        'basePricePerPlayer',
-        'kisiBasiTabanFiyat',
-        'tabanFiyat',
-      ],
-    );
+    final storedBasePrice = _firstDouble(map, const <String>[
+      'basePricePerPlayer',
+      'kisiBasiTabanFiyat',
+      'tabanFiyat',
+    ]);
 
-    final resolvedBasePrice =
-    storedBasePrice > 0
+    final resolvedBasePrice = storedBasePrice > 0
         ? storedBasePrice
         : catalogCategory?.basePricePerPlayer ?? 0;
 
-    final storedDurationFactor = _firstDouble(
-      map,
-      const <String>[
-        'durationFactor',
-        'sureKatsayisi',
-      ],
-    );
+    final storedDurationFactor = _firstDouble(map, const <String>[
+      'durationFactor',
+      'sureKatsayisi',
+    ]);
 
-    final resolvedDurationFactor =
-    storedDurationFactor > 0
+    final resolvedDurationFactor = storedDurationFactor > 0
         ? storedDurationFactor
-        : GameCatalog.durationFactorForMinutes(
-      calculatedDurationMinutes,
-    );
+        : GameCatalog.durationFactorForMinutes(calculatedDurationMinutes);
 
-    final storedCustomerTotal = _firstDouble(
-      map,
-      const <String>[
-        'customerTotal',
-        'musteriToplami',
-        'toplamFiyat',
-        'totalPrice',
-      ],
-    );
+    final storedCustomerTotal = _firstDouble(map, const <String>[
+      'customerTotal',
+      'musteriToplami',
+      'toplamFiyat',
+      'totalPrice',
+    ]);
 
-    final calculatedCustomerTotal =
-    storedCustomerTotal > 0
+    final calculatedCustomerTotal = storedCustomerTotal > 0
         ? storedCustomerTotal
         : GameCatalog.calculateTotalPrice(
-      gameId: resolvedGameId,
-      playerCount: resolvedPlayerCount,
-      durationMinutes: calculatedDurationMinutes,
-    );
+            gameId: resolvedGameId,
+            playerCount: resolvedPlayerCount,
+            durationMinutes: calculatedDurationMinutes,
+          );
 
     return EventModel(
       id: resolvedId,
@@ -484,229 +490,111 @@ class EventModel {
       gameId: resolvedGameId,
       gameName: resolvedGameName,
       playerCount: resolvedPlayerCount,
-      playerCountText: _firstString(
-        map,
-        const <String>[
-          'oyuncuSayisiMetni',
-          'playerCountText',
-        ],
-        fallback: '$resolvedPlayerCount Oyuncu',
-      ),
-      memberPreference: _firstString(
-        map,
-        const <String>[
-          'uyeTercihi',
-          'memberPreference',
-        ],
-        fallback: 'Herkes',
-      ),
-      description: _firstString(
-        map,
-        const <String>[
-          'aciklama',
-          'description',
-        ],
-      ),
-      city: _firstString(
-        map,
-        const <String>[
-          'sehir',
-          'city',
-        ],
-      ),
-      district: _firstString(
-        map,
-        const <String>[
-          'ilce',
-          'district',
-        ],
-      ),
-      neighborhood: _firstString(
-        map,
-        const <String>[
-          'semt',
-          'mahalle',
-          'neighborhood',
-        ],
-      ),
-      address: _firstString(
-        map,
-        const <String>[
-          'adres',
-          'address',
-        ],
-      ),
-      latitude: _firstDouble(
-        map,
-        const <String>[
-          'latitude',
-          'enlem',
-        ],
-      ),
-      longitude: _firstDouble(
-        map,
-        const <String>[
-          'longitude',
-          'boylam',
-        ],
-      ),
+      playerCountText: _firstString(map, const <String>[
+        'oyuncuSayisiMetni',
+        'playerCountText',
+      ], fallback: '$resolvedPlayerCount Oyuncu'),
+      memberPreference: _firstString(map, const <String>[
+        'uyeTercihi',
+        'memberPreference',
+      ], fallback: 'Herkes'),
+      description: _firstString(map, const <String>['aciklama', 'description']),
+      city: _firstString(map, const <String>['sehir', 'city']),
+      district: _firstString(map, const <String>['ilce', 'district']),
+      neighborhood: _firstString(map, const <String>[
+        'semt',
+        'mahalle',
+        'neighborhood',
+      ]),
+      address: _firstString(map, const <String>['adres', 'address']),
+      latitude: _firstDouble(map, const <String>['latitude', 'enlem']),
+      longitude: _firstDouble(map, const <String>['longitude', 'boylam']),
       eventDate: resolvedStartAt,
       startAt: resolvedStartAt,
       endAt: resolvedEndAt,
-      creatorId: _firstString(
-        map,
-        const <String>[
-          'olusturanUid',
-          'creatorId',
-          'olusturanId',
-        ],
-      ),
-      creatorProfileName: _firstString(
-        map,
-        const <String>[
-          'olusturanProfilAdi',
-          'creatorProfileName',
-          'creatorName',
-        ],
-      ),
-      creatorProfilePhoto: _firstString(
-        map,
-        const <String>[
-          'olusturanProfilFotografi',
-          'creatorProfilePhoto',
-          'creatorPhotoUrl',
-        ],
-      ),
-      creatorPlus: _firstBool(
-        map,
-        const <String>[
-          'olusturanPlus',
-          'creatorPlus',
-        ],
-      ),
-      creatorVerified: _firstBool(
-        map,
-        const <String>[
-          'olusturanDogrulanmis',
-          'creatorVerified',
-        ],
-      ),
-      participantIds: _firstStringList(
-        map,
-        const <String>[
-          'katilanlar',
-          'participantIds',
-        ],
-      ),
-      chatMemberIds: _firstStringList(
-        map,
-        const <String>[
-          'chatMemberUids',
-          'chatMemberIds',
-        ],
-      ),
-      favoriteCount: _firstInt(
-        map,
-        const <String>[
-          'favoriSayisi',
-          'favoriteCount',
-        ],
-      ),
-      status: _firstString(
-        map,
-        const <String>[
-          'durum',
-          'status',
-        ],
-        fallback: 'aktif',
-      ),
-      createdAt: _firstDate(
-        map,
-        const <String>[
-          'olusturmaTarihi',
-          'createdAt',
-        ],
-      ),
+      creatorId: _firstString(map, const <String>[
+        'olusturanUid',
+        'creatorId',
+        'olusturanId',
+      ]),
+      creatorProfileName: _firstString(map, const <String>[
+        'olusturanProfilAdi',
+        'creatorProfileName',
+        'creatorName',
+      ]),
+      creatorProfilePhoto: _firstString(map, const <String>[
+        'olusturanProfilFotografi',
+        'creatorProfilePhoto',
+        'creatorPhotoUrl',
+      ]),
+      creatorPlus: _firstBool(map, const <String>[
+        'olusturanPlus',
+        'creatorPlus',
+      ]),
+      creatorVerified: _firstBool(map, const <String>[
+        'olusturanDogrulanmis',
+        'creatorVerified',
+      ]),
+      participantIds: _firstStringList(map, const <String>[
+        'katilanlar',
+        'participantIds',
+      ]),
+      chatMemberIds: _firstStringList(map, const <String>[
+        'chatMemberUids',
+        'chatMemberIds',
+      ]),
+      favoriteCount: _firstInt(map, const <String>[
+        'favoriSayisi',
+        'favoriteCount',
+      ]),
+      status: _firstString(map, const <String>[
+        'durum',
+        'status',
+      ], fallback: 'aktif'),
+      createdAt: _firstDate(map, const <String>[
+        'olusturmaTarihi',
+        'createdAt',
+      ]),
       updatedAt: _nullableDate(
-        _firstValue(
-          map,
-          const <String>[
-            'guncellemeTarihi',
-            'updatedAt',
-          ],
-        ),
+        _firstValue(map, const <String>['guncellemeTarihi', 'updatedAt']),
       ),
-      paymentRequired: _firstBool(
-        map,
-        const <String>[
-          'paymentRequired',
-          'odemeGerekli',
-        ],
-      ),
-      paymentStatus: _firstString(
-        map,
-        const <String>[
-          'paymentStatus',
-          'odemeDurumu',
-        ],
-        fallback: 'notRequired',
-      ),
-      paymentId: _firstString(
-        map,
-        const <String>[
-          'paymentId',
-          'odemeId',
-        ],
-      ),
+      accessModel: _firstString(map, const <String>['accessModel']),
+      paymentRequired: _firstBool(map, const <String>[
+        'paymentRequired',
+        'odemeGerekli',
+      ]),
+      paymentStatus: _firstString(map, const <String>[
+        'paymentStatus',
+        'odemeDurumu',
+      ], fallback: 'notRequired'),
+      paymentId: _firstString(map, const <String>['paymentId', 'odemeId']),
       basePricePerPlayer: resolvedBasePrice,
       durationFactor: resolvedDurationFactor,
       customerTotal: calculatedCustomerTotal,
-      playerGrossEarning: _firstDouble(
-        map,
-        const <String>[
-          'playerGrossEarning',
-          'oyuncuBrutKazanci',
-        ],
-      ),
-      platformShare: _firstDouble(
-        map,
-        const <String>[
-          'platformShare',
-          'platformPayi',
-        ],
-      ),
-      pricingVersion: _firstString(
-        map,
-        const <String>[
-          'pricingVersion',
-          'fiyatlandirmaVersiyonu',
-        ],
-        fallback: 'v2',
-      ),
-      selectedPlayerIds: _firstStringList(
-        map,
-        const <String>[
-          'selectedPlayerIds',
-          'secilenOyuncuIds',
-        ],
-      ),
+      playerGrossEarning: _firstDouble(map, const <String>[
+        'playerGrossEarning',
+        'oyuncuBrutKazanci',
+      ]),
+      platformShare: _firstDouble(map, const <String>[
+        'platformShare',
+        'platformPayi',
+      ]),
+      pricingVersion: _firstString(map, const <String>[
+        'pricingVersion',
+        'fiyatlandirmaVersiyonu',
+      ], fallback: 'v2'),
+      selectedPlayerIds: _firstStringList(map, const <String>[
+        'selectedPlayerIds',
+        'secilenOyuncuIds',
+      ]),
       durationMinutes: calculatedDurationMinutes,
       cancelledAt: _nullableDate(
-        _firstValue(
-          map,
-          const <String>[
-            'cancelledAt',
-            'iptalTarihi',
-          ],
-        ),
+        _firstValue(map, const <String>['cancelledAt', 'iptalTarihi']),
       ),
-      cancellationReason: _firstString(
-        map,
-        const <String>[
-          'cancellationReason',
-          'iptalNedeni',
-        ],
-      ),
+      cancellationReason: _firstString(map, const <String>[
+        'cancellationReason',
+        'iptalNedeni',
+      ]),
     );
   }
 
@@ -732,8 +620,7 @@ class EventModel {
       'gameName': safeGameName,
 
       // Eski ekran ve kayıtlarla uyumluluk.
-      'oyun':
-      safeGameName.isNotEmpty ? safeGameName : game,
+      'oyun': safeGameName.isNotEmpty ? safeGameName : game,
       'oyuncuSayisi': playerCount,
       'oyuncuSayisiMetni': '$playerCount Oyuncu',
       'uyeTercihi': memberPreference,
@@ -767,8 +654,7 @@ class EventModel {
       'favoriSayisi': favoriteCount,
       'durum': status,
       'olusturmaTarihi': Timestamp.fromDate(createdAt),
-      if (updatedAt != null)
-        'updatedAt': Timestamp.fromDate(updatedAt!),
+      if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
 
       'paymentRequired': paymentRequired,
       'paymentStatus': paymentStatus,
@@ -782,8 +668,7 @@ class EventModel {
       'platformShare': platformShare,
       'pricingVersion': pricingVersion,
 
-      if (cancelledAt != null)
-        'cancelledAt': Timestamp.fromDate(cancelledAt!),
+      if (cancelledAt != null) 'cancelledAt': Timestamp.fromDate(cancelledAt!),
       'cancellationReason': cancellationReason,
     };
   }
@@ -822,6 +707,7 @@ class EventModel {
     DateTime? updatedAt,
     bool? paymentRequired,
     String? paymentStatus,
+    String? accessModel,
     String? paymentId,
     double? basePricePerPlayer,
     double? durationFactor,
@@ -842,8 +728,7 @@ class EventModel {
       gameName: gameName ?? this.gameName,
       playerCount: playerCount ?? this.playerCount,
       playerCountText: playerCountText ?? this.playerCountText,
-      memberPreference:
-      memberPreference ?? this.memberPreference,
+      memberPreference: memberPreference ?? this.memberPreference,
       description: description ?? this.description,
       city: city ?? this.city,
       district: district ?? this.district,
@@ -855,49 +740,34 @@ class EventModel {
       startAt: startAt ?? this.startAt,
       endAt: endAt ?? this.endAt,
       creatorId: creatorId ?? this.creatorId,
-      creatorProfileName:
-      creatorProfileName ?? this.creatorProfileName,
-      creatorProfilePhoto:
-      creatorProfilePhoto ?? this.creatorProfilePhoto,
+      creatorProfileName: creatorProfileName ?? this.creatorProfileName,
+      creatorProfilePhoto: creatorProfilePhoto ?? this.creatorProfilePhoto,
       creatorPlus: creatorPlus ?? this.creatorPlus,
-      creatorVerified:
-      creatorVerified ?? this.creatorVerified,
-      participantIds:
-      participantIds ?? this.participantIds,
-      chatMemberIds:
-      chatMemberIds ?? this.chatMemberIds,
-      selectedPlayerIds:
-      selectedPlayerIds ?? this.selectedPlayerIds,
+      creatorVerified: creatorVerified ?? this.creatorVerified,
+      participantIds: participantIds ?? this.participantIds,
+      chatMemberIds: chatMemberIds ?? this.chatMemberIds,
+      selectedPlayerIds: selectedPlayerIds ?? this.selectedPlayerIds,
       favoriteCount: favoriteCount ?? this.favoriteCount,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      paymentRequired:
-      paymentRequired ?? this.paymentRequired,
+      paymentRequired: paymentRequired ?? this.paymentRequired,
       paymentStatus: paymentStatus ?? this.paymentStatus,
+      accessModel: accessModel ?? this.accessModel,
       paymentId: paymentId ?? this.paymentId,
-      basePricePerPlayer:
-      basePricePerPlayer ?? this.basePricePerPlayer,
-      durationFactor:
-      durationFactor ?? this.durationFactor,
+      basePricePerPlayer: basePricePerPlayer ?? this.basePricePerPlayer,
+      durationFactor: durationFactor ?? this.durationFactor,
       customerTotal: customerTotal ?? this.customerTotal,
-      playerGrossEarning:
-      playerGrossEarning ?? this.playerGrossEarning,
+      playerGrossEarning: playerGrossEarning ?? this.playerGrossEarning,
       platformShare: platformShare ?? this.platformShare,
-      pricingVersion:
-      pricingVersion ?? this.pricingVersion,
-      durationMinutes:
-      durationMinutes ?? this.durationMinutes,
+      pricingVersion: pricingVersion ?? this.pricingVersion,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
       cancelledAt: cancelledAt ?? this.cancelledAt,
-      cancellationReason:
-      cancellationReason ?? this.cancellationReason,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
     );
   }
 
-  static dynamic _firstValue(
-      Map<String, dynamic> map,
-      List<String> keys,
-      ) {
+  static dynamic _firstValue(Map<String, dynamic> map, List<String> keys) {
     for (final key in keys) {
       if (map.containsKey(key) && map[key] != null) {
         return map[key];
@@ -908,10 +778,10 @@ class EventModel {
   }
 
   static String _firstString(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        String fallback = '',
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    String fallback = '',
+  }) {
     final value = _firstValue(map, keys);
 
     if (value == null) {
@@ -923,10 +793,10 @@ class EventModel {
   }
 
   static int _firstInt(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        int fallback = 0,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    int fallback = 0,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is num) {
@@ -937,25 +807,24 @@ class EventModel {
   }
 
   static double _firstDouble(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        double fallback = 0,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    double fallback = 0,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is num) {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ??
-        fallback;
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   static bool _firstBool(
-      Map<String, dynamic> map,
-      List<String> keys, {
-        bool fallback = false,
-      }) {
+    Map<String, dynamic> map,
+    List<String> keys, {
+    bool fallback = false,
+  }) {
     final value = _firstValue(map, keys);
 
     if (value is bool) {
@@ -966,12 +835,9 @@ class EventModel {
       return value != 0;
     }
 
-    final normalized =
-        value?.toString().trim().toLowerCase() ?? '';
+    final normalized = value?.toString().trim().toLowerCase() ?? '';
 
-    if (normalized == 'true' ||
-        normalized == '1' ||
-        normalized == 'evet') {
+    if (normalized == 'true' || normalized == '1' || normalized == 'evet') {
       return true;
     }
 
@@ -985,10 +851,21 @@ class EventModel {
     return fallback;
   }
 
+  /// Kabul edilmiş oyuncu sayısı. Organizatör `katilanlar` içinde
+  /// durabilir; kadro kaynağı `selectedPlayerIds` olduğu için sayıma girmez.
+  static int acceptedPlayerCount(Map<String, dynamic> data) {
+    final String creator = (data['olusturanUid'] ?? data['creatorUid'] ?? '')
+        .toString()
+        .trim();
+    return _firstStringList(data, const <String>[
+      'selectedPlayerIds',
+    ]).where((String uid) => uid != creator).length;
+  }
+
   static List<String> _firstStringList(
-      Map<String, dynamic> map,
-      List<String> keys,
-      ) {
+    Map<String, dynamic> map,
+    List<String> keys,
+  ) {
     final value = _firstValue(map, keys);
 
     if (value is! List) {
@@ -1002,10 +879,7 @@ class EventModel {
         .toList();
   }
 
-  static DateTime _firstDate(
-      Map<String, dynamic> map,
-      List<String> keys,
-      ) {
+  static DateTime _firstDate(Map<String, dynamic> map, List<String> keys) {
     return _nullableDate(_firstValue(map, keys)) ??
         DateTime.fromMillisecondsSinceEpoch(0);
   }

@@ -39,6 +39,23 @@ Future<MarketPaymentSource?> showMarketPaymentSheet({
   );
 }
 
+String _marketPaymentText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class _MarketPaymentSheet extends StatefulWidget {
   const _MarketPaymentSheet({
     required this.title,
@@ -97,7 +114,7 @@ class _MarketPaymentSheetState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Text(
-            'Ödeme yöntemi',
+            _marketPaymentText(context, tr: 'Ödeme yöntemi', en: 'Payment method', de: 'Zahlungsmethode'),
             textAlign: TextAlign.center,
             style: Theme.of(context)
                 .textTheme
@@ -139,7 +156,7 @@ class _MarketPaymentSheetState
           ),
           const SizedBox(height: 10),
           _PaymentOptionCard(
-            title: 'Kullanılabilir bakiye',
+            title: _marketPaymentText(context, tr: 'Kullanılabilir bakiye', en: 'Available balance', de: 'Verfügbares Guthaben'),
             subtitle: _money(widget.availableBalanceKurus),
             icon: Icons.account_balance_wallet_outlined,
             enabled: _availableAvailable,
@@ -160,14 +177,14 @@ class _MarketPaymentSheetState
               Navigator.of(context).pop(_selectedSource);
             },
             icon: const Icon(Icons.lock_outline_rounded),
-            label: const Padding(
+            label: Padding(
               padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text('Ödemeyi Onayla'),
+              child: Text(_marketPaymentText(context, tr: 'Ödemeyi Onayla', en: 'Confirm Payment', de: 'Zahlung bestätigen')),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Yalnızca seçtiğin bakiyeden ödeme alınır.',
+            _marketPaymentText(context, tr: 'Yalnızca seçtiğin bakiyeden ödeme alınır.', en: 'Payment is taken only from the balance you selected.', de: 'Die Zahlung wird nur vom ausgewählten Guthaben abgezogen.'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),

@@ -9,7 +9,7 @@ class AppLocalizationsTr extends AppLocalizations {
   AppLocalizationsTr([String locale = 'tr']) : super(locale);
 
   @override
-  String get appName => 'Dördüncü';
+  String get appName => 'Dört.';
 
   @override
   String get loading => 'Yükleniyor...';
@@ -256,7 +256,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get minimumAgeRegistrationMessage =>
-      'Dördüncü uygulamasına yalnızca 18 yaşını doldurmuş kişiler kayıt olabilir.';
+      'Dört. uygulamasına yalnızca 18 yaşını doldurmuş kişiler kayıt olabilir.';
 
   @override
   String get profileCreated => 'Profilin başarıyla oluşturuldu.';
@@ -658,7 +658,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get accountDeletionPendingDescription =>
-      'Hesabın için silme talebi oluşturulmuş. İşlem tamamlanana kadar uygulamayı kullanamazsın.';
+      'Hesabın için silme talebi oluşturulmuş. İşlem tamamlanana kadar uygulamayı kullanamazsın. Uygulamaya giremiyorsan destek@dortapp.com adresine yazabilirsin.';
 
   @override
   String get accountDeleted => 'Hesap Silindi';
@@ -957,13 +957,83 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get legalTermsBody =>
-      'Dördüncü, kullanıcıların spor ve oyun etkinlikleri oluşturmasına ve bu etkinliklere katılmasına yardımcı olur. Kullanıcılar verdikleri bilgilerin doğruluğundan, etkinliklerdeki davranışlarından ve yürürlükteki kurallara uymaktan sorumludur. Ödeme ve cüzdan özellikleri etkinleştirilmeden önce ayrıca üyelik ve ödeme koşulları sunulacaktır.';
+      'Dört., kullanıcıların oyun, spor ve sosyal etkinlikler için eksik oyuncu bulmasına yardımcı olur. Etkinlik oluşturma ve katılım ücretsizdir. Kullanıcılar verdikleri bilgilerin doğruluğundan, etkinliklerdeki davranışlarından ve yürürlükteki kurallara uymaktan sorumludur.';
 
   @override
   String get privacyPolicyBody =>
-      'Profil bilgileri, seçilen oyunlar, etkinlikler ve uygulama içi iletişim hizmeti sunmak amacıyla işlenir. Kimlik ve doğrulama belgeleri yalnızca doğrulama süreci için kullanılmalı; erişim kuralları ve saklama süreleri üretim öncesinde ayrıca yapılandırılmalıdır. Kullanıcı hesap silme talebinde bulunabilir.';
+      'Profil, telefon doğrulama, etkinlik, konum, mesajlaşma, bildirim ve Google Play satın alma kayıtları hizmeti sunmak için işlenir. Kimlik ve doğrulama belgeleri doğrulama süreci için kullanılır. Hesap silme talebi uygulama içinden veya destek@dortapp.com üzerinden oluşturulabilir.';
 
   @override
   String get communityRulesBody =>
       'Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir.';
+
+  @override
+  String get onlinePlay => 'Online Oyna';
+
+  @override
+  String get onlinePlayIntro =>
+      'Okey, 101, Batak ve Tavla. Bu bölüm yalnızca geliştirme bayrağı açıkken görünür.';
+
+  @override
+  String get playWithBots => 'Botla oyna';
+
+  @override
+  String get multiplayerClosed =>
+      'Çok oyunculu masa bu derlemede kapalı. Production veritabanına bağlanılmaz. Emülatör tanımı olmadan masa oluşturulamaz.';
+
+  @override
+  String get multiplayerUnverified =>
+      'Emülatör tanımı açık. Çok oyunculu masa yine de açılmaz: iki kullanıcılı oturum doğrulanmadı ve istemci skor, zar veya el yazamaz.';
+
+  @override
+  String get yourTurnLabel => 'Sıra sende';
+
+  @override
+  String get botTurnLabel => 'Bot oynuyor';
+
+  @override
+  String get localSession => 'Yerel oturum';
+
+  @override
+  String get drawWallAction => 'Desteden çek';
+
+  @override
+  String get takeDiscardAction => 'Atığı al';
+
+  @override
+  String get openAction => 'Aç';
+
+  @override
+  String get addMeldAction => 'Kendi perime ekle';
+
+  @override
+  String get finishedTitle => 'Oyun bitti';
+
+  @override
+  String get okeyRule =>
+      'Dört kişilik klasik Okey. 106 taş, gösterge okeyi belirler. Per ve seri en az üç taş; 13-1 sarması yoktur. Kazanan 14 taşı dizer.';
+
+  @override
+  String get okey101Rule =>
+      'Dört kişilik 101. Açmak için en az 101. Taş yalnızca kendi perlerine eklenir. Atıktan alınan taş aynı turda perde kullanılmadan atılamaz. Açmamış el 202 ceza yer.';
+
+  @override
+  String get batakRule =>
+      'Dört kişilik tek el ihaleli Batak. İhale 5-13. Herkes pas geçerse dağıtan 5 der. Koz seçilir. Renk zorunlu. Yapan tutarsa ihale kadar puan alır, kaçırırsa o kadar eksi yer.';
+
+  @override
+  String get tavlaRule =>
+      'İki kişilik standart Tavla. Katlama küpü yok. Bar’daki pul önce girer. Normal 1, mars 2, geri mars 3.';
+
+  @override
+  String get rollDice => 'Zar at';
+
+  @override
+  String get passAction => 'Pas';
+
+  @override
+  String get youLabel => 'Sen';
+
+  @override
+  String get discardAction => 'At';
 }

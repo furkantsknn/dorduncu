@@ -3,6 +3,15 @@ import {
   FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
+import {
+  APPLICATION_LIFECYCLE_VERSION,
+  addressAccessStatus,
+  applicationDecisionStatus,
+  applicationPaymentStatus,
+  applicationStatus,
+  assertEventNotPast,
+  reservationStatus,
+} from "./eventLifecycle";
 
 const REGION = "europe-west1";
 
@@ -61,6 +70,7 @@ export const withdrawApplication = onCall(
       }
 
       const eventData = eventSnapshot.data() ?? {};
+      assertEventNotPast(eventData);
       const applicationData =
         applicationSnapshot.data() ?? {};
 
@@ -76,13 +86,16 @@ export const withdrawApplication = onCall(
         );
       }
 
-      const applicationStatus = String(
+      const currentApplicationStatus = String(
         applicationData.status ?? "",
       )
         .trim()
         .toLowerCase();
 
-      if (applicationStatus !== "pending") {
+      if (
+        currentApplicationStatus !==
+        applicationStatus.pending
+      ) {
         throw new HttpsError(
           "failed-precondition",
           "Yalnızca bekleyen başvuru geri çekilebilir.",
@@ -96,7 +109,17 @@ export const withdrawApplication = onCall(
       transaction.update(
         applicationReference,
         {
-          status: "withdrawn",
+          lifecycleVersion:
+            APPLICATION_LIFECYCLE_VERSION,
+          status: applicationStatus.withdrawn,
+          decisionStatus:
+            applicationDecisionStatus.withdrawn,
+          paymentStatus:
+            applicationPaymentStatus.notRequired,
+          addressAccessStatus:
+            addressAccessStatus.locked,
+          reservationStatus:
+            reservationStatus.released,
           withdrawnAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
@@ -107,6 +130,8 @@ export const withdrawApplication = onCall(
         {
           basvuranOyuncuIds: pendingApplicantIds,
           basvuruSayisi: pendingApplicantIds.length,
+          lifecycleVersion:
+            APPLICATION_LIFECYCLE_VERSION,
           updatedAt: FieldValue.serverTimestamp(),
         },
       );
@@ -116,6 +141,8 @@ export const withdrawApplication = onCall(
       success: true,
       eventId,
       playerId,
+      applicationStatus:
+        applicationStatus.withdrawn,
     };
   },
 );

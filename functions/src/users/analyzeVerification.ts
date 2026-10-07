@@ -11,7 +11,13 @@ import {
 import vision from "@google-cloud/vision";
 
 import {firestore} from "../config/firebaseAdmin";
-import {assertAdmin} from "../security/assertAdmin";
+import {
+  readVerificationObject,
+  verificationObjectPath,
+} from "./verificationDocumentStorage";
+import {
+  assertVerificationAssignment,
+} from "../security/assertVerificationAssignment";
 import {
   defineSecret,
 } from "firebase-functions/params";
@@ -146,17 +152,22 @@ function extractTckn(
 
 /**
    * Reads TCKN from identity front image.
-   * @param {string} imageUrl Identity image URL.
+   * @param {string} objectPath Private Storage object path.
    * @return {Promise<string|null>} TCKN or null.
    */
 async function readIdentityTckn(
-  imageUrl: string,
+  objectPath: string,
 ): Promise<string | null> {
   try {
+    const content =
+      await readVerificationObject(
+        objectPath,
+      );
+
     const [result] =
-        await visionClient.textDetection(
-          imageUrl,
-        );
+      await visionClient.textDetection(
+        content,
+      );
 
     const detectedText =
         result.fullTextAnnotation?.text ??
@@ -305,20 +316,25 @@ function normalizeText(
 
 /**
  * Checks OCR text from an image.
- * @param {string} imageUrl Image URL.
+ * @param {string} objectPath Private Storage object path.
  * @param {string[]} requiredTerms Expected terms.
  * @param {string} documentName Document name.
  * @return {Promise<CheckResult>} Check result.
  */
 async function analyzeTextDocument(
-  imageUrl: string,
+  objectPath: string,
   requiredTerms: string[],
   documentName: string,
 ): Promise<CheckResult> {
   try {
+    const content =
+      await readVerificationObject(
+        objectPath,
+      );
+
     const [result] =
       await visionClient.textDetection(
-        imageUrl,
+        content,
       );
 
     const detectedText =
@@ -374,131 +390,22 @@ async function analyzeTextDocument(
 }
 
 /**
- * Checks OCR text from a PDF.
- * @param {string} fileUrl PDF URL.
- * @param {string[]} requiredTerms Expected terms.
- * @param {string} documentName Document name.
- * @return {Promise<CheckResult>} Check result.
- */
-async function analyzePdfDocument(
-  fileUrl: string,
-  requiredTerms: string[],
-  documentName: string,
-): Promise<CheckResult> {
-  try {
-    const response =
-      await fetch(fileUrl);
-
-    if (!response.ok) {
-      return {
-        status: "failed",
-        reason:
-          `${documentName} dosyasına erişilemedi.`,
-      };
-    }
-
-    const arrayBuffer =
-      await response.arrayBuffer();
-
-    const content =
-      Buffer.from(arrayBuffer);
-
-    const [result] =
-      await visionClient.batchAnnotateFiles({
-        requests: [
-          {
-            inputConfig: {
-              mimeType:
-                "application/pdf",
-              content,
-            },
-            features: [
-              {
-                type:
-                  "DOCUMENT_TEXT_DETECTION",
-              },
-            ],
-            pages: [
-              1,
-              2,
-              -1,
-            ],
-          },
-        ],
-      });
-
-    const responses =
-      result.responses?.[0]
-        ?.responses ?? [];
-
-    const detectedText =
-      responses
-        .map(
-          (item) =>
-            item.fullTextAnnotation
-              ?.text ??
-            "",
-        )
-        .join(" ");
-
-    const normalized =
-      normalizeText(detectedText);
-
-    if (!normalized) {
-      return {
-        status: "failed",
-        reason:
-          `${documentName} PDF dosyasında okunabilir metin tespit edilemedi.`,
-      };
-    }
-
-    const matched =
-      requiredTerms.some(
-        (term) =>
-          normalized.includes(
-            normalizeText(term),
-          ),
-      );
-
-    if (!matched) {
-      return {
-        status: "failed",
-        reason:
-          `${documentName} beklenen belge türü olarak doğrulanamadı.`,
-      };
-    }
-
-    return {
-      status: "passed",
-      reason:
-        "PDF okunabilir ve temel belge kontrolü başarılı.",
-    };
-  } catch (error) {
-    console.error(
-      `${documentName} PDF analiz hatası`,
-      error,
-    );
-
-    return {
-      status: "failed",
-      reason:
-        `${documentName} PDF dosyası otomatik olarak analiz edilemedi.`,
-    };
-  }
-}
-
-/**
  * Checks whether selfie has one face.
- * @param {string} imageUrl Selfie URL.
+ * @param {string} objectPath Private Storage object path.
  * @return {Promise<CheckResult>} Check result.
  */
 async function analyzeSelfie(
-  imageUrl: string,
+  objectPath: string,
 ): Promise<CheckResult> {
   try {
+    const content =
+      await readVerificationObject(
+        objectPath,
+      );
+
     const [result] =
       await visionClient.faceDetection(
-        imageUrl,
+        content,
       );
 
     const faces =
@@ -579,31 +486,23 @@ export async function runVerificationAnalysis(
     );
   }
 
-  const identityFrontUrl =
-    verificationData.identityFrontUrl
-      ?.toString()
-      .trim() ?? "";
+  const identityFrontPath =
+    verificationObjectPath(
+      verificationData.identityFrontPath ??
+        verificationData.identityFrontUrl,
+      uid,
+    );
 
-  const identityBackUrl =
-    verificationData.identityBackUrl
-      ?.toString()
-      .trim() ?? "";
-
-  const criminalRecordUrl =
-    verificationData.criminalRecordUrl
-      ?.toString()
-      .trim() ?? "";
-
-  const selfieUrl =
-    verificationData.selfieUrl
-      ?.toString()
-      .trim() ?? "";
+  const selfiePath =
+    verificationObjectPath(
+      verificationData.selfiePath ??
+        verificationData.selfieUrl,
+      uid,
+    );
 
   if (
-    !identityFrontUrl ||
-    !identityBackUrl ||
-    !criminalRecordUrl ||
-    !selfieUrl
+    !identityFrontPath ||
+    !selfiePath
   ) {
     throw new HttpsError(
       "failed-precondition",
@@ -620,7 +519,7 @@ export async function runVerificationAnalysis(
 
   const tckn =
   await readIdentityTckn(
-    identityFrontUrl,
+    identityFrontPath,
   );
 
   let identityFingerprint = "";
@@ -649,12 +548,10 @@ export async function runVerificationAnalysis(
 
   const [
     identityFrontCheck,
-    identityBackCheck,
-    criminalRecordCheck,
     selfieCheck,
   ] = await Promise.all([
     analyzeTextDocument(
-      identityFrontUrl,
+      identityFrontPath,
       [
         "türkiye cumhuriyeti",
         "republic of turkey",
@@ -662,48 +559,13 @@ export async function runVerificationAnalysis(
       ],
       "Kimlik ön yüzü",
     ),
-    analyzeTextDocument(
-      identityBackUrl,
-      [
-        "kimlik",
-        "identity",
-        "uyruğu",
-        "nationality",
-      ],
-      "Kimlik arka yüzü",
-    ),
-    criminalRecordUrl
-      .toLowerCase()
-      .includes(".pdf") ?
-      analyzePdfDocument(
-        criminalRecordUrl,
-        [
-          "adli sicil",
-          "arşiv kaydı",
-          "sabıka",
-          "judicial record",
-        ],
-        "Adli sicil belgesi",
-      ) :
-      analyzeTextDocument(
-        criminalRecordUrl,
-        [
-          "adli sicil",
-          "arşiv kaydı",
-          "sabıka",
-          "judicial record",
-        ],
-        "Adli sicil belgesi",
-      ),
     analyzeSelfie(
-      selfieUrl,
+      selfiePath,
     ),
   ]);
 
   const checks = [
     identityFrontCheck,
-    identityBackCheck,
-    criminalRecordCheck,
     selfieCheck,
     identityUniquenessCheck,
   ];
@@ -717,24 +579,52 @@ export async function runVerificationAnalysis(
 
   await verificationReference.update({
     identityFrontCheck,
-    identityBackCheck,
-    criminalRecordCheck,
+    identityBackCheck:
+      FieldValue.delete(),
+    criminalRecordCheck:
+      FieldValue.delete(),
     selfieCheck,
     identityUniquenessCheck,
     identityFingerprint:
-      identityUniquenessCheck.status ===
-        "passed" ?
-        identityFingerprint :
-        FieldValue.delete(),
+    identityUniquenessCheck.status ===
+      "passed" ?
+      identityFingerprint :
+      FieldValue.delete(),
     automaticCheckStatus:
-      hasFailed ?
-        "failed" :
-        "passed",
+    hasFailed ?
+      "failed" :
+      "passed",
+    status:
+    hasFailed ?
+      "rejected" :
+      "pending",
+    rejectionReason:
+    hasFailed ?
+      "Otomatik doğrulama kontrollerinden biri başarısız oldu." :
+      "",
     automaticCheckCompletedAt:
-      FieldValue.serverTimestamp(),
+    FieldValue.serverTimestamp(),
     updatedAt:
-      FieldValue.serverTimestamp(),
+    FieldValue.serverTimestamp(),
   });
+  if (hasFailed) {
+    await firestore
+      .collection("users")
+      .doc(uid)
+      .set(
+        {
+          verified: false,
+          verificationStatus: "rejected",
+          verificationRejectionReason:
+          "Otomatik doğrulama kontrollerinden biri başarısız oldu.",
+          guncellemeTarihi:
+          FieldValue.serverTimestamp(),
+        },
+        {
+          merge: true,
+        },
+      );
+  }
 }
 
 export const analyzeVerification =
@@ -749,8 +639,6 @@ export const analyzeVerification =
       ],
     },
     async (request) => {
-      assertAdmin(request);
-
       const data =
         request.data as
           AnalyzeVerificationRequest;
@@ -767,6 +655,26 @@ export const analyzeVerification =
           "Başvuru kimliği gerekli.",
         );
       }
+
+      const verificationSnapshot =
+        await firestore
+          .collection(
+            "verification_requests",
+          )
+          .doc(requestId)
+          .get();
+
+      if (!verificationSnapshot.exists) {
+        throw new HttpsError(
+          "not-found",
+          "Doğrulama başvurusu bulunamadı.",
+        );
+      }
+
+      assertVerificationAssignment(
+        request,
+        verificationSnapshot.data() ?? {},
+      );
 
       await runVerificationAnalysis(
         requestId,

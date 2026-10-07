@@ -8,10 +8,19 @@ import {
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
+import {
+  assertLegacyDigitalWalletPurchaseAllowed,
+} from "../commercial/digitalCommercePolicy";
+import {
+  buildCommercialOperationIdentity,
+  reserveCommercialOperation,
+  transitionCommercialOperation,
+} from "../commercial/commercialLedger";
 
 interface PurchasePlusRequest {
   productId?: unknown;
   paymentSource?: unknown;
+  requestId?: unknown;
 }
 
 type PaymentSource = "available";
@@ -145,6 +154,8 @@ export const purchasePlus = onCall(
       );
     }
 
+    await assertLegacyDigitalWalletPurchaseAllowed();
+
     const uid = request.auth.uid;
     const data = request.data as PurchasePlusRequest;
 
@@ -157,6 +168,18 @@ export const purchasePlus = onCall(
     const paymentSource = requirePaymentSource(
       data.paymentSource
     );
+
+    const requestId = requireString(
+      data.requestId,
+      "requestId",
+      160
+    );
+
+    const commercialIdentity =
+      buildCommercialOperationIdentity(
+        `legacy_plus_wallet:${uid}`,
+        requestId
+      );
 
     const productReference = firestore
       .collection("plus_products")
@@ -172,25 +195,29 @@ export const purchasePlus = onCall(
 
     const purchaseReference = userReference
       .collection("plus_purchases")
-      .doc();
+      .doc(commercialIdentity.operationId);
 
     const walletTransactionReference = walletReference
       .collection("transactions")
-      .doc(`plus_purchase_${purchaseReference.id}`);
+      .doc(
+        `plus_purchase_${commercialIdentity.operationId}`
+      );
 
     const saleReference = firestore
       .collection("market_sales")
-      .doc(purchaseReference.id);
+      .doc(commercialIdentity.operationId);
 
     return firestore.runTransaction(async (transaction) => {
       const [
         productSnapshot,
         userSnapshot,
         walletSnapshot,
+        purchaseSnapshot,
       ] = await Promise.all([
         transaction.get(productReference),
         transaction.get(userReference),
         transaction.get(walletReference),
+        transaction.get(purchaseReference),
       ]);
 
       if (!productSnapshot.exists) {
@@ -224,6 +251,69 @@ export const purchasePlus = onCall(
           "failed-precondition",
           "Plus ürün bilgileri geçerli değil."
         );
+      }
+
+      const reservation =
+        await reserveCommercialOperation(
+          firestore,
+          transaction,
+          {
+            userUid: uid,
+            type: "digital_plus_purchase",
+            provider: "internal_legacy",
+            idempotencyScope:
+              `legacy_plus_wallet:${uid}`,
+            idempotencyKey: requestId,
+            money: {
+              currency: "TRY",
+              grossAmountMinor: priceKurus,
+              feeAmountMinor: 0,
+              netAmountMinor: priceKurus,
+            },
+            relatedProductId: productId,
+            metadata: {
+              paymentSource,
+              legacyWalletPurchase: true,
+            },
+          },
+          {
+            actorUid: uid,
+            source: "purchasePlus",
+          }
+        );
+
+      if (!reservation.created) {
+        const existingPurchase =
+          purchaseSnapshot.data() ?? {};
+        const existingExpiry = readDate(
+          existingPurchase.expiresAt
+        );
+
+        if (existingExpiry == null) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Önceki Plus satın alma kaydı tamamlanamadı."
+          );
+        }
+
+        return {
+          success: true,
+          idempotentReplay: true,
+          operationId: reservation.operationId,
+          productId,
+          plan:
+            existingPurchase.plan?.toString() ?? productId,
+          durationDays:
+            typeof existingPurchase.durationDays === "number" ?
+              Math.trunc(existingPurchase.durationDays) :
+              durationDays,
+          priceKurus:
+            typeof existingPurchase.priceKurus === "number" ?
+              Math.trunc(existingPurchase.priceKurus) :
+              priceKurus,
+          paymentSource,
+          plusExpiresAt: existingExpiry.toISOString(),
+        };
       }
 
       const walletData = walletSnapshot.data() ?? {};
@@ -320,6 +410,8 @@ export const purchasePlus = onCall(
         purchaseReference,
         {
           purchaseId: purchaseReference.id,
+          commercialOperationId:
+            reservation.operationId,
           uid,
           productId,
           productType: "plus_subscription",
@@ -348,6 +440,8 @@ export const purchasePlus = onCall(
             `${durationDays} günlük Plus üyeliği satın alındı.`,
           productId,
           purchaseId: purchaseReference.id,
+          commercialOperationId:
+            reservation.operationId,
           paymentSource,
           metadata: {
             plan,
@@ -363,6 +457,8 @@ export const purchasePlus = onCall(
         saleReference,
         {
           saleId: saleReference.id,
+          commercialOperationId:
+            reservation.operationId,
           uid,
           productId,
           purchaseId: purchaseReference.id,
@@ -380,8 +476,26 @@ export const purchasePlus = onCall(
         }
       );
 
+      transitionCommercialOperation(
+        firestore,
+        transaction,
+        reservation.operationId,
+        "paid",
+        {
+          actorUid: uid,
+          source: "purchasePlus",
+        },
+        {
+          productId,
+          paymentSource,
+          entitlement: "plus",
+        }
+      );
+
       return {
         success: true,
+        idempotentReplay: false,
+        operationId: reservation.operationId,
         productId,
         plan,
         durationDays,

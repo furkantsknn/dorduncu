@@ -5,6 +5,7 @@ import {
 
 import {
   FieldValue,
+  Timestamp,
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
@@ -16,10 +17,12 @@ interface RecordLoginHistoryRequest {
   appVersion?: unknown;
 }
 
+const MIN_INTERVAL_MS = 10 * 1000;
+
 export const recordLoginHistory = onCall(
   {
     region: "europe-west1",
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     if (!request.auth) {
@@ -59,33 +62,87 @@ export const recordLoginHistory = onCall(
       );
     }
 
-    const uid = request.auth.uid;
-
-    const userSnapshot =
-      await firestore.collection("users").doc(uid).get();
-
-    if (!userSnapshot.exists) {
+    if (
+      sessionId.length > 200 ||
+      deviceId.length > 200 ||
+      platform.length > 50 ||
+      appVersion.length > 50
+    ) {
       throw new HttpsError(
-        "not-found",
-        "Kullanıcı profili bulunamadı."
+        "invalid-argument",
+        "Oturum bilgileri geçersiz."
       );
     }
 
-    const userData = userSnapshot.data() ?? {};
+    const uid = request.auth.uid;
 
-    await firestore.collection("login_history").add({
-      uid,
-      phoneNumber:
-        userData.telefon?.toString() ?? "",
-      sessionId,
-      deviceId,
-      platform,
-      appVersion,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    const userReference =
+      firestore.collection("users").doc(uid);
+
+    const logReference =
+      firestore.collection("login_history").doc();
+
+    let skipped = false;
+
+    await firestore.runTransaction(
+      async (transaction) => {
+        const userSnapshot =
+          await transaction.get(userReference);
+
+        if (!userSnapshot.exists) {
+          throw new HttpsError(
+            "not-found",
+            "Kullanıcı profili bulunamadı."
+          );
+        }
+
+        const userData = userSnapshot.data() ?? {};
+        const lastLoginHistoryAt =
+          userData.lastLoginHistoryAt;
+
+        if (lastLoginHistoryAt instanceof Timestamp) {
+          const elapsed =
+            Date.now() - lastLoginHistoryAt.toMillis();
+
+          if (elapsed >= 0 && elapsed < MIN_INTERVAL_MS) {
+            skipped = true;
+            return;
+          }
+        }
+
+        transaction.set(
+          logReference,
+          {
+            uid,
+            phoneNumber:
+              request.auth?.token.phone_number ??
+              userData.telefon?.toString() ??
+              "",
+            sessionId,
+            deviceId,
+            platform,
+            appVersion,
+            createdAt:
+              FieldValue.serverTimestamp(),
+          }
+        );
+
+        transaction.set(
+          userReference,
+          {
+            lastLoginHistoryAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      }
+    );
 
     return {
       success: true,
+      skipped,
     };
   }
 );

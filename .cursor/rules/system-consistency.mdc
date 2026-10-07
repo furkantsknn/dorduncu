@@ -1,0 +1,42 @@
+---
+description: Aynı kavramın tüm ekran, servis, function ve rule noktalarında tutarlı kalması
+alwaysApply: true
+---
+
+# Sistem geneli tutarlılık
+
+Bir kavramı yalnızca ilk bulunan ekranda değiştirme. Önce proje genelinde ara, sonra uygula.
+
+## Yöntem
+
+1. Kavramı belirle.
+2. Tüm referansları ara.
+3. Flutter UI, service/model, Cloud Functions, Firestore/Storage rules, notification/deep link ve admin kullanımlarını bul.
+4. Legacy kayıtlarla uyumu kontrol et.
+5. Mevcut ortak helper, model, widget veya service varsa onu kullan. İkinci kaynak oluşturma.
+6. Sırf ortaklaştırmak için büyük refactor yapma.
+7. Değişiklikten sonra eski davranışın aktif kullanımda kalmadığını tekrar ara.
+
+Canonical kaynak adayları: oyun adı → ikon, rozet, event status, rating, verified, Plus, kullanıcı display bilgisi, event lifecycle, chat eligibility, private address eligibility.
+
+```dart
+// ❌ BAD — yalnızca EventDetail içinde ayrı ikon
+Icon(event.gameName == 'Halı Saha' ? Icons.sports_soccer : Icons.sports);
+
+// ✅ GOOD — mevcut ortak mapping
+GameIcon(gameName: event.gameName);
+```
+
+## Bilinçli istisnalar
+
+- `ExploreMapScreen` ana sayfa haritasından kullanılıyorsa silinmez.
+- Verification yetkisi backend ve rules tarafında kalır; UI yalnızca gösterir.
+- Ücretsiz event, status, rozet veya ikon değişikliğinde ödeme, başvuru, roster, adres, chat, bildirim, rating, My Events, profil, scheduled job, Functions ve rules birlikte kontrol edilir. Kullanılmayan nokta varsa raporda nedeni yazılır.
+
+## Rapor
+
+Paylaşılan bir kavram değiştiyse production raporuna ekle:
+
+ETKİLENEN TÜM KULLANIM NOKTALARI
+
+Kontrol edilen ekran, service, function ve rule noktalarını yaz. Bilinçli olarak değiştirilmeyen noktayı ve nedenini belirt.

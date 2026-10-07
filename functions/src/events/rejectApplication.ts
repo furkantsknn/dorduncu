@@ -3,6 +3,18 @@ import {
   FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
+import {
+  APPLICATION_LIFECYCLE_VERSION,
+  addressAccessStatus,
+  applicationDecisionStatus,
+  applicationPaymentStatus,
+  applicationStatus,
+  assertEventNotPast,
+  reservationStatus,
+} from "./eventLifecycle";
+import {
+  writeUserNotification,
+} from "../notifications/writeUserNotification";
 
 const REGION = "europe-west1";
 
@@ -80,6 +92,7 @@ export const rejectApplication = onCall(
         }
 
         const eventData = eventSnapshot.data() ?? {};
+        assertEventNotPast(eventData);
         const applicationData =
           applicationSnapshot.data() ?? {};
 
@@ -94,13 +107,16 @@ export const rejectApplication = onCall(
           );
         }
 
-        const applicationStatus = String(
+        const currentApplicationStatus = String(
           applicationData.status ?? "",
         )
           .trim()
           .toLowerCase();
 
-        if (applicationStatus !== "pending") {
+        if (
+          currentApplicationStatus !==
+          applicationStatus.pending
+        ) {
           throw new HttpsError(
             "failed-precondition",
             "Yalnızca bekleyen başvurular reddedilebilir.",
@@ -114,7 +130,17 @@ export const rejectApplication = onCall(
         transaction.update(
           applicationReference,
           {
-            status: "rejected",
+            lifecycleVersion:
+              APPLICATION_LIFECYCLE_VERSION,
+            status: applicationStatus.rejected,
+            decisionStatus:
+              applicationDecisionStatus.rejected,
+            paymentStatus:
+              applicationPaymentStatus.notRequired,
+            addressAccessStatus:
+              addressAccessStatus.locked,
+            reservationStatus:
+              reservationStatus.released,
             rejectionReason: reason,
             rejectedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
@@ -126,24 +152,43 @@ export const rejectApplication = onCall(
           {
             basvuranOyuncuIds: pendingApplicantIds,
             basvuruSayisi: pendingApplicantIds.length,
+            lifecycleVersion:
+              APPLICATION_LIFECYCLE_VERSION,
             updatedAt: FieldValue.serverTimestamp(),
           },
         );
       },
     );
 
-    await createNotification({
+    const message = reason.length > 0 ?
+      `Etkinlik başvurun kabul edilmedi: ${reason}` :
+      "Etkinlik başvurun kabul edilmedi.";
+
+    await writeUserNotification(
       firestore,
-      userId: playerId,
-      actorId: organizerId,
-      eventId,
-      reason,
-    });
+      {
+        userId: playerId,
+        actorId: organizerId,
+        eventId,
+        type: "application_rejected",
+        title: "Başvuru sonucu",
+        message,
+        route: "event_detail",
+        data: {
+          eventId,
+          reason,
+          applicationStatus:
+            applicationStatus.rejected,
+        },
+      },
+    );
 
     return {
       success: true,
       eventId,
       playerId,
+      applicationStatus:
+        applicationStatus.rejected,
     };
   },
 );
@@ -224,54 +269,4 @@ function readStringList(
   return value
     .map((item) => String(item).trim())
     .filter((item) => item.length > 0);
-}
-
-/**
- * Oyuncuya başvuru sonucu bildirimi gönderir.
- *
- * @param {object} params Bildirim parametreleri.
- * @param {FirebaseFirestore.Firestore} params.firestore Firestore örneği.
- * @param {string} params.userId Bildirim alacak kullanıcı.
- * @param {string} params.actorId İşlemi yapan kullanıcı.
- * @param {string} params.eventId Etkinlik kimliği.
- * @param {string} params.reason Reddetme sebebi.
- * @return {Promise<void>} İşlem tamamlandığında sonuçlanır.
- */
-async function createNotification({
-  firestore,
-  userId,
-  actorId,
-  eventId,
-  reason,
-}: {
-  firestore: FirebaseFirestore.Firestore;
-  userId: string;
-  actorId: string;
-  eventId: string;
-  reason: string;
-}): Promise<void> {
-  const reference = firestore
-    .collection("users")
-    .doc(userId)
-    .collection("notifications")
-    .doc();
-
-  const message = reason.length > 0 ?
-    `Etkinlik başvurun kabul edilmedi: ${reason}` :
-    "Etkinlik başvurun kabul edilmedi.";
-
-  await reference.set({
-    notificationId: reference.id,
-    userId,
-    actorId,
-    eventId,
-    type: "applicationRejected",
-    title: "Başvuru sonucu",
-    message,
-    isRead: false,
-    read: false,
-    okundu: false,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
 }

@@ -1,0 +1,11 @@
+AŞAMA 7 SONRASI
+
+A7 artık kapalı kabul edilir.
+
+Bir sonraki fonksiyonel aşamaya geçerken:
+- A7 mimarisi yeniden tasarlanmaz.
+- Yeni modüller gerekiyorsa mevcut permission sistemi kullanılır.
+- Yeni kritik admin action varsa:
+  App Check + RBAC + server-side Function + audit_logs zorunlu kalıp olarak kullanılır.
+- Tasarım/UI fazına gelene kadar admin görünümü estetik amaçlı yeniden yapılmaz.
+- Full manual/runtime test tüm aşamalar ve UI tasarımı bittikten sonra yapılır.

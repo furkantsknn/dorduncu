@@ -1,33 +1,46 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+
+String _adminSettingsText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 
 class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({super.key});
 
   @override
-  State<AdminSettingsScreen> createState() =>
-      _AdminSettingsScreenState();
+  State<AdminSettingsScreen> createState() => _AdminSettingsScreenState();
 }
 
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final TextEditingController _maintenanceMessageController =
-  TextEditingController();
+      TextEditingController();
 
   final TextEditingController _minimumVersionController =
-  TextEditingController();
+      TextEditingController();
 
   final TextEditingController _latestVersionController =
-  TextEditingController();
+      TextEditingController();
 
-  final TextEditingController _supportEmailController =
-  TextEditingController();
+  final TextEditingController _supportEmailController = TextEditingController();
 
-  final TextEditingController _termsUrlController =
-  TextEditingController();
+  final TextEditingController _termsUrlController = TextEditingController();
 
-  final TextEditingController _privacyUrlController =
-  TextEditingController();
+  final TextEditingController _privacyUrlController = TextEditingController();
 
   bool _maintenanceMode = false;
   bool _forceUpdateEnabled = false;
@@ -67,28 +80,22 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Future<void> _loadSettings() async {
     try {
       final DocumentSnapshot<Map<String, dynamic>> document =
-      await _settingsReference.get();
+          await _settingsReference.get();
 
-      final Map<String, dynamic> data =
-          document.data() ?? <String, dynamic>{};
+      final Map<String, dynamic> data = document.data() ?? <String, dynamic>{};
 
       _maintenanceMessageController.text =
           data['maintenanceMessage']?.toString() ?? '';
 
-      _minimumVersionController.text =
-          data['minimumVersion']?.toString() ?? '';
+      _minimumVersionController.text = data['minimumVersion']?.toString() ?? '';
 
-      _latestVersionController.text =
-          data['latestVersion']?.toString() ?? '';
+      _latestVersionController.text = data['latestVersion']?.toString() ?? '';
 
-      _supportEmailController.text =
-          data['supportEmail']?.toString() ?? '';
+      _supportEmailController.text = data['supportEmail']?.toString() ?? '';
 
-      _termsUrlController.text =
-          data['termsUrl']?.toString() ?? '';
+      _termsUrlController.text = data['termsUrl']?.toString() ?? '';
 
-      _privacyUrlController.text =
-          data['privacyUrl']?.toString() ?? '';
+      _privacyUrlController.text = data['privacyUrl']?.toString() ?? '';
 
       if (!mounted) {
         return;
@@ -98,10 +105,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         _maintenanceMode = data['maintenanceMode'] == true;
         _forceUpdateEnabled = data['forceUpdateEnabled'] == true;
         _registrationEnabled = data['registrationEnabled'] != false;
-        _eventCreationEnabled =
-            data['eventCreationEnabled'] != false;
-        _eventApplicationsEnabled =
-            data['eventApplicationsEnabled'] != false;
+        _eventCreationEnabled = data['eventCreationEnabled'] != false;
+        _eventApplicationsEnabled = data['eventApplicationsEnabled'] != false;
         _supportEnabled = data['supportEnabled'] != false;
         _paymentsEnabled = data['paymentsEnabled'] != false;
         _marketEnabled = data['marketEnabled'] != false;
@@ -116,9 +121,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         _loading = false;
       });
 
-      _showMessage(
-        'Sistem ayarları yüklenemedi: $error',
-      );
+      _showMessage('Sistem ayarları yüklenemedi: $error');
     }
   }
 
@@ -127,27 +130,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       return;
     }
 
-    final String adminId =
-        FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    if (adminId.isEmpty) {
-      _showMessage('Admin oturumu bulunamadı.');
-      return;
-    }
-
-    final String minimumVersion =
-    _minimumVersionController.text.trim();
-
-    final String latestVersion =
-    _latestVersionController.text.trim();
-
-    final String supportEmail =
-    _supportEmailController.text.trim();
+    final String minimumVersion = _minimumVersionController.text.trim();
+    final String latestVersion = _latestVersionController.text.trim();
+    final String supportEmail = _supportEmailController.text.trim();
 
     if (_forceUpdateEnabled && minimumVersion.isEmpty) {
-      _showMessage(
-        'Zorunlu güncelleme için minimum sürümü yaz.',
-      );
+      _showMessage('Zorunlu güncelleme için minimum sürümü yaz.');
       return;
     }
 
@@ -156,58 +144,32 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     });
 
     try {
-      final FirebaseFirestore firestore =
-          FirebaseFirestore.instance;
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminUpdateSystemSettings');
 
-      final DocumentReference<Map<String, dynamic>>
-      actionReference = firestore
-          .collection('admin_system_actions')
-          .doc();
-
-      final WriteBatch batch = firestore.batch();
-
-      batch.set(
-        _settingsReference,
-        <String, dynamic>{
-          'maintenanceMode': _maintenanceMode,
-          'maintenanceMessage':
-          _maintenanceMessageController.text.trim(),
-          'forceUpdateEnabled': _forceUpdateEnabled,
-          'minimumVersion': minimumVersion,
-          'latestVersion': latestVersion,
-          'registrationEnabled': _registrationEnabled,
-          'eventCreationEnabled': _eventCreationEnabled,
-          'eventApplicationsEnabled':
-          _eventApplicationsEnabled,
-          'supportEnabled': _supportEnabled,
-          'paymentsEnabled': _paymentsEnabled,
-          'marketEnabled': _marketEnabled,
-          'supportEmail': supportEmail,
-          'termsUrl': _termsUrlController.text.trim(),
-          'privacyUrl': _privacyUrlController.text.trim(),
-          'updatedBy': adminId,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      batch.set(
-        actionReference,
-        <String, dynamic>{
-          'action': 'system_settings_updated',
-          'adminId': adminId,
-          'performedByUid': adminId,
-          'createdAt': FieldValue.serverTimestamp(),
-        },
-      );
-
-      await batch.commit();
+      await callable.call(<String, dynamic>{
+        'maintenanceMode': _maintenanceMode,
+        'maintenanceMessage': _maintenanceMessageController.text.trim(),
+        'forceUpdateEnabled': _forceUpdateEnabled,
+        'minimumVersion': minimumVersion,
+        'latestVersion': latestVersion,
+        'registrationEnabled': _registrationEnabled,
+        'eventCreationEnabled': _eventCreationEnabled,
+        'eventApplicationsEnabled': _eventApplicationsEnabled,
+        'supportEnabled': _supportEnabled,
+        'paymentsEnabled': _paymentsEnabled,
+        'marketEnabled': _marketEnabled,
+        'supportEmail': supportEmail,
+        'termsUrl': _termsUrlController.text.trim(),
+        'privacyUrl': _privacyUrlController.text.trim(),
+      });
 
       _showMessage('Sistem ayarları kaydedildi.');
+    } on FirebaseFunctionsException catch (error) {
+      _showMessage(error.message ?? 'Sistem ayarları kaydedilemedi.');
     } catch (error) {
-      _showMessage(
-        'Sistem ayarları kaydedilemedi: $error',
-      );
+      _showMessage('Sistem ayarları kaydedilemedi: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -224,42 +186,27 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Sistem Ayarları'),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: Text(_adminSettingsText(context, tr: 'Sistem Ayarları', en: 'System Settings', de: 'Systemeinstellungen'))),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Sistem Ayarları',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+        title: Text(
+          _adminSettingsText(context, tr: 'Sistem Ayarları', en: 'System Settings', de: 'Systemeinstellungen'),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          32,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: <Widget>[
           _SettingsCard(
             title: 'Sistem Durumu',
@@ -267,29 +214,28 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             children: <Widget>[
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Bakım modu'),
-                subtitle: const Text(
+                title: Text(_adminSettingsText(context, tr: 'Bakım modu', en: 'Maintenance mode', de: 'Wartungsmodus')),
+                subtitle: Text(
                   'Uygulamanın kullanıcı erişimini geçici olarak sınırlar.',
                 ),
                 value: _maintenanceMode,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _maintenanceMode = value;
-                  });
-                },
+                        setState(() {
+                          _maintenanceMode = value;
+                        });
+                      },
               ),
               if (_maintenanceMode) ...<Widget>[
                 const SizedBox(height: 10),
                 TextField(
-                  controller:
-                  _maintenanceMessageController,
+                  controller: _maintenanceMessageController,
                   enabled: !_saving,
                   minLines: 3,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Bakım mesajı',
+                  decoration: InputDecoration(
+                    labelText: _adminSettingsText(context, tr: 'Bakım mesajı', en: 'Maintenance message', de: 'Wartungsmeldung'),
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -297,107 +243,101 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               const Divider(height: 28),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Yeni kayıtlar açık'),
+                title: Text(_adminSettingsText(context, tr: 'Yeni kayıtlar açık', en: 'New registrations enabled', de: 'Neue Registrierungen aktiviert')),
                 value: _registrationEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _registrationEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _registrationEnabled = value;
+                        });
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Etkinlik oluşturma açık',
-                ),
+                title: Text(_adminSettingsText(context, tr: 'Etkinlik oluşturma açık', en: 'Event creation enabled', de: 'Veranstaltungserstellung aktiviert')),
                 value: _eventCreationEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _eventCreationEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _eventCreationEnabled = value;
+                        });
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Etkinlik başvuruları açık',
-                ),
+                title: Text(_adminSettingsText(context, tr: 'Etkinlik başvuruları açık', en: 'Event applications enabled', de: 'Veranstaltungsbewerbungen aktiviert')),
                 value: _eventApplicationsEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _eventApplicationsEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _eventApplicationsEnabled = value;
+                        });
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Destek sistemi açık'),
+                title: Text(_adminSettingsText(context, tr: 'Destek sistemi açık', en: 'Support system enabled', de: 'Support-System aktiviert')),
                 value: _supportEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _supportEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _supportEnabled = value;
+                        });
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Ödemeler açık'),
+                title: Text(_adminSettingsText(context, tr: 'Ödemeler açık', en: 'Payments enabled', de: 'Zahlungen aktiviert')),
                 value: _paymentsEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _paymentsEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _paymentsEnabled = value;
+                        });
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Market açık'),
+                title: Text(_adminSettingsText(context, tr: 'Market açık', en: 'Market enabled', de: 'Markt aktiviert')),
                 value: _marketEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _marketEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _marketEnabled = value;
+                        });
+                      },
               ),
             ],
           ),
           const SizedBox(height: 14),
           _SettingsCard(
-            title: 'Uygulama Sürümü',
+            title: _adminSettingsText(context, tr: 'Uygulama Sürümü', en: 'App Version', de: 'App-Version'),
             icon: Icons.system_update_outlined,
             children: <Widget>[
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Zorunlu güncelleme',
-                ),
+                title: Text(_adminSettingsText(context, tr: 'Zorunlu güncelleme', en: 'Force update', de: 'Erzwungenes Update')),
                 value: _forceUpdateEnabled,
                 onChanged: _saving
                     ? null
                     : (bool value) {
-                  setState(() {
-                    _forceUpdateEnabled = value;
-                  });
-                },
+                        setState(() {
+                          _forceUpdateEnabled = value;
+                        });
+                      },
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: _minimumVersionController,
                 enabled: !_saving,
-                decoration: const InputDecoration(
-                  labelText: 'Minimum sürüm',
+                decoration: InputDecoration(
+                  labelText: _adminSettingsText(context, tr: 'Minimum sürüm', en: 'Minimum version', de: 'Mindestversion'),
                   hintText: 'Örnek: 1.2.0',
                   border: OutlineInputBorder(),
                 ),
@@ -406,8 +346,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               TextField(
                 controller: _latestVersionController,
                 enabled: !_saving,
-                decoration: const InputDecoration(
-                  labelText: 'Güncel sürüm',
+                decoration: InputDecoration(
+                  labelText: _adminSettingsText(context, tr: 'Güncel sürüm', en: 'Current version', de: 'Aktuelle Version'),
                   hintText: 'Örnek: 1.4.0',
                   border: OutlineInputBorder(),
                 ),
@@ -416,14 +356,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           ),
           const SizedBox(height: 14),
           _SettingsCard(
-            title: 'İletişim ve Yasal Bağlantılar',
+            title: _adminSettingsText(context, tr: 'İletişim ve Yasal Bağlantılar', en: 'Contact and Legal Links', de: 'Kontakt- und Rechtslinks'),
             icon: Icons.policy_outlined,
             children: <Widget>[
               TextField(
                 controller: _supportEmailController,
                 enabled: !_saving,
-                keyboardType:
-                TextInputType.emailAddress,
+                keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: 'Destek e-posta adresi',
                   border: OutlineInputBorder(),
@@ -435,8 +374,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 enabled: !_saving,
                 keyboardType: TextInputType.url,
                 decoration: const InputDecoration(
-                  labelText:
-                  'Kullanım koşulları bağlantısı',
+                  labelText: 'Kullanım koşulları bağlantısı',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -445,9 +383,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 controller: _privacyUrlController,
                 enabled: !_saving,
                 keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
-                  labelText:
-                  'Gizlilik politikası bağlantısı',
+                decoration: InputDecoration(
+                  labelText: 'Gizlilik politikası bağlantısı',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -457,26 +394,17 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed:
-              _saving ? null : _saveSettings,
+              onPressed: _saving ? null : _saveSettings,
               icon: _saving
                   ? const SizedBox(
-                width: 19,
-                height: 19,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                ),
-              )
+                      width: 19,
+                      height: 19,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.save_outlined),
               label: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                ),
-                child: Text(
-                  _saving
-                      ? 'Kaydediliyor...'
-                      : 'Ayarları Kaydet',
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Text(_saving ? 'Kaydediliyor...' : _adminSettingsText(context, tr: 'Ayarları Kaydet', en: 'Save Settings', de: 'Einstellungen speichern')),
               ),
             ),
           ),
@@ -504,8 +432,7 @@ class _SettingsCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
@@ -513,10 +440,7 @@ class _SettingsCard extends StatelessWidget {
                 const SizedBox(width: 9),
                 Text(
                   title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
                 ),

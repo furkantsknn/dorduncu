@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,21 +8,39 @@ import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
+import 'online_v2/online_games_v2_config.dart';
 import 'screens/account_status_screen.dart';
 import 'screens/create_profile_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/digital_purchase_service.dart';
 import 'services/language_controller.dart';
+import 'services/notification_push_service.dart';
 import 'services/theme_controller.dart';
 import 'services/user_service.dart';
+
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  if (kOnlineGamesV2UseEmulator) {
+    FirebaseFirestore.instance.useFirestoreEmulator(
+      kOnlineGamesV2EmulatorHost,
+      kOnlineGamesV2FirestorePort,
+    );
+    await FirebaseAuth.instance.useAuthEmulator(
+      kOnlineGamesV2EmulatorHost,
+      kOnlineGamesV2AuthPort,
+    );
+    FirebaseFunctions.instanceFor(region: 'europe-west1').useFunctionsEmulator(
+      kOnlineGamesV2EmulatorHost,
+      kOnlineGamesV2FunctionsPort,
+    );
+  }
 
   await FirebaseAppCheck.instance.activate(
     providerAndroid: kDebugMode
@@ -30,6 +50,7 @@ Future<void> main() async {
 
   await ThemeController.initialize();
   await LanguageController.initialize();
+  await NotificationPushService.initialize(navigatorKey: appNavigatorKey);
 
   runApp(const DorduncuApp());
 }
@@ -45,26 +66,28 @@ class DorduncuApp extends StatelessWidget {
         return ValueListenableBuilder<Locale>(
           valueListenable: LanguageController.locale,
           builder: (context, locale, child) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              NotificationPushService.flushPendingNavigation();
+            });
+
             return MaterialApp(
+              navigatorKey: appNavigatorKey,
               debugShowCheckedModeBanner: false,
               onGenerateTitle: (context) =>
-              AppLocalizations.of(context)!.appName,
+                  AppLocalizations.of(context)!.appName,
               locale: locale,
-              localizationsDelegates:
-              AppLocalizations.localizationsDelegates,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              localeResolutionCallback: (
-                  Locale? deviceLocale,
-                  Iterable<Locale> supportedLocales,
-                  ) {
-                for (final Locale supportedLocale in supportedLocales) {
-                  if (supportedLocale.languageCode == locale.languageCode) {
-                    return supportedLocale;
-                  }
-                }
+              localeResolutionCallback:
+                  (Locale? deviceLocale, Iterable<Locale> supportedLocales) {
+                    for (final Locale supportedLocale in supportedLocales) {
+                      if (supportedLocale.languageCode == locale.languageCode) {
+                        return supportedLocale;
+                      }
+                    }
 
-                return AppLocalizations.supportedLocales.first;
-              },
+                    return AppLocalizations.supportedLocales.first;
+                  },
               themeMode: themeMode,
               theme: _lightTheme(),
               darkTheme: _darkTheme(),
@@ -97,9 +120,7 @@ class DorduncuApp extends StatelessWidget {
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -128,9 +149,7 @@ class DorduncuApp extends StatelessWidget {
       ),
       cardTheme: CardThemeData(
         color: const Color(0xff181B22),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -151,9 +170,7 @@ class AuthControl extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -163,41 +180,38 @@ class AuthControl extends StatelessWidget {
           return const LoginScreen();
         }
 
-        return FutureBuilder<AuthDestination>(
-          future: UserService.getAuthDestination(user: user),
-          builder: (context, destinationSnapshot) {
-            if (destinationSnapshot.connectionState ==
-                ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
+        return _SignedInPlayBilling(
+          child: FutureBuilder<AuthDestination>(
+            future: UserService.getAuthDestination(user: user),
+            builder: (context, destinationSnapshot) {
+              if (destinationSnapshot.connectionState ==
+                  ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
 
-            if (destinationSnapshot.hasError ||
-                !destinationSnapshot.hasData) {
-              return AccountStatusScreen(
-                title: l10n.connectionError,
-                message: l10n.checkInternetConnection,
-                icon: Icons.cloud_off_outlined,
-              );
-            }
+              if (destinationSnapshot.hasError ||
+                  !destinationSnapshot.hasData) {
+                return AccountStatusScreen(
+                  title: l10n.connectionError,
+                  message: l10n.checkInternetConnection,
+                  icon: Icons.cloud_off_outlined,
+                );
+              }
 
-            return _destinationScreen(
-              destinationSnapshot.data!,
-              l10n,
-            );
-          },
+              return _destinationScreen(destinationSnapshot.data!, l10n);
+            },
+          ),
         );
       },
     );
   }
 
   Widget _destinationScreen(
-      AuthDestination destination,
-      AppLocalizations l10n,
-      ) {
+    AuthDestination destination,
+    AppLocalizations l10n,
+  ) {
     switch (destination.type) {
       case AuthDestinationType.login:
         return const LoginScreen();
@@ -206,9 +220,7 @@ class AuthControl extends StatelessWidget {
         return const CreateProfileScreen();
 
       case AuthDestinationType.home:
-        return HomeScreen(
-          userName: destination.profileName,
-        );
+        return HomeScreen(userName: destination.profileName);
 
       case AuthDestinationType.suspended:
         return AccountStatusScreen(
@@ -245,5 +257,33 @@ class AuthControl extends StatelessWidget {
           icon: Icons.phonelink_erase_outlined,
         );
     }
+  }
+}
+
+class _SignedInPlayBilling extends StatefulWidget {
+  const _SignedInPlayBilling({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SignedInPlayBilling> createState() => _SignedInPlayBillingState();
+}
+
+class _SignedInPlayBillingState extends State<_SignedInPlayBilling> {
+  @override
+  void initState() {
+    super.initState();
+    DigitalPurchaseService.instance.attachSession();
+  }
+
+  @override
+  void dispose() {
+    DigitalPurchaseService.instance.detachSession();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }

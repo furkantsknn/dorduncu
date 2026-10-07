@@ -1,5 +1,22 @@
 import 'package:flutter/material.dart';
 
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminReportsScreen extends StatelessWidget {
   const AdminReportsScreen({super.key});
 
@@ -7,8 +24,8 @@ class AdminReportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Raporlar',
+        title: Text(
+          _locText(context, tr: 'Raporlar', en: 'Reports', de: 'Berichte'),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),

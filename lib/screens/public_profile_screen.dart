@@ -1,12 +1,29 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../models/market_badge_display.dart';
 import '../models/user_model.dart';
+import '../widgets/market_badge_strip.dart';
 import '../services/user_service.dart';
 import '../services/friend_service.dart';
 import '../utils/game_catalog.dart';
 import '../utils/support_categories.dart';
 import 'create_support_request_screen.dart';
+
+String _publicProfileText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
 
 class PublicProfileScreen extends StatelessWidget {
   const PublicProfileScreen({
@@ -18,7 +35,6 @@ class PublicProfileScreen extends StatelessWidget {
   final String userId;
   final UserModel? initialUser;
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -26,9 +42,7 @@ class PublicProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Oyuncu Profili',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
         centerTitle: true,
         actions: <Widget>[
@@ -58,16 +72,105 @@ class PublicProfileScreen extends StatelessWidget {
                     ),
                   );
                   break;
+
+                case 'block_user':
+                  final bool alreadyBlocked = await FriendService.instance
+                      .isBlocked(userId);
+
+                  if (!context.mounted) {
+                    break;
+                  }
+
+                  if (alreadyBlocked) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          _publicProfileText(
+                            context,
+                            tr: 'Bu kullanıcı zaten engellenmiş.',
+                            en: 'This user is already blocked.',
+                            de: 'Dieser Nutzer ist bereits blockiert.',
+                          ),
+                        ),
+                      ),
+                    );
+                    break;
+                  }
+
+                  final bool? confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) {
+                      return AlertDialog(
+                        title: Text(
+                          _publicProfileText(
+                            context,
+                            tr: 'Kullanıcıyı engelle',
+                            en: 'Block user',
+                            de: 'Nutzer blockieren',
+                          ),
+                        ),
+                        content: const Text(
+                          'Bu kullanıcıyı engellediğinde engellenen '
+                          'kullanıcılar listesinden yönetebilirsin.',
+                        ),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, false),
+                            child: Text(
+                              _publicProfileText(
+                                context,
+                                tr: 'Vazgeç',
+                                en: 'Cancel',
+                                de: 'Abbrechen',
+                              ),
+                            ),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: const Text('Engelle'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+                  if (confirmed == true) {
+                    await FriendService.instance.blockUser(userId);
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            _publicProfileText(
+                              context,
+                              tr: 'Kullanıcı engellendi.',
+                              en: 'User blocked.',
+                              de: 'Nutzer blockiert.',
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                  break;
               }
             },
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
                 value: 'report_user',
                 child: Row(
                   children: [
                     Icon(Icons.person_off_outlined),
                     SizedBox(width: 12),
-                    Text('Kullanıcıyı Şikâyet Et'),
+                    Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Kullanıcıyı Şikâyet Et',
+                        en: 'Report User',
+                        de: 'Nutzer melden',
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -78,7 +181,32 @@ class PublicProfileScreen extends StatelessWidget {
                   children: [
                     Icon(Icons.image_not_supported_outlined),
                     SizedBox(width: 12),
-                    Text('Profil Fotoğrafını Şikâyet Et'),
+                    Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Profil Fotoğrafını Şikâyet Et',
+                        en: 'Report Profile Photo',
+                        de: 'Profilfoto melden',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'block_user',
+                child: Row(
+                  children: [
+                    Icon(Icons.block_outlined),
+                    SizedBox(width: 12),
+                    Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Kullanıcıyı Engelle',
+                        en: 'Block User',
+                        de: 'Nutzer blockieren',
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -89,122 +217,112 @@ class PublicProfileScreen extends StatelessWidget {
       body: StreamBuilder<Map<String, dynamic>?>(
         initialData: initialUser?.toMap(),
         stream: UserService.watchUser(userId),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<Map<String, dynamic>?> snapshot,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<Map<String, dynamic>?> snapshot,
             ) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting &&
-              snapshot.data == null) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  snapshot.data == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          if (snapshot.hasError) {
-            return _PublicProfileError(
-              message:
-              'Oyuncu profili yüklenirken bir hata oluştu.',
-              onRetry: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute<void>(
-                    builder: (_) => PublicProfileScreen(
-                      userId: userId,
-                      initialUser: initialUser,
-                    ),
+              if (snapshot.hasError) {
+                return _PublicProfileError(
+                  message: _publicProfileText(
+                    context,
+                    tr: 'Oyuncu profili yüklenirken bir hata oluştu.',
+                    en: 'An error occurred while loading the player profile.',
+                    de: 'Beim Laden des Spielerprofils ist ein Fehler aufgetreten.',
                   ),
+                  onRetry: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PublicProfileScreen(
+                          userId: userId,
+                          initialUser: initialUser,
+                        ),
+                      ),
+                    );
+                  },
                 );
-              },
-            );
-          }
+              }
 
-          final UserModel? user =
-          snapshot.data == null
-              ? null
-              : UserModel.fromMap(
-            snapshot.data!,
-            documentId: userId,
-          );
+              final UserModel? user = snapshot.data == null
+                  ? null
+                  : UserModel.fromMap(snapshot.data!, documentId: userId);
 
-          if (user == null) {
-            return const _PublicProfileEmpty();
-          }
+              if (user == null) {
+                return const _PublicProfileEmpty();
+              }
 
-          return _PublicProfileBody(user: user);
-        },
+              return _PublicProfileBody(
+                user: user,
+                marketBadges: MarketBadgeDisplay.listFrom(
+                  snapshot.data?['marketBadges'],
+                ),
+              );
+            },
       ),
     );
   }
 }
 
 class _PublicProfileBody extends StatelessWidget {
-  const _PublicProfileBody({
-    required this.user,
-  });
+  const _PublicProfileBody({required this.user, required this.marketBadges});
 
   final UserModel user;
+  final List<MarketBadgeDisplay> marketBadges;
 
   @override
   Widget build(BuildContext context) {
-    final List<_GameCategoryGroup> groups =
-    _groupSkills(user.sortedGameSkills);
+    final List<_GameCategoryGroup> groups = _groupSkills(
+      context,
+      user.sortedGameSkills,
+    );
 
     return RefreshIndicator(
       onRefresh: () async {
-        await Future<void>.delayed(
-          const Duration(milliseconds: 400),
-        );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
       },
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: <Widget>[
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              28,
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
             sliver: SliverList(
-              delegate: SliverChildListDelegate(
-                <Widget>[
-                  _ProfileHero(user: user),
+              delegate: SliverChildListDelegate(<Widget>[
+                _ProfileHero(user: user, marketBadges: marketBadges),
+                const SizedBox(height: 14),
+                _ProfileStatistics(user: user),
+                const SizedBox(height: 16),
+                _FriendActionCard(user: user),
+                const SizedBox(height: 14),
+                if (user.hakkimda.trim().isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  _ProfileStatistics(user: user),
-                  const SizedBox(height: 16),
-                  _FriendActionCard(user: user),
-                  const SizedBox(height: 14),
-                  if (user.hakkimda.trim().isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    _AboutCard(text: user.hakkimda.trim()),
-                  ],
-                  const SizedBox(height: 18),
-                  const _SectionHeader(
-                    title: 'Oyunlar ve seviyeler',
-                    subtitle:
-                    'Oyuncunun profiline eklediği oyun ve spor deneyimleri',
-                  ),
-                  const SizedBox(height: 10),
-                  if (groups.isEmpty)
-                    const _NoGamesCard()
-                  else
-                    ...groups.map(
-                          (group) => Padding(
-                        padding:
-                        const EdgeInsets.only(bottom: 12),
-                        child: _GameCategoryCard(
-                          group: group,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  _OwnedBadgesCollection(
-                    userId: user.uid,
-                  ),
-                  const SizedBox(height: 18),
-                  const _PrivacyNotice(),
+                  _AboutCard(text: user.hakkimda.trim()),
                 ],
-              ),
+                const SizedBox(height: 18),
+                const _SectionHeader(
+                  title: 'Oyunlar ve seviyeler',
+                  subtitle:
+                      'Oyuncunun profiline eklediği oyun ve spor deneyimleri',
+                ),
+                const SizedBox(height: 10),
+                if (groups.isEmpty)
+                  const _NoGamesCard()
+                else
+                  ...groups.map(
+                    (group) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _GameCategoryCard(group: group),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                _OwnedBadgesCollection(badges: marketBadges),
+                const SizedBox(height: 18),
+                const _PrivacyNotice(),
+              ]),
             ),
           ),
         ],
@@ -213,62 +331,56 @@ class _PublicProfileBody extends StatelessWidget {
   }
 
   List<_GameCategoryGroup> _groupSkills(
-      List<UserGameSkill> skills,
-      ) {
+    BuildContext context,
+    List<UserGameSkill> skills,
+  ) {
     final Map<String, List<UserGameSkill>> grouped =
-    <String, List<UserGameSkill>>{};
+        <String, List<UserGameSkill>>{};
 
     for (final UserGameSkill skill in skills) {
-      final String categoryId =
-      skill.categoryId.trim().isNotEmpty
+      final String categoryId = skill.categoryId.trim().isNotEmpty
           ? skill.categoryId
           : 'diger';
 
-      grouped
-          .putIfAbsent(
-        categoryId,
-            () => <UserGameSkill>[],
-      )
-          .add(skill);
+      grouped.putIfAbsent(categoryId, () => <UserGameSkill>[]).add(skill);
     }
 
-    final List<_GameCategoryGroup> result =
-    grouped.entries.map((entry) {
-      final GameCategoryDefinition? category =
-      GameCatalog.categoryById(entry.key);
+    final List<_GameCategoryGroup> result = grouped.entries.map((entry) {
+      final GameCategoryDefinition? category = GameCatalog.categoryById(
+        entry.key,
+      );
 
-      final List<UserGameSkill> sortedSkills =
-      List<UserGameSkill>.from(entry.value)
-        ..sort(
-              (a, b) =>
-              a.gameName.compareTo(b.gameName),
-        );
+      final List<UserGameSkill> sortedSkills = List<UserGameSkill>.from(
+        entry.value,
+      )..sort((a, b) => a.gameName.compareTo(b.gameName));
 
       return _GameCategoryGroup(
         categoryId: entry.key,
-        categoryName: category?.name ??
+        categoryName:
+            category?.name ??
             (sortedSkills.first.categoryName.trim().isNotEmpty
                 ? sortedSkills.first.categoryName
-                : 'Diğer'),
+                : _publicProfileText(
+                    context,
+                    tr: 'Diğer',
+                    en: 'Other',
+                    de: 'Andere',
+                  )),
         categoryEmoji: category?.emoji ?? '🎯',
         skills: sortedSkills,
       );
     }).toList();
 
     result.sort((a, b) {
-      final int aIndex = GameCatalog.categories
-          .indexWhere(
-            (category) => category.id == a.categoryId,
+      final int aIndex = GameCatalog.categories.indexWhere(
+        (category) => category.id == a.categoryId,
       );
-      final int bIndex = GameCatalog.categories
-          .indexWhere(
-            (category) => category.id == b.categoryId,
+      final int bIndex = GameCatalog.categories.indexWhere(
+        (category) => category.id == b.categoryId,
       );
 
-      final int normalizedA =
-      aIndex == -1 ? 999 : aIndex;
-      final int normalizedB =
-      bIndex == -1 ? 999 : bIndex;
+      final int normalizedA = aIndex == -1 ? 999 : aIndex;
+      final int normalizedB = bIndex == -1 ? 999 : bIndex;
 
       return normalizedA.compareTo(normalizedB);
     });
@@ -278,16 +390,14 @@ class _PublicProfileBody extends StatelessWidget {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({
-    required this.user,
-  });
+  const _ProfileHero({required this.user, required this.marketBadges});
 
   final UserModel user;
+  final List<MarketBadgeDisplay> marketBadges;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors =
-        Theme.of(context).colorScheme;
+    final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -295,10 +405,7 @@ class _ProfileHero extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            colors.primaryContainer,
-            colors.secondaryContainer,
-          ],
+          colors: <Color>[colors.primaryContainer, colors.secondaryContainer],
         ),
         borderRadius: BorderRadius.circular(28),
       ),
@@ -309,10 +416,7 @@ class _ProfileHero extends StatelessWidget {
           Text(
             user.displayName,
             textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
               color: colors.onPrimaryContainer,
             ),
@@ -324,8 +428,7 @@ class _ProfileHero extends StatelessWidget {
               user.fullName,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: colors.onPrimaryContainer
-                    .withValues(alpha: 0.72),
+                color: colors.onPrimaryContainer.withValues(alpha: 0.72),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -366,13 +469,23 @@ class _ProfileHero extends StatelessWidget {
                   icon: Icons.sports_esports_rounded,
                 ),
               if (user.isPlusActive)
-                const _ProfileChip(
-                  label: 'Plus Üye',
+                _ProfileChip(
+                  label: _publicProfileText(
+                    context,
+                    tr: 'Plus Üye',
+                    en: 'Plus Member',
+                    de: 'Plus-Mitglied',
+                  ),
                   icon: Icons.workspace_premium_rounded,
                 ),
               if (user.verified)
-                const _ProfileChip(
-                  label: 'Doğrulanmış',
+                _ProfileChip(
+                  label: _publicProfileText(
+                    context,
+                    tr: 'Doğrulanmış',
+                    en: 'Verified',
+                    de: 'Verifiziert',
+                  ),
                   icon: Icons.verified_rounded,
                 ),
               StreamBuilder<FriendRequestStatus>(
@@ -382,14 +495,20 @@ class _ProfileHero extends StatelessWidget {
                     return const SizedBox.shrink();
                   }
 
-                  return const _ProfileChip(
-                    label: 'Arkadaş',
+                  return _ProfileChip(
+                    label: _publicProfileText(
+                      context,
+                      tr: 'Arkadaş',
+                      en: 'Friend',
+                      de: 'Freund',
+                    ),
                     icon: Icons.people_alt_rounded,
                   );
                 },
               ),
             ],
           ),
+          MarketBadgeStrip(userId: user.uid, projected: marketBadges),
         ],
       ),
     );
@@ -397,16 +516,13 @@ class _ProfileHero extends StatelessWidget {
 }
 
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({
-    required this.user,
-  });
+  const _ProfileAvatar({required this.user});
 
   final UserModel user;
 
   @override
   Widget build(BuildContext context) {
-    final String photoUrl =
-    user.profilFotografi.trim();
+    final String photoUrl = user.profilFotografi.trim();
 
     return Container(
       width: 112,
@@ -425,31 +541,26 @@ class _ProfileAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: photoUrl.isEmpty
-            ? _AvatarFallback(
-          displayName: user.displayName,
-        )
+            ? _AvatarFallback(displayName: user.displayName)
             : Image.network(
-          photoUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (
-              BuildContext context,
-              Object error,
-              StackTrace? stackTrace,
-              ) {
-            return _AvatarFallback(
-              displayName: user.displayName,
-            );
-          },
-        ),
+                photoUrl,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (
+                      BuildContext context,
+                      Object error,
+                      StackTrace? stackTrace,
+                    ) {
+                      return _AvatarFallback(displayName: user.displayName);
+                    },
+              ),
       ),
     );
   }
 }
 
 class _AvatarFallback extends StatelessWidget {
-  const _AvatarFallback({
-    required this.displayName,
-  });
+  const _AvatarFallback({required this.displayName});
 
   final String displayName;
 
@@ -475,24 +586,17 @@ class _AvatarFallback extends StatelessWidget {
 }
 
 class _ProfileChip extends StatelessWidget {
-  const _ProfileChip({
-    required this.label,
-    required this.icon,
-  });
+  const _ProfileChip({required this.label, required this.icon});
 
   final String label;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors =
-        Theme.of(context).colorScheme;
+    final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(99),
@@ -500,11 +604,7 @@ class _ProfileChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            icon,
-            size: 16,
-            color: colors.primary,
-          ),
+          Icon(icon, size: 16, color: colors.primary),
           const SizedBox(width: 5),
           Text(
             label,
@@ -521,9 +621,7 @@ class _ProfileChip extends StatelessWidget {
 }
 
 class _ProfileStatistics extends StatelessWidget {
-  const _ProfileStatistics({
-    required this.user,
-  });
+  const _ProfileStatistics({required this.user});
 
   final UserModel user;
 
@@ -534,12 +632,15 @@ class _ProfileStatistics extends StatelessWidget {
         Expanded(
           child: _StatisticCard(
             icon: Icons.star_rounded,
-            value: user.puan > 0
-                ? user.puan.toStringAsFixed(1)
-                : 'Yeni',
+            value: user.puan > 0 ? user.puan.toStringAsFixed(1) : 'Yeni',
             label: user.ratingCount > 0
                 ? '${user.ratingCount} değerlendirme'
-                : 'Henüz puan yok',
+                : _publicProfileText(
+                    context,
+                    tr: 'Henüz puan yok',
+                    en: 'No rating yet',
+                    de: 'Noch keine Bewertung',
+                  ),
           ),
         ),
         const SizedBox(width: 10),
@@ -579,28 +680,18 @@ class _StatisticCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 14,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
         child: Column(
           children: <Widget>[
-            Icon(
-              icon,
-              color: const Color(0xffFF9800),
-              size: 25,
-            ),
+            Icon(icon, color: const Color(0xffFF9800), size: 25),
             const SizedBox(height: 7),
             Text(
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 3),
             Text(
@@ -608,12 +699,9 @@ class _StatisticCard extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -623,9 +711,7 @@ class _StatisticCard extends StatelessWidget {
 }
 
 class _AboutCard extends StatelessWidget {
-  const _AboutCard({
-    required this.text,
-  });
+  const _AboutCard({required this.text});
 
   final String text;
 
@@ -646,11 +732,13 @@ class _AboutCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Hakkında',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(
+                  _publicProfileText(
+                    context,
+                    tr: 'Hakkında',
+                    en: 'About',
+                    de: 'Über',
+                  ),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -659,10 +747,7 @@ class _AboutCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               text,
-              style: const TextStyle(
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(height: 1.45, fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -672,10 +757,7 @@ class _AboutCard extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionHeader({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -687,23 +769,15 @@ class _SectionHeader extends StatelessWidget {
       children: <Widget>[
         Text(
           title,
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             height: 1.35,
           ),
         ),
@@ -713,9 +787,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _GameCategoryCard extends StatelessWidget {
-  const _GameCategoryCard({
-    required this.group,
-  });
+  const _GameCategoryCard({required this.group});
 
   final _GameCategoryGroup group;
 
@@ -731,18 +803,12 @@ class _GameCategoryCard extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(
-                  group.categoryEmoji,
-                  style: const TextStyle(fontSize: 24),
-                ),
+                Text(group.categoryEmoji, style: const TextStyle(fontSize: 24)),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
                     group.categoryName,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -753,18 +819,13 @@ class _GameCategoryCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .secondaryContainer,
-                    borderRadius:
-                    BorderRadius.circular(99),
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
                     '${group.skills.length} oyun',
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSecondaryContainer,
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                     ),
@@ -774,9 +835,8 @@ class _GameCategoryCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             ...group.skills.map(
-                  (UserGameSkill skill) => Padding(
-                padding:
-                const EdgeInsets.only(bottom: 14),
+              (UserGameSkill skill) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
                 child: _GameSkillTile(skill: skill),
               ),
             ),
@@ -788,9 +848,7 @@ class _GameCategoryCard extends StatelessWidget {
 }
 
 class _GameSkillTile extends StatelessWidget {
-  const _GameSkillTile({
-    required this.skill,
-  });
+  const _GameSkillTile({required this.skill});
 
   final UserGameSkill skill;
 
@@ -798,7 +856,7 @@ class _GameSkillTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final GameDefinition? game =
         GameCatalog.gameById(skill.gameId) ??
-            GameCatalog.gameByLegacyValue(skill.gameName);
+        GameCatalog.gameByLegacyValue(skill.gameName);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -810,9 +868,7 @@ class _GameSkillTile extends StatelessWidget {
               height: 39,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -824,16 +880,11 @@ class _GameSkillTile extends StatelessWidget {
             Expanded(
               child: Text(
                 skill.gameName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 9,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
                 color: _skillBackground(skill.level),
                 borderRadius: BorderRadius.circular(99),
@@ -855,9 +906,9 @@ class _GameSkillTile extends StatelessWidget {
           child: LinearProgressIndicator(
             value: skill.progress,
             minHeight: 8,
-            backgroundColor: Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
           ),
         ),
       ],
@@ -902,15 +953,23 @@ class _NoGamesCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Henüz oyun eklenmemiş',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
+            Text(
+              _publicProfileText(
+                context,
+                tr: 'Henüz oyun eklenmemiş',
+                en: 'No games added yet',
+                de: 'Noch keine Spiele hinzugefügt',
               ),
+              style: TextStyle(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 5),
             Text(
-              'Bu oyuncu herkese açık oyun seviyelerini henüz paylaşmadı.',
+              _publicProfileText(
+                context,
+                tr: 'Bu oyuncu herkese açık oyun seviyelerini henüz paylaşmadı.',
+                en: 'This player has not shared public game levels yet.',
+                de: 'Dieser Spieler hat noch keine öffentlichen Spielstufen geteilt.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -922,146 +981,84 @@ class _NoGamesCard extends StatelessWidget {
     );
   }
 }
-class _OwnedBadgesCollection extends StatelessWidget {
-  const _OwnedBadgesCollection({
-    required this.userId,
-  });
 
-  final String userId;
+class _OwnedBadgesCollection extends StatelessWidget {
+  const _OwnedBadgesCollection({required this.badges});
+
+  final List<MarketBadgeDisplay> badges;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('owned_badges')
-          .orderBy('purchasedAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const SizedBox.shrink();
-        }
+    if (badges.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const _SectionHeader(
+          title: 'Rozet Koleksiyonu',
+          subtitle: 'Oyuncunun marketten edindiği oyun rozetleri',
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 164,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: badges.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final MarketBadgeDisplay badge = badges[index];
 
-        final documents = snapshot.data?.docs ??
-            const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-
-        if (documents.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const _SectionHeader(
-              title: 'Rozet Koleksiyonu',
-              subtitle: 'Oyuncunun marketten edindiği oyun rozetleri',
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 164,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: documents.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  final data = documents[index].data();
-                  final String title =
-                      data['title']?.toString().trim().isNotEmpty == true
-                          ? data['title'].toString().trim()
-                          : 'Oyun Rozeti';
-                  final String gameName =
-                      data['gameName']?.toString().trim() ?? '';
-                  final String emoji =
-                      data['emoji']?.toString().trim().isNotEmpty == true
-                          ? data['emoji'].toString().trim()
-                          : '🏅';
-                  final String imageUrl =
-                      data['imageUrl']?.toString().trim() ?? '';
-
-                  return Container(
-                    width: 138,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: colors.outlineVariant.withValues(alpha: 0.7),
+              return Container(
+                width: 138,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: colors.outlineVariant.withValues(alpha: 0.7),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      child: Center(
+                        child: CatalogBadgeEmblem(badge: badge, size: 64),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          child: Container(
-                            width: double.infinity,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: colors.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: imageUrl.isNotEmpty
-                                ? Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, _, _) => Text(
-                                        emoji,
-                                        style: const TextStyle(fontSize: 36),
-                                      ),
-                                    ),
-                                  )
-                                : Text(
-                                    emoji,
-                                    style: const TextStyle(fontSize: 36),
-                                  ),
-                          ),
+                    const SizedBox(height: 9),
+                    if (badge.gameName.isNotEmpty)
+                      Text(
+                        badge.gameName.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xffC97A10),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.6,
                         ),
-                        const SizedBox(height: 9),
-                        if (gameName.isNotEmpty)
-                          Text(
-                            gameName.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xffC97A10),
-                              fontSize: 8,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                        const SizedBox(height: 2),
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
+                      ),
+                    const SizedBox(height: 2),
+                    MarketBadgeTitle(
+                      badge: badge,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1074,9 +1071,7 @@ class _PrivacyNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -1085,18 +1080,19 @@ class _PrivacyNotice extends StatelessWidget {
           Icon(
             Icons.lock_outline_rounded,
             size: 20,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              'Gizlilik nedeniyle e-posta, telefon, kullanıcı kimliği, ödeme ve açık adres bilgileri bu profilde gösterilmez.',
+              _publicProfileText(
+                context,
+                tr: 'Gizlilik nedeniyle e-posta, telefon, kullanıcı kimliği, ödeme ve açık adres bilgileri bu profilde gösterilmez.',
+                en: 'For privacy, email, phone, user ID, payment and exact address information are not shown on this profile.',
+                de: 'Aus Datenschutzgründen werden E-Mail, Telefon, Nutzer-ID, Zahlungs- und genaue Adressdaten in diesem Profil nicht angezeigt.',
+              ),
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.4,
                 fontWeight: FontWeight.w600,
@@ -1123,28 +1119,31 @@ class _PublicProfileEmpty extends StatelessWidget {
             Icon(
               Icons.person_off_outlined,
               size: 58,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 14),
             Text(
-              'Profil bulunamadı',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
+              _publicProfileText(
+                context,
+                tr: 'Profil bulunamadı',
+                en: 'Profile not found',
+                de: 'Profil nicht gefunden',
               ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
-              'Bu oyuncunun herkese açık profiline şu anda ulaşılamıyor.',
+              _publicProfileText(
+                context,
+                tr: 'Bu oyuncunun herkese açık profiline şu anda ulaşılamıyor.',
+                en: 'This player’s public profile is currently unavailable.',
+                de: 'Das öffentliche Profil dieses Spielers ist derzeit nicht verfügbar.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1155,10 +1154,7 @@ class _PublicProfileEmpty extends StatelessWidget {
 }
 
 class _PublicProfileError extends StatelessWidget {
-  const _PublicProfileError({
-    required this.message,
-    required this.onRetry,
-  });
+  const _PublicProfileError({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -1171,17 +1167,12 @@ class _PublicProfileError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 58,
-            ),
+            const Icon(Icons.error_outline_rounded, size: 58),
             const SizedBox(height: 14),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
@@ -1211,9 +1202,7 @@ class _GameCategoryGroup {
 }
 
 class _FriendActionCard extends StatelessWidget {
-  const _FriendActionCard({
-    required this.user,
-  });
+  const _FriendActionCard({required this.user});
 
   final UserModel user;
 
@@ -1246,22 +1235,48 @@ class _FriendActionCard extends StatelessWidget {
                 context: context,
                 builder: (dialogContext) {
                   return AlertDialog(
-                    title: const Text('İsteği Geri Çek'),
-                    content: const Text(
-                      'Gönderdiğin arkadaşlık isteğini geri çekmek istiyor musun?',
+                    title: Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'İsteği Geri Çek',
+                        en: 'Withdraw Request',
+                        de: 'Anfrage zurückziehen',
+                      ),
+                    ),
+                    content: Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Gönderdiğin arkadaşlık isteğini geri çekmek istiyor musun?',
+                        en: 'Do you want to withdraw the friend request you sent?',
+                        de: 'Möchtest du die gesendete Freundschaftsanfrage zurückziehen?',
+                      ),
                     ),
                     actions: <Widget>[
                       TextButton(
                         onPressed: () {
                           Navigator.of(dialogContext).pop(false);
                         },
-                        child: const Text('Vazgeç'),
+                        child: Text(
+                          _publicProfileText(
+                            context,
+                            tr: 'Vazgeç',
+                            en: 'Cancel',
+                            de: 'Abbrechen',
+                          ),
+                        ),
                       ),
                       FilledButton(
                         onPressed: () {
                           Navigator.of(dialogContext).pop(true);
                         },
-                        child: const Text('Geri Çek'),
+                        child: Text(
+                          _publicProfileText(
+                            context,
+                            tr: 'Geri Çek',
+                            en: 'Withdraw',
+                            de: 'Zurückziehen',
+                          ),
+                        ),
                       ),
                     ],
                   );
@@ -1307,22 +1322,48 @@ class _FriendActionCard extends StatelessWidget {
                 context: context,
                 builder: (dialogContext) {
                   return AlertDialog(
-                    title: const Text('Arkadaşlıktan Çıkar'),
-                    content: const Text(
-                      'Bu kullanıcıyı arkadaş listesinden çıkarmak istiyor musun?',
+                    title: Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Arkadaşlıktan Çıkar',
+                        en: 'Remove Friend',
+                        de: 'Freund entfernen',
+                      ),
+                    ),
+                    content: Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Bu kullanıcıyı arkadaş listesinden çıkarmak istiyor musun?',
+                        en: 'Do you want to remove this user from your friends list?',
+                        de: 'Möchtest du diesen Nutzer aus deiner Freundesliste entfernen?',
+                      ),
                     ),
                     actions: <Widget>[
                       TextButton(
                         onPressed: () {
                           Navigator.of(dialogContext).pop(false);
                         },
-                        child: const Text('Vazgeç'),
+                        child: Text(
+                          _publicProfileText(
+                            context,
+                            tr: 'Vazgeç',
+                            en: 'Cancel',
+                            de: 'Abbrechen',
+                          ),
+                        ),
                       ),
                       FilledButton(
                         onPressed: () {
                           Navigator.of(dialogContext).pop(true);
                         },
-                        child: const Text('Çıkar'),
+                        child: Text(
+                          _publicProfileText(
+                            context,
+                            tr: 'Çıkar',
+                            en: 'Remove',
+                            de: 'Entfernen',
+                          ),
+                        ),
                       ),
                     ],
                   );

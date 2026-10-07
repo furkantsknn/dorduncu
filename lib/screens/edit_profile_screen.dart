@@ -11,11 +11,11 @@ import '../utils/game_catalog.dart';
 import 'avatar_picker_sheet.dart';
 
 String _editProfileText(
-    BuildContext context, {
-      required String tr,
-      required String en,
-      required String de,
-    }) {
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
   switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
     case 'en':
       return en;
@@ -26,13 +26,13 @@ String _editProfileText(
   }
 }
 
-
 String _editProfileCategoryName(
-    BuildContext context,
-    GameCategoryDefinition category,
-    ) {
-  final languageCode =
-  Localizations.localeOf(context).languageCode.toLowerCase();
+  BuildContext context,
+  GameCategoryDefinition category,
+) {
+  final languageCode = Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase();
 
   switch (category.id) {
     case 'masa_oyunlari':
@@ -70,12 +70,10 @@ String _editProfileCategoryName(
   }
 }
 
-String _editProfileGameName(
-    BuildContext context,
-    GameDefinition game,
-    ) {
-  final languageCode =
-  Localizations.localeOf(context).languageCode.toLowerCase();
+String _editProfileGameName(BuildContext context, GameDefinition game) {
+  final languageCode = Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase();
 
   if (languageCode == 'tr') {
     return game.name;
@@ -115,10 +113,7 @@ String _editProfileGameName(
   }
 }
 
-String _editProfileGameDisplayName(
-    BuildContext context,
-    GameDefinition game,
-    ) {
+String _editProfileGameDisplayName(BuildContext context, GameDefinition game) {
   return '${game.emoji} ${_editProfileGameName(context, game)}';
 }
 
@@ -148,35 +143,25 @@ String _skillLevelText(BuildContext context, String value) {
       );
     case 'uzman':
     case 'profesyonel':
-      return _editProfileText(
-        context,
-        tr: value,
-        en: 'Expert',
-        de: 'Experte',
-      );
+      return _editProfileText(context, tr: value, en: 'Expert', de: 'Experte');
     default:
       return value;
   }
 }
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({
-    super.key,
-    required this.initialData,
-  });
+  const EditProfileScreen({super.key, required this.initialData});
 
   final Map<String, dynamic> initialData;
 
   @override
-  State<EditProfileScreen> createState() =>
-      _EditProfileScreenState();
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController aboutController;
 
-  final Map<String, UserGameSkill> selectedSkills =
-  <String, UserGameSkill>{};
+  final Map<String, UserGameSkill> selectedSkills = <String, UserGameSkill>{};
 
   String photoUrl = '';
   String avatarUrl = '';
@@ -191,10 +176,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       text: widget.initialData['hakkimda']?.toString() ?? '',
     );
 
-    photoUrl =
-        widget.initialData['profilFotografi']?.toString() ?? '';
-    avatarUrl =
-        widget.initialData['avatarUrl']?.toString() ?? '';
+    photoUrl = widget.initialData['profilFotografi']?.toString() ?? '';
+    avatarUrl = widget.initialData['avatarUrl']?.toString() ?? '';
 
     final userModel = UserModel.fromMap(widget.initialData);
     selectedSkills.addAll(userModel.gameSkills);
@@ -253,10 +236,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickAvatar() async {
-    final selected = await showAvatarPicker(
-      context,
-      selected: avatarUrl,
-    );
+    final selected = await showAvatarPicker(context, selected: avatarUrl);
 
     if (selected != null && mounted) {
       setState(() {
@@ -276,8 +256,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Wrap(
             children: [
               ListTile(
-                leading:
-                const Icon(Icons.photo_library_outlined),
+                leading: const Icon(Icons.photo_library_outlined),
                 title: Text(
                   _editProfileText(
                     context,
@@ -292,8 +271,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 },
               ),
               ListTile(
-                leading:
-                const Icon(Icons.camera_alt_outlined),
+                leading: const Icon(Icons.camera_alt_outlined),
                 title: Text(
                   _editProfileText(
                     context,
@@ -323,10 +301,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.red,
-                ),
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: Text(
                   _editProfileText(
                     context,
@@ -354,8 +329,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _toggleGame(GameDefinition game, bool selected) {
     setState(() {
       if (selected) {
-        final category =
-        GameCatalog.categoryById(game.categoryId);
+        final category = GameCatalog.categoryById(game.categoryId);
         final defaultLevel = GameCatalog.skillLevels.first;
 
         selectedSkills[game.id] = UserGameSkill(
@@ -372,10 +346,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
   }
 
-  void _setSkillLevel(
-      GameDefinition game,
-      SkillLevelDefinition level,
-      ) {
+  void _setSkillLevel(GameDefinition game, SkillLevelDefinition level) {
     final currentSkill = selectedSkills[game.id];
     if (currentSkill == null) {
       return;
@@ -420,7 +391,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (pickedPhoto != null) {
         final ref = FirebaseStorage.instance.ref(
           'profile_photos/${user.uid}/'
-              'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
 
         await ref.putFile(File(pickedPhoto!.path));
@@ -428,9 +399,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
 
       final sortedSkills = selectedSkills.values.toList()
-        ..sort(
-              (a, b) => a.gameName.compareTo(b.gameName),
-        );
+        ..sort((a, b) => a.gameName.compareTo(b.gameName));
 
       final gameNames = sortedSkills
           .map((skill) => skill.gameName)
@@ -442,24 +411,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .toSet()
           .toList();
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set(
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
         <String, dynamic>{
           'profilFotografi': uploadedUrl,
-          'avatarUrl':
-          uploadedUrl.isNotEmpty ? '' : avatarUrl,
+          'avatarUrl': uploadedUrl.isNotEmpty ? '' : avatarUrl,
           'oyunlar': gameNames,
           'gameIds': gameIds,
           'gameSkills': <String, dynamic>{
-            for (final skill in sortedSkills)
-              skill.gameId: skill.toMap(),
+            for (final skill in sortedSkills) skill.gameId: skill.toMap(),
           },
           'hakkimda': aboutController.text.trim(),
 
-          'guncellemeTarihi':
-          FieldValue.serverTimestamp(),
+          'guncellemeTarihi': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
@@ -477,12 +440,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_editProfileText(
-              context,
-              tr: 'Kaydedilemedi',
-              en: 'Could not save',
-              de: 'Speichern fehlgeschlagen',
-            )} (${error.code}): ${error.message ?? ''}',
+            '${_editProfileText(context, tr: 'Kaydedilemedi', en: 'Could not save', de: 'Speichern fehlgeschlagen')} (${error.code}): ${error.message ?? ''}',
           ),
         ),
       );
@@ -494,12 +452,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_editProfileText(
-              context,
-              tr: 'Kaydedilemedi',
-              en: 'Could not save',
-              de: 'Speichern fehlgeschlagen',
-            )}: $error',
+            '${_editProfileText(context, tr: 'Kaydedilemedi', en: 'Could not save', de: 'Speichern fehlgeschlagen')}: $error',
           ),
         ),
       );
@@ -527,30 +480,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             onPressed: saving ? null : _save,
             child: saving
                 ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
-            )
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Text(
-              _editProfileText(
-                context,
-                tr: 'Kaydet',
-                en: 'Save',
-                de: 'Speichern',
-              ),
-            ),
+                    _editProfileText(
+                      context,
+                      tr: 'Kaydet',
+                      en: 'Save',
+                      de: 'Speichern',
+                    ),
+                  ),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          18,
-          12,
-          18,
-          32,
-        ),
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
         children: [
           _buildProfilePhoto(),
           const SizedBox(height: 28),
@@ -581,22 +527,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             onPressed: saving ? null : _save,
             icon: const Icon(Icons.save_outlined),
             label: Padding(
-              padding:
-              const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 14),
               child: Text(
                 saving
                     ? _editProfileText(
-                  context,
-                  tr: 'Kaydediliyor...',
-                  en: 'Saving...',
-                  de: 'Wird gespeichert...',
-                )
+                        context,
+                        tr: 'Kaydediliyor...',
+                        en: 'Saving...',
+                        de: 'Wird gespeichert...',
+                      )
                     : _editProfileText(
-                  context,
-                  tr: 'Değişiklikleri kaydet',
-                  en: 'Save changes',
-                  de: 'Änderungen speichern',
-                ),
+                        context,
+                        tr: 'Değişiklikleri kaydet',
+                        en: 'Save changes',
+                        de: 'Änderungen speichern',
+                      ),
               ),
             ),
           ),
@@ -613,15 +558,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 62,
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .primaryContainer,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 backgroundImage: imageProvider,
                 child: imageProvider == null
-                    ? const Icon(
-                  Icons.person,
-                  size: 64,
-                )
+                    ? const Icon(Icons.person, size: 64)
                     : null,
               ),
               Positioned(
@@ -660,10 +600,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             en: 'My games and sports',
             de: 'Meine Spiele und Sportarten',
           ),
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(fontWeight: FontWeight.w900),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 6),
         Text(
@@ -682,14 +621,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             en: '${selectedSkills.length} disciplines selected',
             de: '${selectedSkills.length} Disziplinen ausgewählt',
           ),
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.w700,
-            color: Theme.of(context)
-                .colorScheme
-                .primary,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 14),
@@ -699,13 +633,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildCategoryCard(
-      GameCategoryDefinition category,
-      ) {
+  Widget _buildCategoryCard(GameCategoryDefinition category) {
     final selectedInCategory = category.games
-        .where(
-          (game) => selectedSkills.containsKey(game.id),
-    )
+        .where((game) => selectedSkills.containsKey(game.id))
         .length;
 
     return Card(
@@ -713,37 +643,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         initiallyExpanded: selectedInCategory > 0,
-        leading: Text(
-          category.emoji,
-          style: const TextStyle(fontSize: 24),
-        ),
+        leading: Text(category.emoji, style: const TextStyle(fontSize: 24)),
         title: Text(
           _editProfileCategoryName(context, category),
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         subtitle: Text(
           selectedInCategory == 0
               ? _editProfileText(
-            context,
-            tr: '${category.games.length} branş',
-            en: '${category.games.length} disciplines',
-            de: '${category.games.length} Disziplinen',
-          )
+                  context,
+                  tr: '${category.games.length} branş',
+                  en: '${category.games.length} disciplines',
+                  de: '${category.games.length} Disziplinen',
+                )
               : _editProfileText(
-            context,
-            tr: '$selectedInCategory branş seçildi',
-            en: '$selectedInCategory disciplines selected',
-            de: '$selectedInCategory Disziplinen ausgewählt',
-          ),
+                  context,
+                  tr: '$selectedInCategory branş seçildi',
+                  en: '$selectedInCategory disciplines selected',
+                  de: '$selectedInCategory Disziplinen ausgewählt',
+                ),
         ),
-        childrenPadding:
-        const EdgeInsets.fromLTRB(14, 0, 14, 14),
-        children: [
-          for (final game in category.games)
-            _buildGameItem(game),
-        ],
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        children: [for (final game in category.games) _buildGameItem(game)],
       ),
     );
   }
@@ -760,9 +681,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         border: Border.all(
           color: selected
               ? Theme.of(context).colorScheme.primary
-              : Theme.of(context)
-              .colorScheme
-              .outlineVariant,
+              : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Column(
@@ -770,27 +689,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
-            controlAffinity:
-            ListTileControlAffinity.leading,
+            controlAffinity: ListTileControlAffinity.leading,
             value: selected,
             onChanged: (value) {
               _toggleGame(game, value ?? false);
             },
             title: Text(
               _editProfileGameDisplayName(context, game),
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: Text(
               selected
                   ? '${_skillLevelText(context, skill.levelLabel)} · %${skill.level}'
                   : _editProfileText(
-                context,
-                tr: 'Profiline eklemek için seç',
-                en: 'Select to add to your profile',
-                de: 'Auswählen, um es deinem Profil hinzuzufügen',
-              ),
+                      context,
+                      tr: 'Profiline eklemek için seç',
+                      en: 'Select to add to your profile',
+                      de: 'Auswählen, um es deinem Profil hinzuzufügen',
+                    ),
             ),
           ),
           if (selected) ...[
@@ -803,8 +719,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 12),
             SegmentedButton<int>(
               segments: [
-                for (final level
-                in GameCatalog.skillLevels)
+                for (final level in GameCatalog.skillLevels)
                   ButtonSegment<int>(
                     value: level.value,
                     label: Text(
@@ -819,15 +734,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   return;
                 }
 
-                final selectedLevel =
-                GameCatalog.skillLevelForValue(
+                final selectedLevel = GameCatalog.skillLevelForValue(
                   selection.first,
                 );
 
-                _setSkillLevel(
-                  game,
-                  selectedLevel,
-                );
+                _setSkillLevel(game, selectedLevel);
               },
               showSelectedIcon: false,
             ),

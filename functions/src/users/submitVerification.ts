@@ -7,109 +7,49 @@ import {
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
+import {
+  assertVerificationObject,
+  rotateDownloadToken,
+  verificationObjectPath,
+} from "./verificationDocumentStorage";
 
 interface SubmitVerificationRequest {
+  identityFrontPath?: unknown;
+  identityBackPath?: unknown;
+  criminalRecordPath?: unknown;
+  selfiePath?: unknown;
   identityFrontUrl?: unknown;
   identityBackUrl?: unknown;
   criminalRecordUrl?: unknown;
   selfieUrl?: unknown;
 }
 
-const allowedStorageBuckets = new Set([
-  "dorduncu-8e599.firebasestorage.app",
-  "dorduncu-8e599.appspot.com",
-]);
-
 /**
- * Validates a Firebase Storage verification document URL.
- * @param {string} value Document URL.
+ * Prefers a private path and falls back to a validated legacy URL.
+ * @param {unknown} pathValue Private Storage path.
+ * @param {unknown} legacyUrl Previous Firebase download URL.
  * @param {string} uid Authenticated user id.
- * @return {boolean} Whether the URL belongs to the user.
+ * @return {string} Valid object path or an empty string.
  */
-function isValidVerificationDocumentUrl(
-  value: string,
+function readDocumentPath(
+  pathValue: unknown,
+  legacyUrl: unknown,
   uid: string,
-): boolean {
-  try {
-    const url = new URL(value);
+): string {
+  const preferred =
+    verificationObjectPath(
+      pathValue,
+      uid,
+    );
 
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !==
-        "firebasestorage.googleapis.com"
-    ) {
-      return false;
-    }
-
-    const parts =
-      url.pathname
-        .split("/")
-        .filter(
-          (part) => part.length > 0,
-        );
-
-    if (
-      parts.length < 5 ||
-      parts[0] !== "v0" ||
-      parts[1] !== "b" ||
-      parts[3] !== "o"
-    ) {
-      return false;
-    }
-
-    const bucket =
-      decodeURIComponent(
-        parts[2],
-      );
-
-    if (
-      !allowedStorageBuckets.has(
-        bucket,
-      )
-    ) {
-      return false;
-    }
-
-    const encodedObjectPath =
-      parts
-        .slice(4)
-        .join("/");
-
-    const objectPath =
-      decodeURIComponent(
-        encodedObjectPath,
-      );
-
-    const requiredPrefix =
-      `verification_documents/${uid}/`;
-
-    if (
-      !objectPath.startsWith(
-        requiredPrefix,
-      )
-    ) {
-      return false;
-    }
-
-    const relativePath =
-      objectPath.slice(
-        requiredPrefix.length,
-      );
-
-    if (
-      !relativePath ||
-      relativePath.startsWith("/") ||
-      relativePath.includes("../") ||
-      relativePath.includes("/../") ||
-      relativePath.includes("\\")
-    ) {
-      return false;
-    }
-
-    return true;
-  } catch {
-    return false;
+  if (preferred) {
+    return preferred;
   }
+
+  return verificationObjectPath(
+    legacyUrl,
+    uid,
+  );
 }
 
 export const submitVerification = onCall(
@@ -129,65 +69,64 @@ export const submitVerification = onCall(
       request.auth.uid;
 
     const data =
-      request.data as SubmitVerificationRequest;
+      request.data as
+        SubmitVerificationRequest;
 
-    const identityFrontUrl =
-      typeof data.identityFrontUrl ===
-        "string" ?
-        data.identityFrontUrl.trim() :
-        "";
+    const identityFrontPath =
+      readDocumentPath(
+        data.identityFrontPath,
+        data.identityFrontUrl,
+        uid,
+      );
 
-    const identityBackUrl =
-      typeof data.identityBackUrl ===
-        "string" ?
-        data.identityBackUrl.trim() :
-        "";
+    const selfiePath =
+      readDocumentPath(
+        data.selfiePath,
+        data.selfieUrl,
+        uid,
+      );
 
-    const criminalRecordUrl =
-      typeof data.criminalRecordUrl ===
-        "string" ?
-        data.criminalRecordUrl.trim() :
-        "";
-
-    const selfieUrl =
-      typeof data.selfieUrl ===
-        "string" ?
-        data.selfieUrl.trim() :
-        "";
+    const documentPaths = [
+      identityFrontPath,
+      selfiePath,
+    ];
 
     if (
-      !identityFrontUrl ||
-      !identityBackUrl ||
-      !criminalRecordUrl ||
-      !selfieUrl
+      documentPaths.some(
+        (path) => !path,
+      )
     ) {
       throw new HttpsError(
         "invalid-argument",
-        "Doğrulama belgeleri eksik.",
+        "Doğrulama belgeleri eksik " +
+          "veya geçersiz.",
       );
     }
 
-    const documentUrls = [
-      identityFrontUrl,
-      identityBackUrl,
-      criminalRecordUrl,
-      selfieUrl,
-    ];
-
-    const allDocumentsValid =
-      documentUrls.every(
-        (url) =>
-          isValidVerificationDocumentUrl(
-            url,
-            uid,
-          ),
+    try {
+      await Promise.all(
+        documentPaths.map(
+          (path) =>
+            assertVerificationObject(path),
+        ),
       );
 
-    if (!allDocumentsValid) {
+      await Promise.all(
+        documentPaths.map(
+          (path) =>
+            rotateDownloadToken(path),
+        ),
+      );
+    } catch (error) {
+      console.error(
+        "Verification Storage doğrulaması başarısız.",
+        error,
+      );
+
       throw new HttpsError(
-        "permission-denied",
-        "Doğrulama belgelerinden biri geçersiz " +
-          "veya bu kullanıcıya ait değil.",
+        "failed-precondition",
+        "Doğrulama belgelerine güvenli " +
+          "şekilde erişilemedi.",
       );
     }
 
@@ -243,10 +182,25 @@ export const submitVerification = onCall(
         dogumTarihi:
           userData.dogumTarihi ?? null,
 
-        identityFrontUrl,
-        identityBackUrl,
-        criminalRecordUrl,
-        selfieUrl,
+        identityFrontPath,
+        selfiePath,
+
+        identityFrontUrl:
+          FieldValue.delete(),
+        identityBackPath:
+          FieldValue.delete(),
+        criminalRecordPath:
+          FieldValue.delete(),
+        identityBackUrl:
+          FieldValue.delete(),
+        criminalRecordUrl:
+          FieldValue.delete(),
+        selfieUrl:
+          FieldValue.delete(),
+        identityBackCheck:
+          FieldValue.delete(),
+        criminalRecordCheck:
+          FieldValue.delete(),
 
         status: "pending",
 
@@ -254,16 +208,6 @@ export const submitVerification = onCall(
           "pending",
 
         identityFrontCheck: {
-          status: "pending",
-          reason: "",
-        },
-
-        identityBackCheck: {
-          status: "pending",
-          reason: "",
-        },
-
-        criminalRecordCheck: {
           status: "pending",
           reason: "",
         },
@@ -281,6 +225,15 @@ export const submitVerification = onCall(
         automaticCheckCompletedAt:
           null,
 
+        documentRetentionPolicy:
+          "final_decision_30_days",
+        deletionRequestedAt:
+          FieldValue.delete(),
+        deletionStatus:
+          FieldValue.delete(),
+        documentsDeletedAt:
+          FieldValue.delete(),
+
         createdAt:
           FieldValue.serverTimestamp(),
 
@@ -288,7 +241,7 @@ export const submitVerification = onCall(
           FieldValue.serverTimestamp(),
       },
       {
-        merge: false,
+        merge: true,
       },
     );
 
@@ -298,8 +251,8 @@ export const submitVerification = onCall(
         verified: false,
         verificationStatus:
           "pending",
-        verificationSkipped:
-          false,
+        verificationRejectionReason:
+          "",
         guncellemeTarihi:
           FieldValue.serverTimestamp(),
       },
@@ -312,7 +265,7 @@ export const submitVerification = onCall(
 
     return {
       success: true,
-      status: "pending",
+      requestId: uid,
     };
   },
 );

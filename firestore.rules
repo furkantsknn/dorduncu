@@ -27,9 +27,69 @@ rules_version = '2';
         (
           request.auth.token.admin == true ||
           request.auth.token.role == "admin" ||
-          request.auth.token.role == "super_admin" ||
-          request.auth.token.role == "moderator"
+          request.auth.token.role == "super_admin"
         );
+    }
+
+    function hasRole(role) {
+      return signedIn() &&
+        request.auth.token.keys().hasAny(['role']) &&
+        request.auth.token.role == role;
+    }
+
+    function isLegacyModerator() {
+      return signedIn() &&
+        request.auth.token.keys().hasAny(['moderator']) &&
+        request.auth.token.moderator == true;
+    }
+
+    function canReadUsers() {
+      return isAdmin() ||
+        isLegacyModerator() ||
+        hasRole("moderator") ||
+        hasRole("verification_officer") ||
+        hasRole("support_officer") ||
+        hasRole("finance_officer");
+    }
+
+    function canModerateUsers() {
+      return isAdmin() ||
+        isLegacyModerator() ||
+        hasRole("moderator");
+    }
+
+    function canReviewVerification() {
+      return isAdmin() ||
+        hasRole("verification_officer");
+    }
+
+    function canManageSupport() {
+      return isAdmin() ||
+        hasRole("support_officer");
+    }
+
+    function canManageFinance() {
+      return isAdmin() ||
+        hasRole("finance_officer");
+    }
+
+    function canModerateEvents() {
+      return isAdmin() ||
+        isLegacyModerator() ||
+        hasRole("moderator");
+    }
+
+    function canManageNotifications() {
+      return isAdmin() ||
+        hasRole("content_manager");
+    }
+
+    function canManageSettings() {
+      return isAdmin();
+    }
+
+    function canReadAudit() {
+      return isAdmin();
     }
 
         function eventData(eventId) {
@@ -48,51 +108,132 @@ rules_version = '2';
             request.auth.uid in eventData(eventId).selectedPlayerIds;
         }
 
+
+function hasPaidEventPayment(eventId) {
+  return signedIn() &&
+    (
+      eventData(eventId).paymentStatus == "paid" ||
+      eventData(eventId).paymentStatus == "completed" ||
+      eventData(eventId).paymentStatus == "success" ||
+      eventData(eventId).paymentStatus == "succeeded" ||
+      eventData(eventId).paymentStatus == "escrowheld" ||
+      eventData(eventId).paymentStatus == "escrow_held"
+    );
+}
+
+function hasLegacyPaidEventAccess(eventId) {
+  return signedIn() &&
+    eventData(eventId).lifecycleVersion != 2 &&
+    (
+      eventData(eventId).paymentStatus == "paid" ||
+      eventData(eventId).paymentStatus == "escrowheld" ||
+      eventData(eventId).paymentStatus == "escrow_held" ||
+      eventData(eventId).paymentStatus == "completed"
+    );
+}
+
+function isFreeAccessEvent(eventId) {
+  return eventData(eventId).accessModel == "free" &&
+    eventData(eventId).paymentRequired == false &&
+    eventData(eventId).paymentStatus == "not_required";
+}
+
+function applicationStatusBlocksAccess(status) {
+  return status == "pending" ||
+    status == "rejected" ||
+    status == "withdrawn" ||
+    status == "removed" ||
+    status == "left" ||
+    status == "cancelled" ||
+    status == "refund_pending" ||
+    status == "refunded";
+}
+
+function hasFreeCanonicalAccess(eventId) {
+  return signedIn() &&
+    isFreeAccessEvent(eventId) &&
+    exists(
+      /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+    ) &&
+    get(
+      /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+    ).data.addressAccessStatus == "unlocked" &&
+    get(
+      /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+    ).data.paymentStatus == "not_required" &&
+    !applicationStatusBlocksAccess(
+      get(
+        /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+      ).data.status
+    );
+}
+
+function hasCanonicalAddressAccess(eventId) {
+  return signedIn() &&
+    exists(
+      /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+    ) &&
+    get(
+      /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+    ).data.addressAccessStatus == "unlocked" &&
+    (
+      get(
+        /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+      ).data.paymentStatus == "paid" ||
+      get(
+        /databases/$(database)/documents/events/$(eventId)/applications/$(request.auth.uid)
+      ).data.paymentStatus == "completed"
+    );
+}
+
+function canReadPrivateEventLocation(eventId) {
+  return signedIn() &&
+    (
+      isEventOwner(eventId) ||
+      (
+        isSelectedPlayer(eventId) &&
+        (
+          hasCanonicalAddressAccess(eventId) ||
+          hasLegacyPaidEventAccess(eventId) ||
+          hasFreeCanonicalAccess(eventId)
+        )
+      ) ||
+      canModerateEvents()
+    );
+}
+
         function isChatMember(eventId) {
           return signedIn() &&
             (
-              isEventOwner(eventId) ||
-              isSelectedPlayer(eventId) ||
-              request.auth.uid in eventData(eventId).chatMemberUids
+              (
+                isFreeAccessEvent(eventId) &&
+                (
+                  isEventOwner(eventId) ||
+                  (
+                    isSelectedPlayer(eventId) &&
+                    hasFreeCanonicalAccess(eventId)
+                  )
+                )
+              ) ||
+              (
+                hasPaidEventPayment(eventId) &&
+                (
+                  isEventOwner(eventId) ||
+                  (
+                    eventData(eventId).lifecycleVersion == 2 &&
+                    isSelectedPlayer(eventId) &&
+                    hasCanonicalAddressAccess(eventId)
+                  ) ||
+                  (
+                    eventData(eventId).lifecycleVersion != 2 &&
+                    (
+                      isSelectedPlayer(eventId) ||
+                      request.auth.uid in eventData(eventId).chatMemberUids
+                    )
+                  )
+                )
+              )
             );
-        }
-
-        function eventApplicationFieldsOnly() {
-          return request.resource.data
-            .diff(resource.data)
-            .affectedKeys()
-            .hasOnly([
-              'basvuranOyuncuIds',
-              'basvuruSayisi',
-              'updatedAt'
-            ]);
-        }
-
-        function isApplyingToEvent() {
-          return eventApplicationFieldsOnly() &&
-            !(request.auth.uid in resource.data.basvuranOyuncuIds) &&
-            request.auth.uid in request.resource.data.basvuranOyuncuIds &&
-            request.resource.data.basvuranOyuncuIds
-              .hasAll(resource.data.basvuranOyuncuIds) &&
-            request.resource.data.basvuranOyuncuIds.size() ==
-              resource.data.basvuranOyuncuIds.size() + 1 &&
-            request.resource.data.basvuruSayisi ==
-              resource.data.basvuruSayisi + 1 &&
-            request.resource.data.updatedAt == request.time;
-        }
-
-        function isWithdrawingApplication() {
-          return eventApplicationFieldsOnly() &&
-            request.auth.uid in resource.data.basvuranOyuncuIds &&
-            !(request.auth.uid in request.resource.data.basvuranOyuncuIds) &&
-            resource.data.basvuranOyuncuIds
-              .hasAll(request.resource.data.basvuranOyuncuIds) &&
-            request.resource.data.basvuranOyuncuIds.size() ==
-              resource.data.basvuranOyuncuIds.size() - 1 &&
-            request.resource.data.basvuruSayisi ==
-              resource.data.basvuruSayisi - 1 &&
-            request.resource.data.basvuruSayisi >= 0 &&
-            request.resource.data.updatedAt == request.time;
         }
 
         function validBankAccountData(data) {
@@ -161,7 +302,6 @@ rules_version = '2';
           'lastLoginPlatform',
           'lastLoginAppVersion',
           'lastDeviceId',
-          'activeSessionId',
           'verified',
           'verificationStatus',
           'verificationSkipped',
@@ -195,7 +335,6 @@ rules_version = '2';
           'lastLoginPlatform',
           'lastLoginAppVersion',
           'lastDeviceId',
-          'activeSessionId',
           'verified',
           'verificationStatus',
           'verificationSkipped',
@@ -207,6 +346,11 @@ rules_version = '2';
           'guncellemeTarihi'
         ]) &&
         request.resource.data.uid == uid &&
+        request.auth.token.keys().hasAny(['phone_number']) &&
+        request.auth.token.phone_number is string &&
+        request.auth.token.phone_number.size() > 0 &&
+        request.resource.data.telefon is string &&
+        request.resource.data.telefon == request.auth.token.phone_number &&
         request.resource.data.plus == false &&
         request.resource.data.verified == false &&
         request.resource.data.accountStatus == 'active' &&
@@ -254,9 +398,31 @@ rules_version = '2';
           'lastLoginAt',
           'lastLoginPlatform',
           'lastLoginAppVersion',
-          'lastDeviceId',
-          'activeSessionId'
+          'lastDeviceId'
         ]);
+    }
+
+    function phoneFieldsMatchVerifiedAuth() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['telefon', 'phoneNumber', 'phoneChangedAt']) ||
+        (
+          request.auth.token.keys().hasAny(['phone_number']) &&
+          request.auth.token.phone_number is string &&
+          request.auth.token.phone_number.size() > 0 &&
+          request.resource.data.telefon is string &&
+          request.resource.data.phoneNumber is string &&
+          request.resource.data.telefon == request.auth.token.phone_number &&
+          request.resource.data.phoneNumber == request.auth.token.phone_number &&
+          (
+            !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['phoneChangedAt']) ||
+            (
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['telefon', 'phoneNumber']) &&
+              request.resource.data.phoneChangedAt == request.time
+            )
+          )
+        );
     }
 
     match /public_profiles/{uid} {
@@ -265,73 +431,152 @@ rules_version = '2';
     }
 
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
+      allow read: if isOwner(uid) || canReadUsers();
 
       allow create: if
         isOwner(uid) &&
         validNewUser(uid);
 
       allow update: if
-        isAdmin() ||
-        (
-          isOwner(uid) &&
-          userEditableFieldsOnly()
-        );
+        isOwner(uid) &&
+        userEditableFieldsOnly() &&
+        phoneFieldsMatchVerifiedAuth();
 
-allow update: if isOwner(uid) &&
-  request.resource.data.diff(resource.data).affectedKeys()
-    .hasOnly([
-      'accountStatus',
-      'deletionRequestedAt',
-      'deletionRequestStatus',
-      'activeSessionId',
-      'updatedAt',
-      'guncellemeTarihi'
-    ]) &&
-  request.resource.data.accountStatus == 'deletionRequested';
-      allow delete: if isAdmin();
+
+      allow delete: if false;
+
+      match /legal_acceptances/{acceptanceId} {
+        allow read: if isOwner(uid) || canReadUsers();
+
+        allow create: if
+          isOwner(uid) &&
+          acceptanceId == request.resource.data.documentCode + '_' + request.resource.data.version &&
+          request.resource.data.keys().hasOnly([
+            'userId',
+            'documentCode',
+            'version',
+            'acceptedAt',
+            'locale',
+            'source',
+            'active'
+          ]) &&
+          request.resource.data.userId == uid &&
+          request.resource.data.documentCode in [
+            'kvkk_notice',
+            'terms_of_use',
+            'privacy_policy',
+            'community_rules',
+            'age_declaration'
+          ] &&
+          request.resource.data.version is string &&
+          request.resource.data.version.size() > 0 &&
+          request.resource.data.version.size() <= 32 &&
+          request.resource.data.version.matches('^[0-9]+\\.[0-9]+\\.[0-9]+$') &&
+          request.resource.data.acceptedAt == request.time &&
+          request.resource.data.locale in ['tr', 'en', 'de'] &&
+          request.resource.data.source == 'onboarding/login' &&
+          request.resource.data.active == true;
+
+        allow update: if
+          isOwner(uid) &&
+          resource.data.active == true &&
+          request.resource.data.active == false &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active']);
+
+        allow delete: if false;
+      }
 
 match /friends/{friendUid} {
   allow read: if isOwner(uid);
-  allow create, delete: if isOwner(uid) || isAdmin();
-  allow update: if false;
+  allow create, update, delete: if false;
 }
 
-match /friend_requests/{requestId} {
+match /blockedUsers/{blockedUid} {
   allow read: if isOwner(uid);
 
-  allow create: if signedIn();
-
-  allow delete: if
-    isOwner(uid) ||
-    isAdmin();
+  allow create: if
+    isOwner(uid) &&
+    blockedUid != uid &&
+    request.resource.data.keys().hasOnly([
+      'uid',
+      'createdAt'
+    ]) &&
+    request.resource.data.uid == blockedUid &&
+    request.resource.data.createdAt == request.time;
 
   allow update: if false;
-}
-         match /owned_badges/{badgeId} {
-           allow read: if signedIn();
-           allow create, update, delete: if false;
-         }
-          match /notifications/{notificationId} {
-  allow read, update, delete: if isOwner(uid) || isAdmin();
-  allow create: if isOwner(uid) || isAdmin();
+
+  allow delete: if isOwner(uid);
 }
 
+match /owned_badges/{badgeId} {
+  allow read: if isOwner(uid) || canReadUsers();
+  allow create, update, delete: if false;
+}
+
+match /notification_devices/{deviceId} {
+  allow read, create, update, delete: if false;
+}
+
+         match /notifications/{notificationId} {
+           allow read, delete: if isOwner(uid);
+
+           allow update: if
+             isOwner(uid) &&
+             request.resource.data
+               .diff(resource.data)
+               .affectedKeys()
+               .hasOnly([
+                 'read',
+                 'isRead',
+                 'okundu',
+                 'readAt',
+                 'updatedAt'
+               ]);
+
+           allow create: if false;
+         }
+
 match /admin_actions/{actionId} {
-  allow read: if isOwner(uid) || isAdmin();
-  allow create, update, delete: if isAdmin();
+  allow read: if isOwner(uid) || canReadAudit();
+  allow create, update, delete: if false;
 }
 
 match /point_transactions/{transactionId} {
-  allow read: if isOwner(uid) || isAdmin();
-  allow create, update, delete: if isAdmin();
+  allow read: if isOwner(uid) || canManageFinance();
+  allow create, update, delete: if false;
 }
           match /management_decisions/{decisionId} {
-            allow read: if isOwner(uid) || isAdmin();
-            allow create, update, delete: if isAdmin();
+            allow read: if isOwner(uid) || canModerateUsers();
+            allow create, update, delete: if false;
           }
         }
 
+        match /friend_requests/{requestId} {
+          allow read: if signedIn() &&
+            (
+              resource.data.senderId == request.auth.uid ||
+              resource.data.receiverId == request.auth.uid ||
+              isAdmin()
+            );
+
+          allow create, update, delete: if false;
+        }
+
+match /friend_requests/{requestId} {
+  allow read: if signedIn() &&
+    (
+      resource.data.senderId == request.auth.uid ||
+      resource.data.receiverId == request.auth.uid ||
+      (
+        resource.data.users is list &&
+        request.auth.uid in resource.data.users
+      ) ||
+      isAdmin()
+    );
+
+  allow create, update, delete: if false;
+}
         match /events/{eventId} {
           /*
            * Bu koleksiyon herkese açık etkinlik listesini beslediği için oturum
@@ -348,36 +593,24 @@ match /point_transactions/{transactionId} {
            */
           allow read: if signedIn();
 
-          allow create: if signedIn() &&
-            request.resource.data.olusturanUid == request.auth.uid;
+          allow create: if false;
 
-          allow update: if signedIn() &&
-            (
-              resource.data.olusturanUid == request.auth.uid ||
-              isAdmin() ||
-              isApplyingToEvent() ||
-              isWithdrawingApplication()
-            );
+         allow update: if
+           isChatMember(eventId) &&
+           request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               'lastMessageReadBy',
+               'typingUsers'
+             ]);
 
-          allow delete: if signedIn() &&
-            (
-              resource.data.olusturanUid == request.auth.uid ||
-              isAdmin()
-            );
+          allow delete: if false;
 
           match /private/{privateDocumentId} {
-            allow read: if signedIn() &&
-              (
-                isEventOwner(eventId) ||
-                isSelectedPlayer(eventId) ||
-                isAdmin()
-              );
+            allow read: if canReadPrivateEventLocation(eventId);
 
-            allow create, update, delete: if signedIn() &&
-              (
-                isEventOwner(eventId) ||
-                isAdmin()
-              );
+            allow create, update, delete: if false;
           }
 
           match /applications/{playerId} {
@@ -385,69 +618,68 @@ match /point_transactions/{transactionId} {
               (
                 request.auth.uid == playerId ||
                 isEventOwner(eventId) ||
-                isAdmin()
+                canModerateEvents()
               );
 
-            allow create: if signedIn() &&
-              request.auth.uid == playerId &&
-              request.resource.data.playerId == request.auth.uid &&
-              request.resource.data.eventId == eventId;
+            allow create: if false;
 
-            allow update, delete: if signedIn() &&
-              (
-                request.auth.uid == playerId ||
-                isEventOwner(eventId) ||
-                isAdmin()
-              );
+            allow update, delete: if false;
               match /admin_actions/{actionId} {
-  allow read: if isAdmin();
-  allow create: if isAdmin();
-  allow update, delete: if false;
+
+  allow read: if canReadAudit();
+  allow create, update, delete: if false;
 }
           }
 
           match /messages/{messageId} {
             allow read: if isChatMember(eventId);
 
-            allow create: if isChatMember(eventId) &&
-              request.resource.data.senderUid == request.auth.uid;
+            allow create: if false;
 
-            allow update, delete: if signedIn() &&
-              (
-                resource.data.senderUid == request.auth.uid ||
-                isAdmin()
-              );
+            allow update: if
+              isChatMember(eventId) &&
+              request.resource.data
+                .diff(resource.data)
+                .affectedKeys()
+                .hasOnly(['readBy']) &&
+              request.resource.data.readBy is list &&
+              request.resource.data.readBy.hasAll(resource.data.readBy) &&
+              request.auth.uid in request.resource.data.readBy;
+
+            allow delete: if false;
           }
         }
 
+match /sessions/{uid} {
+  allow read: if isOwner(uid) || canModerateUsers();
+  allow create, update, delete: if false;
+}
     match /wallets/{uid} {
-  allow read: if isOwner(uid) || isAdmin();
-  allow create, update: if isAdmin();
-  allow delete: if isAdmin();
+  allow read: if isOwner(uid) || canManageFinance();
+  allow create, update, delete: if false;
 
   match /transactions/{transactionId} {
-    allow read: if isOwner(uid) || isAdmin();
-    allow create: if isAdmin();
-    allow update, delete: if false;
+    allow read: if isOwner(uid) || canManageFinance();
+    allow create, update, delete: if false;
   }
 
       match /withdrawals/{withdrawalId} {
-        allow read: if isOwner(uid) || isAdmin();
+        allow read: if isOwner(uid) || canManageFinance();
         allow create, update, delete: if false;
       }
 
       match /bank_accounts/{accountId} {
-            allow read: if isOwner(uid) || isAdmin();
+            allow read: if isOwner(uid) || canManageFinance();
 
             allow create: if
-              (isOwner(uid) || isAdmin()) &&
+              isOwner(uid) &&
               validNewBankAccount();
 
             allow update: if
-              (isOwner(uid) || isAdmin()) &&
+              isOwner(uid) &&
               validBankAccountUpdate();
 
-            allow delete: if isOwner(uid) || isAdmin();
+            allow delete: if isOwner(uid);
           }
         }
 
@@ -457,183 +689,401 @@ match /point_transactions/{transactionId} {
         (
           resource.data.customerUid == request.auth.uid ||
           request.auth.uid in resource.data.playerUids ||
-          isAdmin()
+          canManageFinance()
         );
 
       allow create, update, delete: if false;
     }
 
+
+    match /commercial_operations/{operationId} {
+      allow read: if signedIn() &&
+        (
+          resource.data.userUid == request.auth.uid ||
+          canManageFinance()
+        );
+
+      allow create, update, delete: if false;
+
+      match /events/{eventId} {
+        allow read: if signedIn() &&
+          (
+            get(
+              /databases/$(database)/documents/commercial_operations/$(operationId)
+            ).data.userUid == request.auth.uid ||
+            canManageFinance()
+          );
+
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /commercial_idempotency/{idempotencyId} {
+      allow read, write: if false;
+    }
+
         match /complaints/{complaintId} {
-          allow create: if signedIn() &&
-            request.resource.data.reporterUid == request.auth.uid;
+          allow create: if false;
 
           allow read: if signedIn() &&
             (
-              resource.data.reporterUid == request.auth.uid ||
-              isAdmin()
+              resource.data.createdByUid == request.auth.uid ||
+              canModerateUsers()
             );
 
-          allow update, delete: if isAdmin();
+          allow update, delete: if false;
         }
 
         match /refundRequests/{requestId} {
-          allow create: if signedIn() &&
-            request.resource.data.userUid == request.auth.uid;
+          allow create: if false;
 
           allow read: if signedIn() &&
             (
               resource.data.userUid == request.auth.uid ||
-              isAdmin()
+              canManageFinance()
             );
 
-          allow update, delete: if isAdmin();
+          allow update, delete: if false;
         }
 
         match /cancellationRequests/{requestId} {
-          allow create: if signedIn() &&
-            request.resource.data.userUid == request.auth.uid;
+          allow create: if false;
 
           allow read: if signedIn() &&
             (
               resource.data.userUid == request.auth.uid ||
-              isAdmin()
+              canModerateEvents()
             );
 
-          allow update, delete: if isAdmin();
+          allow update, delete: if false;
         }
 
         match /support_requests/{requestId} {
           allow create: if signedIn() &&
-
+            request.resource.data.userId == request.auth.uid &&
             request.resource.data.keys().hasOnly([
               'userId',
-              'phoneNumber',
               'category',
-              'message',
-              'accountStatus',
+              'subject',
+              'description',
+              'relatedUserId',
+              'relatedEventId',
+              'relatedMessageId',
+              'attachmentUrls',
+              'urgency',
               'status',
+              'adminResponse',
+              'lastMessage',
+              'lastMessageSenderId',
+              'adminNotes',
               'createdAt',
-              'updatedAt'
+              'updatedAt',
+              'closedAt',
+              'ticketId',
+              'replyCount',
+              'isReadByUser',
+              'isReadByAdmin',
+              'isDeleted',
+              'tags',
+              'assignedAdminId',
+              'firstResponseAt',
+              'lastReplyAt',
+              'priorityScore',
+              'satisfactionScore'
             ]) &&
-
-            request.resource.data.keys().hasAll([
-              'userId',
-              'phoneNumber',
-              'category',
-              'message',
-              'accountStatus',
-              'status',
-              'createdAt',
-              'updatedAt'
-            ]) &&
-
-            request.resource.data.userId == request.auth.uid &&
-
-            request.resource.data.userId is string &&
-
-            request.resource.data.phoneNumber is string &&
-
-            request.resource.data.category is string &&
-
-            request.resource.data.category in [
-              'Hesabım askıya alındı',
-              'Hesabım engellendi',
-              'Giriş yapamıyorum',
-              'Hesap silme işlemi',
-              'Diğer'
-            ] &&
-
-            request.resource.data.message is string &&
-            request.resource.data.message.size() >= 10 &&
-            request.resource.data.message.size() <= 1000 &&
-
-            request.resource.data.accountStatus is string &&
-
-            request.resource.data.status == 'open';
+            request.resource.data.status == 'new' &&
+            request.resource.data.adminResponse == '' &&
+            request.resource.data.adminNotes == '' &&
+            request.resource.data.replyCount == 0 &&
+            request.resource.data.isReadByUser == true &&
+            request.resource.data.isReadByAdmin == false &&
+            request.resource.data.isDeleted == false &&
+            request.resource.data.createdAt is timestamp &&
+            request.resource.data.updatedAt is timestamp;
 
           allow read: if signedIn() &&
             (
               resource.data.userId == request.auth.uid ||
-              isAdmin()
+              canManageSupport()
             );
 
-          allow update, delete: if isAdmin();
+          allow update: if
+            signedIn() &&
+            resource.data.userId == request.auth.uid &&
+            (
+              request.resource.data
+                .diff(resource.data)
+                .affectedKeys()
+                .hasOnly([
+                  'lastMessage',
+                  'lastMessageSenderId',
+                  'lastReplyAt',
+                  'updatedAt',
+                  'replyCount',
+                  'isReadByAdmin',
+                  'isReadByUser',
+                  'lastViewedByUserAt',
+                  'status',
+                  'closedAt'
+                ])
+            );
+
+          allow delete: if false;
+
+          match /messages/{messageId} {
+            allow read: if signedIn() &&
+              (
+                get(
+                  /databases/$(database)/documents/support_requests/$(requestId)
+                ).data.userId == request.auth.uid ||
+                canManageSupport()
+              );
+
+            allow create: if signedIn() &&
+              getAfter(
+                /databases/$(database)/documents/support_requests/$(requestId)
+              ).data.userId == request.auth.uid &&
+              request.resource.data.senderId == request.auth.uid &&
+              request.resource.data.senderRole == 'user';
+
+            allow update: if
+              (
+                signedIn() &&
+                resource.data.senderId == request.auth.uid &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly([
+                    'deleted',
+                    'deletedAt'
+                  ])
+              ) ||
+              (
+                signedIn() &&
+                get(
+                  /databases/$(database)/documents/support_requests/$(requestId)
+                ).data.userId == request.auth.uid &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly([
+                    'readBy'
+                  ])
+              );
+
+            allow delete: if false;
+          }
+
+          match /history/{historyId} {
+            allow read: if signedIn() &&
+              (
+                (
+                  get(
+                    /databases/$(database)/documents/support_requests/$(requestId)
+                  ).data.userId == request.auth.uid &&
+                  resource.data.visibleToUser == true
+                ) ||
+                canManageSupport()
+              );
+
+            allow create: if
+              signedIn() &&
+              getAfter(
+                /databases/$(database)/documents/support_requests/$(requestId)
+              ).data.userId == request.auth.uid &&
+              request.resource.data.performedByUid == request.auth.uid &&
+              request.resource.data.performedByRole == 'user';
+
+            allow update, delete: if false;
+          }
         }
 
         match /verification_requests/{uid} {
-          allow create: if isOwner(uid) &&
-            request.resource.data.keys().hasOnly([
-              'uid',
-              'ad',
-              'soyad',
-              'telefon',
-              'dogumTarihi',
-              'identityFrontUrl',
-              'identityBackUrl',
-              'criminalRecordUrl',
-              'selfieUrl',
-              'status',
-              'createdAt'
-            ]) &&
-            request.resource.data.keys().hasAll([
-              'uid',
-              'ad',
-              'soyad',
-              'telefon',
-              'dogumTarihi',
-              'identityFrontUrl',
-              'identityBackUrl',
-              'criminalRecordUrl',
-              'selfieUrl',
-              'status',
-              'createdAt'
-            ]) &&
-            request.resource.data.uid == request.auth.uid &&
-            request.resource.data.status == 'pending' &&
-            request.resource.data.createdAt == request.time;
+          allow create: if false;
 
-          allow read: if isOwner(uid) || isAdmin();
+          allow read: if isOwner(uid) || canReviewVerification();
 
-          allow update, delete: if isAdmin();
+          allow update, delete: if false;
+        }
+
+        match /verification_document_access_logs/{logId} {
+          allow read, write: if false;
+        }
+
+        match /verification_document_deletion_logs/{logId} {
+          allow read, write: if false;
         }
         match /accountDeletionRequests/{uid} {
-          allow create: if isOwner(uid) &&
-            request.resource.data.status == 'pending';
+          allow create: if false;
 
-          allow read: if isOwner(uid) || isAdmin();
+          allow read: if isOwner(uid) || canModerateUsers();
 
           allow update, delete: if false;
         }
         match /login_history/{logId} {
 
-          allow read: if isAdmin();
+          allow read: if canReadAudit();
 
           allow create, update, delete: if false;
         }
 
         match /audit_logs/{logId} {
 
-          allow read: if isAdmin();
+          allow read: if canReadAudit();
 
           allow create, update, delete: if false;
         }
+
+        match /market_sales/{saleId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
+
+        match /google_play_purchase_tokens/{tokenHash} {
+          allow read, create, update, delete: if false;
+        }
+
+        match /google_play_rtdn_events/{eventId} {
+          allow read, create, update, delete: if false;
+        }
+
+        match /google_play_lifecycle_events/{eventId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
+
+        match /google_play_unmatched_notifications/{eventId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
+
+        match /commercial_reconciliation_queue/{queueId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
+
+        match /commercial_review_queue/{reviewId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
+
+        match /google_play_refund_review_secrets/{reviewId} {
+          allow read, create, update, delete: if false;
+        }
+
+
+        match /event_payment_intents/{operationId} {
+          allow read: if signedIn() &&
+            (
+              resource.data.payerUid == request.auth.uid ||
+              resource.data.organizerUid == request.auth.uid ||
+              canManageFinance()
+            );
+          allow create, update, delete: if false;
+        }
+
+        match /event_payment_provider_events/{eventId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
+
+        match /event_refunds/{refundId} {
+          allow read: if signedIn() &&
+            (
+              resource.data.payerUid == request.auth.uid ||
+              resource.data.organizerUid == request.auth.uid ||
+              canManageFinance()
+            );
+          allow create, update, delete: if false;
+        }
+
+        match /event_payouts/{payoutId} {
+          allow read: if signedIn() &&
+            (
+              resource.data.organizerUid == request.auth.uid ||
+              canManageFinance()
+            );
+          allow create, update, delete: if false;
+        }
+
         match /system_settings/{documentId} {
-  allow read, write: if isAdmin();
-}
+          allow read: if canManageSettings();
+          allow create, update, delete: if false;
+        }
 
-match /marketProducts/{productId} {
-  allow read: if signedIn();
-  allow create, update, delete: if isAdmin();
-}
+        match /marketProducts/{productId} {
+          allow read: if signedIn();
+          allow create, update, delete: if false;
+        }
 
-match /admin_system_actions/{actionId} {
-  allow read, create: if isAdmin();
-  allow update, delete: if false;
-}
+        match /market_orders/{orderId} {
+          allow read: if canManageFinance();
+          allow create, update, delete: if false;
+        }
 
-match /notifications/{notificationId} {
-  allow read, create, update, delete: if isAdmin();
-}
+        match /admin_notifications/{notificationId} {
+          allow read: if canManageNotifications();
+          allow create, update, delete: if false;
+        }
+
+        match /admin_system_actions/{actionId} {
+          allow read: if canReadAudit();
+          allow create, update, delete: if false;
+        }
+
+        match /notifications/{notificationId} {
+          allow read: if canManageNotifications();
+          allow create, update, delete: if false;
+        }
+
+        match /{path=**}/admin_actions/{actionId} {
+          allow read: if canReadAudit();
+          allow create, update, delete: if false;
+        }
+
+        match /online_v2_tables/{tableId} {
+          allow read: if signedIn() &&
+            request.auth.uid in resource.data.memberUids;
+          allow create, update, delete: if false;
+
+          match /hands/{handUid} {
+            allow read: if isOwner(handUid);
+            allow create, update, delete: if false;
+          }
+
+          match /moves/{moveId} {
+            allow read: if signedIn() &&
+              request.auth.uid in get(
+                /databases/$(database)/documents/online_v2_tables/$(tableId)
+              ).data.memberUids;
+            allow create, update, delete: if false;
+          }
+        }
+
+        match /online_v2_invites/{inviteId} {
+          allow read: if signedIn() &&
+            (
+              resource.data.senderUid == request.auth.uid ||
+              resource.data.targetUid == request.auth.uid
+            );
+          allow create, update, delete: if false;
+        }
 
       }
-    }
+    
+
+match /masked_call_requests/{requestId} {
+  // Phone/call routing metadata is server-only. Cloud Functions Admin SDK bypasses rules.
+  allow read, create, update, delete: if false;
+}
+
+match /masked_call_rate_limits/{rateLimitId} {
+  // Abuse-prevention counters are server-only.
+  allow read, create, update, delete: if false;
+}
+
+match /notification_delivery_queue/{queueId} {
+  allow read, write: if false;
+}
+
+}

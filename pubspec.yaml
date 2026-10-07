@@ -16,11 +16,11 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  firebase_core: ^4.0.0
-  firebase_auth: ^6.5.6
+  firebase_core: ^4.14.0
+  firebase_auth: ^6.6.1
   cloud_firestore: ^6.7.1
   cloud_functions: ^6.3.5
-  firebase_app_check: ^0.4.5+2
+  firebase_app_check: ^0.4.7
   firebase_storage: ^13.0.0
 
   image_picker: ^1.2.0
@@ -28,7 +28,7 @@ dependencies:
 
   intl: ^0.20.2
 
-  flutter_map: ^8.3.1
+  flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: 14.0.2
 
@@ -40,6 +40,10 @@ dependencies:
   syncfusion_flutter_pdfviewer: ^31.1.17
   async: ^2.13.1
   package_info_plus: ^9.0.1
+  firebase_messaging: ^16.6.0
+  firebase_analytics: ^12.0.4
+  in_app_purchase: ^3.3.0
+  in_app_purchase_android: ^0.5.0
 
 dev_dependencies:
   flutter_test:
@@ -53,8 +57,10 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/games/
     - assets/legal/tr/
     - assets/legal/en/
     - assets/legal/de/
     - assets/data/turkey_locations.json
     - assets/branding/dort_logo_white_orange.png
+    - assets/branding/dort_logo_black_orange.png

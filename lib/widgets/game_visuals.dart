@@ -23,7 +23,10 @@ abstract final class GameVisuals {
         GameCatalog.gameById(raw) ?? GameCatalog.gameByLegacyValue(raw);
     final id = game?.id ?? GameCatalog.normalizeId(cleanName(raw));
     final name = game?.name ?? cleanName(raw);
-    final emoji = game?.emoji ?? _fallbackEmoji(id, name);
+    final badgeEmoji =
+        _marketBadgeEmoji[id] ??
+        _marketBadgeEmoji[GameCatalog.normalizeId(name)];
+    final emoji = badgeEmoji ?? game?.emoji ?? _fallbackEmoji(id, name);
 
     return GameVisual(
       id: id,
@@ -33,26 +36,21 @@ abstract final class GameVisuals {
     );
   }
 
-  static String emoji(String? gameIdOrName) =>
-      resolve(gameIdOrName).emoji;
+  static String emoji(String? gameIdOrName) => resolve(gameIdOrName).emoji;
 
-  static String name(String? gameIdOrName) =>
-      resolve(gameIdOrName).name;
+  static String name(String? gameIdOrName) => resolve(gameIdOrName).name;
 
-  static Color color(String? gameIdOrName) =>
-      resolve(gameIdOrName).color;
+  static Color color(String? gameIdOrName) => resolve(gameIdOrName).color;
 
   static String cleanName(String value) {
     return value
-        .replaceFirst(
-      RegExp(r'^[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+\s*'),
-      '',
-    )
+        .replaceFirst(RegExp(r'^[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+\s*'), '')
         .trim();
   }
 
   static Color _colorFor(String id, String name) {
-    final value = '${GameCatalog.normalizeId(id)} '
+    final value =
+        '${GameCatalog.normalizeId(id)} '
         '${GameCatalog.normalizeId(name)}';
 
     if (value.contains('futbol')) return const Color(0xff22C55E);
@@ -96,7 +94,8 @@ abstract final class GameVisuals {
   }
 
   static String _fallbackEmoji(String id, String name) {
-    final value = '${GameCatalog.normalizeId(id)} '
+    final value =
+        '${GameCatalog.normalizeId(id)} '
         '${GameCatalog.normalizeId(name)}';
 
     if (value.contains('futbol')) return '⚽';
@@ -122,3 +121,37 @@ abstract final class GameVisuals {
     return '🎯';
   }
 }
+
+/// Market `seedBadgeProducts` ile aynı emoji. Görsel dosya yok.
+const Map<String, String> _marketBadgeEmoji = <String, String>{
+  'okey': '🎴',
+  'okey_101': '🀄',
+  'batak': '♠️',
+  'tavla': '🎲',
+  'satranc': '♟️',
+  'bric': '🃏',
+  'king': '👑',
+  'monopoly': '🏠',
+  'bilardo': '🎱',
+  'bowling': '🎳',
+  'dart': '🎯',
+  'langirt': '⚽',
+  'playstation': '🎮',
+  'futbol': '⚽',
+  'basketbol': '🏀',
+  'voleybol': '🏐',
+  'hentbol': '🤾',
+  'tenis': '🎾',
+  'masa_tenisi': '🏓',
+  'badminton': '🏸',
+  'squash': '🎾',
+  'kosu': '🏃',
+  'bisiklet': '🚴',
+  'yuzme': '🏊',
+  'golf': '⛳',
+  'yelken': '⛵',
+  'kurek': '🚣',
+  'binicilik': '🏇',
+  'kayak': '⛷️',
+  'snowboard': '🏂',
+};

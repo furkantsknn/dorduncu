@@ -1,12 +1,19 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 import {
-  FieldValue,
   Timestamp,
   getFirestore,
 } from "firebase-admin/firestore";
+import {completeEventIfDue} from "./completeEvent";
 
 const REGION = "europe-west1";
 
+/**
+ * Completes an event after its end time.
+ *
+ * Organizer and roster members may call it. The scheduler uses the same
+ * transaction, so a second call does not count the event twice.
+ */
 export const markEventCompleted = onCall(
   {
     region: REGION,
@@ -28,62 +35,93 @@ export const markEventCompleted = onCall(
       "Etkinlik kimliği gereklidir.",
     );
 
-    const firestore = getFirestore();
-    const eventRef = firestore.collection("events").doc(eventId);
-
-    await firestore.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(eventRef);
-
-      if (!snapshot.exists) {
-        throw new HttpsError(
-          "not-found",
-          "Etkinlik bulunamadı.",
-        );
-      }
-
-      const data = snapshot.data() ?? {};
-
-      if ((data.olusturanUid ?? "") !== uid) {
-        throw new HttpsError(
-          "permission-denied",
-          "Etkinliği tamamlama yetkiniz bulunmuyor.",
-        );
-      }
-
-      const eventDate = data.tarih;
-
-      if (eventDate instanceof Timestamp) {
-        if (eventDate.toDate().getTime() > Date.now()) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Etkinlik zamanı gelmeden tamamlanamaz.",
-          );
-        }
-      }
-
-      transaction.update(eventRef, {
-        durum: "tamamlandi",
-        status: "completed",
-        paymentRequired: false,
-        completedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    const result = await completeEventIfDue({
+      eventId,
+      actorUid: uid,
     });
+
+    if (result === "missing") {
+      throw new HttpsError("not-found", "Etkinlik bulunamadı.");
+    }
+
+    if (result === "forbidden") {
+      throw new HttpsError(
+        "permission-denied",
+        "Etkinliği tamamlama yetkiniz bulunmuyor.",
+      );
+    }
+
+    if (result === "not_due") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Etkinlik bitmeden tamamlanamaz.",
+      );
+    }
+
+    if (result === "not_active") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Bu etkinlik tamamlanamaz.",
+      );
+    }
 
     return {
       success: true,
       eventId,
+      alreadyCompleted: result === "already_completed",
     };
   },
 );
 
 /**
- * İstekten zorunlu metin alanını okur.
+ * Moves events whose end time has passed out of the active state.
+ */
+export const completePastEvents = onSchedule(
+  {
+    region: REGION,
+    schedule: "every 5 minutes",
+    timeZone: "Europe/Istanbul",
+    retryCount: 3,
+  },
+  async () => {
+    const firestore = getFirestore();
+    const now = Timestamp.now();
+    const [activeEvents, paymentPendingEvents] = await Promise.all([
+      firestore
+        .collection("events")
+        .where("durum", "==", "aktif")
+        .where("endAt", "<=", now)
+        .limit(100)
+        .get(),
+      firestore
+        .collection("events")
+        .where("durum", "==", "odeme_bekliyor")
+        .where("endAt", "<=", now)
+        .limit(100)
+        .get(),
+    ]);
+
+    const eventIds = new Set<string>([
+      ...activeEvents.docs.map((document) => document.id),
+      ...paymentPendingEvents.docs.map((document) => document.id),
+    ]);
+
+    for (const eventId of eventIds) {
+      await completeEventIfDue({
+        eventId,
+        actorUid: null,
+      });
+    }
+  },
+);
+
+/**
+ * Reads a required string.
  *
- * @param {unknown} data İstek verisi.
- * @param {string} key Alan adı.
- * @param {string} errorMessage Hata mesajı.
- * @return {string} Temizlenmiş metin değeri.
+ * @param {unknown} data Callable payload.
+ * @param {string} key Field name.
+ * @param {string} errorMessage Validation message.
+ * @return {string} Normalized string.
  */
 function readRequiredString(
   data: unknown,

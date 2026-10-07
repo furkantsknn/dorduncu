@@ -1,33 +1,18 @@
 enum LegalDocumentType {
   kvkkNotice,
-  explicitConsent,
   privacyPolicy,
   termsOfUse,
   communityRules,
-  safeMeetingGuide,
-  prohibitedConduct,
-  complaintAndAppeal,
   accountSuspension,
-  documentVerification,
   locationData,
   messagingData,
-  paymentCancellationRefund,
   plusSubscription,
   digitalProducts,
   automaticRenewal,
-  meetingLiability,
   ageDeclaration,
-  intellectualProperty,
-  forceMajeure,
-  governingLaw,
 }
 
-enum LegalAcceptanceRequirement {
-  none,
-  mandatory,
-  optional,
-  contextual,
-}
+enum LegalAcceptanceRequirement { none, mandatory, optional, contextual }
 
 class LegalDocumentDefinition {
   const LegalDocumentDefinition({
@@ -57,57 +42,42 @@ class LegalDocumentDefinition {
   /// Sürüm değiştiğinde yeniden kabul gerekip gerekmediği.
   final bool requiresReacceptance;
 
-  /// Dil eki olmadan kullanılan varlık dosyası adı.
+  /// Dil klasörü altındaki varlık dosyası adı.
   ///
-  /// Örnek:
-  /// kvkk_notice_tr.md
-  /// kvkk_notice_en.md
-  /// kvkk_notice_de.md
+  /// Örnek: assets/legal/tr/kvkk_notice.md
   final String assetName;
 
   bool get requiresAcceptance =>
-      acceptanceRequirement !=
-          LegalAcceptanceRequirement.none;
+      acceptanceRequirement != LegalAcceptanceRequirement.none;
 
   bool get isMandatory =>
-      acceptanceRequirement ==
-          LegalAcceptanceRequirement.mandatory;
+      acceptanceRequirement == LegalAcceptanceRequirement.mandatory;
 
   bool get isOptional =>
-      acceptanceRequirement ==
-          LegalAcceptanceRequirement.optional;
+      acceptanceRequirement == LegalAcceptanceRequirement.optional;
 
   bool get isContextual =>
-      acceptanceRequirement ==
-          LegalAcceptanceRequirement.contextual;
+      acceptanceRequirement == LegalAcceptanceRequirement.contextual;
 
-  String assetPathForLanguageCode(
-      String languageCode,
-      ) {
-    final String normalizedLanguageCode =
-    _normalizeLanguageCode(languageCode);
+  String assetPathForLanguageCode(String languageCode) {
+    final String normalizedLanguageCode = _normalizeLanguageCode(languageCode);
 
     return 'assets/legal/'
-        '${assetName}_$normalizedLanguageCode.md';
+        '$normalizedLanguageCode/$assetName.md';
   }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'code': code,
       'version': version,
-      'effectiveDate':
-      effectiveDate.toUtc().toIso8601String(),
-      'acceptanceRequirement':
-      acceptanceRequirement.name,
-      'requiresReacceptance':
-      requiresReacceptance,
+      'effectiveDate': effectiveDate.toUtc().toIso8601String(),
+      'acceptanceRequirement': acceptanceRequirement.name,
+      'requiresReacceptance': requiresReacceptance,
       'assetName': assetName,
     };
   }
 
-  static String _normalizeLanguageCode(
-      String languageCode,
-      ) {
+  static String _normalizeLanguageCode(String languageCode) {
     switch (languageCode.trim().toLowerCase()) {
       case 'en':
         return 'en';
@@ -163,25 +133,17 @@ class LegalAcceptanceRecord {
     };
   }
 
-  factory LegalAcceptanceRecord.fromMap(
-      Map<String, dynamic> map,
-      ) {
+  factory LegalAcceptanceRecord.fromMap(Map<String, dynamic> map) {
     return LegalAcceptanceRecord(
-      documentCode:
-      (map['documentCode'] ?? '').toString(),
-      documentVersion:
-      (map['documentVersion'] ?? '').toString(),
+      documentCode: (map['documentCode'] ?? '').toString(),
+      documentVersion: (map['documentVersion'] ?? '').toString(),
       accepted: map['accepted'] == true,
-      recordedAt: _readDateTime(
-        map['recordedAt'],
-      ) ??
+      recordedAt:
+          _readDateTime(map['recordedAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      languageCode:
-      (map['languageCode'] ?? 'tr').toString(),
+      languageCode: (map['languageCode'] ?? 'tr').toString(),
       source: (map['source'] ?? '').toString(),
-      withdrawnAt: _readDateTime(
-        map['withdrawnAt'],
-      ),
+      withdrawnAt: _readDateTime(map['withdrawnAt']),
     );
   }
 

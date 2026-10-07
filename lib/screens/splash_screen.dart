@@ -27,49 +27,28 @@ class _SplashScreenState extends State<SplashScreen>
 
     _logoOpacity = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(
-        0.0,
-        0.58,
-        curve: Curves.easeOutCubic,
-      ),
+      curve: const Interval(0.0, 0.58, curve: Curves.easeOutCubic),
     );
 
-    _logoScale = Tween<double>(
-      begin: 0.96,
-      end: 1.0,
-    ).animate(
+    _logoScale = Tween<double>(begin: 0.96, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(
-          0.0,
-          0.70,
-          curve: Curves.easeOutCubic,
-        ),
+        curve: const Interval(0.0, 0.70, curve: Curves.easeOutCubic),
       ),
     );
 
     _sloganOpacity = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(
-        0.45,
-        1.0,
-        curve: Curves.easeOut,
-      ),
+      curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
     );
 
-    _sloganSlide = Tween<Offset>(
-      begin: const Offset(0, 0.18),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(
-          0.45,
-          1.0,
-          curve: Curves.easeOutCubic,
-        ),
-      ),
-    );
+    _sloganSlide = Tween<Offset>(begin: const Offset(0, 0.18), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.45, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _controller.forward();
 
@@ -81,13 +60,9 @@ class _SplashScreenState extends State<SplashScreen>
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 450),
           pageBuilder: (context, animation, secondaryAnimation) =>
-          const AuthControl(),
-          transitionsBuilder:
-              (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
+              const AuthControl(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
           },
         ),
       );
@@ -146,13 +121,13 @@ class _SplashScreenState extends State<SplashScreen>
                 ],
               ),
             ),
-            FadeTransition(
-              opacity: _sloganOpacity,
-              child: const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 28,
-                child: Text(
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 28,
+              child: FadeTransition(
+                opacity: _sloganOpacity,
+                child: const Text(
                   'DÖRT.',
                   textAlign: TextAlign.center,
                   style: TextStyle(

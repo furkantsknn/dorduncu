@@ -13,6 +13,7 @@ class BadgeProductModel {
     required this.sortOrder,
     required this.createdAt,
     this.imageUrl = '',
+    this.googlePlayProductId = '',
   });
 
   final String id;
@@ -22,6 +23,7 @@ class BadgeProductModel {
   final String description;
   final String emoji;
   final String imageUrl;
+  final String googlePlayProductId;
   final int priceKurus;
   final bool active;
   final int sortOrder;
@@ -41,6 +43,8 @@ class BadgeProductModel {
       description: data['description']?.toString().trim() ?? '',
       emoji: data['emoji']?.toString().trim() ?? '🏅',
       imageUrl: data['imageUrl']?.toString().trim() ?? '',
+      googlePlayProductId:
+          data['googlePlayProductId']?.toString().trim() ?? '',
       priceKurus: _toInt(data['priceKurus']),
       active: data['active'] != false,
       sortOrder: _toInt(data['sortOrder']),

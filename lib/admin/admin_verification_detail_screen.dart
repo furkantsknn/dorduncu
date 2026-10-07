@@ -1,8 +1,28 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 
 class AdminVerificationDetailScreen extends StatefulWidget {
   const AdminVerificationDetailScreen({super.key, required this.requestId});
@@ -36,8 +56,8 @@ class _AdminVerificationDetailScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Oyuncu Başvurusu',
+        title: Text(
+          _locText(context, tr: 'Oyuncu Başvurusu', en: 'Player Application', de: 'Spielerbewerbung'),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -106,18 +126,30 @@ class _AdminVerificationDetailScreenState
 
     final String reviewedBy = data['reviewedBy']?.toString().trim() ?? '';
 
-    final String identityFrontUrl =
-        data['identityFrontUrl']?.toString().trim() ?? '';
+    final String identityFrontPath =
+        data['identityFrontPath']?.toString().trim() ??
+        data['identityFrontUrl']?.toString().trim() ??
+        '';
 
-    final String identityBackUrl =
-        data['identityBackUrl']?.toString().trim() ?? '';
+    final String identityBackPath =
+        data['identityBackPath']?.toString().trim() ??
+        data['identityBackUrl']?.toString().trim() ??
+        '';
 
-    final String criminalRecordUrl =
-        data['criminalRecordUrl']?.toString().trim() ?? '';
+    final String criminalRecordPath =
+        data['criminalRecordPath']?.toString().trim() ??
+        data['criminalRecordUrl']?.toString().trim() ??
+        '';
 
-    final String selfieUrl = data['selfieUrl']?.toString().trim() ?? '';
+    final String selfiePath =
+        data['selfiePath']?.toString().trim() ??
+        data['selfieUrl']?.toString().trim() ??
+        '';
 
-    final String adminNote = data['adminNote']?.toString() ?? '';
+    final String adminNote =
+        data['decisionReason']?.toString().trim().isNotEmpty == true
+        ? data['decisionReason'].toString()
+        : data['adminNote']?.toString() ?? '';
 
     if (_adminNoteController.text.isEmpty && adminNote.isNotEmpty) {
       _adminNoteController.text = adminNote;
@@ -138,26 +170,26 @@ class _AdminVerificationDetailScreenState
           ),
           const SizedBox(height: 14),
           _SectionCard(
-            title: 'Başvuru bilgileri',
+            title: _locText(context, tr: 'Başvuru bilgileri', en: 'Application details', de: 'Bewerbungsdetails'),
             icon: Icons.assignment_outlined,
             children: <Widget>[
               _InformationRow(
                 icon: Icons.person_outline,
                 label: 'Ad soyad',
-                value: fullName.isEmpty ? 'Bilgi bulunamadı' : fullName,
+                value: fullName.isEmpty ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar') : fullName,
               ),
               const Divider(height: 25),
               _InformationRow(
                 icon: Icons.phone_outlined,
                 label: 'Telefon',
-                value: phone.isEmpty ? 'Bilgi bulunamadı' : phone,
+                value: phone.isEmpty ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar') : phone,
               ),
               const Divider(height: 25),
               _InformationRow(
                 icon: Icons.cake_outlined,
                 label: 'Doğum tarihi',
                 value: birthDate == null
-                    ? 'Bilgi bulunamadı'
+                    ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar')
                     : _formatDate(birthDate, includeTime: false),
               ),
               const Divider(height: 25),
@@ -165,7 +197,7 @@ class _AdminVerificationDetailScreenState
                 icon: Icons.schedule_outlined,
                 label: 'Başvuru tarihi',
                 value: createdAt == null
-                    ? 'Bilgi bulunamadı'
+                    ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar')
                     : _formatDate(createdAt),
               ),
               if (updatedAt != null) ...<Widget>[
@@ -211,11 +243,11 @@ class _AdminVerificationDetailScreenState
                 title: 'Kimlik ön yüz',
                 subtitle: 'Kullanıcının yüklediği kimlik ön yüzü',
                 icon: Icons.credit_card_outlined,
-                url: identityFrontUrl,
+                url: identityFrontPath,
                 onTap: () {
                   _showDocumentMessage(
                     title: 'Kimlik ön yüz',
-                    url: identityFrontUrl,
+                    documentType: 'identity_front',
                   );
                 },
               ),
@@ -224,11 +256,11 @@ class _AdminVerificationDetailScreenState
                 title: 'Kimlik arka yüz',
                 subtitle: 'Kullanıcının yüklediği kimlik arka yüzü',
                 icon: Icons.credit_card_outlined,
-                url: identityBackUrl,
+                url: identityBackPath,
                 onTap: () {
                   _showDocumentMessage(
                     title: 'Kimlik arka yüz',
-                    url: identityBackUrl,
+                    documentType: 'identity_back',
                   );
                 },
               ),
@@ -237,11 +269,11 @@ class _AdminVerificationDetailScreenState
                 title: 'Adli sicil kaydı',
                 subtitle: 'Kullanıcının yüklediği adli sicil belgesi',
                 icon: Icons.description_outlined,
-                url: criminalRecordUrl,
+                url: criminalRecordPath,
                 onTap: () {
                   _showDocumentMessage(
                     title: 'Adli sicil kaydı',
-                    url: criminalRecordUrl,
+                    documentType: 'criminal_record',
                   );
                 },
               ),
@@ -250,9 +282,9 @@ class _AdminVerificationDetailScreenState
                 title: 'Selfie',
                 subtitle: 'Kullanıcının kamera ile çektiği doğrulama fotoğrafı',
                 icon: Icons.camera_alt_outlined,
-                url: selfieUrl,
+                url: selfiePath,
                 onTap: () {
-                  _showDocumentMessage(title: 'Selfie', url: selfieUrl);
+                  _showDocumentMessage(title: 'Selfie', documentType: 'selfie');
                 },
               ),
             ],
@@ -411,7 +443,7 @@ class _AdminVerificationDetailScreenState
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
             ),
             FilledButton(
               onPressed: () {
@@ -439,15 +471,14 @@ class _AdminVerificationDetailScreenState
     });
 
     try {
-      final HttpsCallable callable =
-      FirebaseFunctions.instanceFor(
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('processVerification');
 
       await callable.call(<String, dynamic>{
         'requestId': widget.requestId,
         'status': status,
-        'adminNote': adminNote,
+        'decisionReason': adminNote,
       });
 
       if (!mounted) {
@@ -534,58 +565,71 @@ class _AdminVerificationDetailScreenState
     return '$day.$month.$year $hour:$minute';
   }
 
-  void _showDocumentMessage({required String title, required String url}) {
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('$title belgesi bulunamadı.')));
+  Future<void> _showDocumentMessage({
+    required String title,
+    required String documentType,
+  }) async {
+    try {
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('getVerificationDocumentContent');
 
-      return;
-    }
-
-    final Uri? uri = Uri.tryParse(url);
-
-    if (uri == null || !uri.hasScheme) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Belge bağlantısı geçerli değil.')),
-        );
-
-      return;
-    }
-
-    final String path = uri.path.toLowerCase();
-    final bool isPdf = path.endsWith('.pdf');
-
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) {
-          if (isPdf) {
-            return _PdfDocumentViewerScreen(title: title, url: url);
-          }
-
-          return _ImageDocumentViewerScreen(
-            title: title,
-            url: url,
-            heroTag: '${widget.requestId}-$title',
-          );
+      final HttpsCallableResult<dynamic> result = await callable.call(
+        <String, dynamic>{
+          'requestId': widget.requestId,
+          'documentType': documentType,
         },
-      ),
-    );
+      );
+
+      final Map<String, dynamic> data = Map<String, dynamic>.from(
+        result.data as Map,
+      );
+
+      final String encoded = data['content']?.toString() ?? '';
+      final String contentType = data['contentType']?.toString() ?? '';
+
+      if (encoded.isEmpty) {
+        throw StateError('Belge içeriği boş.');
+      }
+
+      final Uint8List bytes = base64Decode(encoded);
+
+      if (!mounted) return;
+
+      final bool isPdf = contentType == 'application/pdf';
+
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) {
+            if (isPdf) {
+              return _PdfDocumentViewerScreen(title: title, bytes: bytes);
+            }
+
+            return _ImageDocumentViewerScreen(title: title, bytes: bytes);
+          },
+        ),
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Belge açılamadı.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Belge güvenli şekilde açılamadı.')),
+      );
+    }
   }
 }
 
 class _ImageDocumentViewerScreen extends StatelessWidget {
-  const _ImageDocumentViewerScreen({
-    required this.title,
-    required this.url,
-    required this.heroTag,
-  });
+  const _ImageDocumentViewerScreen({required this.title, required this.bytes});
 
   final String title;
-  final String url;
-  final String heroTag;
+  final Uint8List bytes;
 
   @override
   Widget build(BuildContext context) {
@@ -597,40 +641,20 @@ class _ImageDocumentViewerScreen extends StatelessWidget {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: SafeArea(
-        child: Hero(
-          tag: heroTag,
-          child: PhotoView(
-            imageProvider: NetworkImage(url),
-            backgroundDecoration: const BoxDecoration(color: Colors.black),
-            loadingBuilder: (BuildContext context, ImageChunkEvent? event) {
-              double? progress;
-
-              final int? expectedBytes = event?.expectedTotalBytes;
-
-              if (expectedBytes != null && expectedBytes > 0) {
-                progress = event!.cumulativeBytesLoaded / expectedBytes;
-              }
-
-              return Center(
-                child: CircularProgressIndicator(
-                  value: progress,
-                  color: Colors.white,
-                ),
-              );
-            },
-            errorBuilder:
-                (BuildContext context, Object error, StackTrace? stackTrace) {
-                  return const _DocumentLoadError(
-                    message:
-                        'Görsel yüklenemedi. Belge bağlantısı geçersiz veya erişilemiyor olabilir.',
-                    foregroundColor: Colors.white,
-                  );
-                },
-            minScale: PhotoViewComputedScale.contained,
-            initialScale: PhotoViewComputedScale.contained,
-            maxScale: PhotoViewComputedScale.covered * 4,
-            enableRotation: false,
-          ),
+        child: PhotoView(
+          imageProvider: MemoryImage(bytes),
+          backgroundDecoration: const BoxDecoration(color: Colors.black),
+          errorBuilder:
+              (BuildContext context, Object error, StackTrace? stackTrace) {
+                return const _DocumentLoadError(
+                  message: 'Görsel güvenli şekilde açılamadı.',
+                  foregroundColor: Colors.white,
+                );
+              },
+          minScale: PhotoViewComputedScale.contained,
+          initialScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.covered * 4,
+          enableRotation: false,
         ),
       ),
     );
@@ -638,10 +662,10 @@ class _ImageDocumentViewerScreen extends StatelessWidget {
 }
 
 class _PdfDocumentViewerScreen extends StatefulWidget {
-  const _PdfDocumentViewerScreen({required this.title, required this.url});
+  const _PdfDocumentViewerScreen({required this.title, required this.bytes});
 
   final String title;
-  final String url;
+  final Uint8List bytes;
 
   @override
   State<_PdfDocumentViewerScreen> createState() =>
@@ -712,8 +736,8 @@ class _PdfDocumentViewerScreenState extends State<_PdfDocumentViewerScreen> {
               message:
                   'PDF yüklenemedi. Belge bağlantısı geçersiz veya erişilemiyor olabilir.',
             )
-          : SfPdfViewer.network(
-              widget.url,
+          : SfPdfViewer.memory(
+              widget.bytes,
               controller: _pdfController,
               canShowScrollHead: true,
               canShowScrollStatus: true,
@@ -1224,6 +1248,8 @@ String _verificationStatusTitle(String status) {
       return 'Revizyon istendi';
     case 'rejected':
       return 'Reddedildi';
+    case 'expired':
+      return 'Süresi Doldu';
     case 'pending':
     default:
       return 'İnceleme bekliyor';
@@ -1266,6 +1292,8 @@ Color _verificationStatusColor(String status) {
       return Colors.deepOrange;
     case 'rejected':
       return Colors.red;
+    case 'expired':
+      return Colors.grey;
     case 'pending':
     default:
       return Colors.orange;

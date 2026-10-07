@@ -6,6 +6,23 @@ import '../services/support_service.dart';
 import '../utils/support_categories.dart';
 import 'create_support_request_screen.dart';
 
+String _supportCenterText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class SupportCenterScreen extends StatelessWidget {
   const SupportCenterScreen({super.key});
 
@@ -102,19 +119,19 @@ class SupportCenterScreen extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
                     child: Text(
-                      'Nasıl yardımcı olabiliriz?',
+                      _supportCenterText(context, tr: 'Nasıl yardımcı olabiliriz?', en: 'How can we help?', de: 'Wie können wir helfen?'),
                       style: TextStyle(
                         fontSize: 21,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
-                    child: Text('Talebine en uygun kategoriyi seç.'),
+                    child: Text(_supportCenterText(context, tr: 'Talebine en uygun kategoriyi seç.', en: 'Choose the category that best fits your request.', de: 'Wähle die passende Kategorie für deine Anfrage.')),
                   ),
                   Expanded(
                     child: ListView.separated(
@@ -156,9 +173,9 @@ class SupportCenterScreen extends StatelessWidget {
                               ScaffoldMessenger.of(context)
                                 ..hideCurrentSnackBar()
                                 ..showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     content: Text(
-                                      'Destek talebin başarıyla oluşturuldu.',
+                                      _supportCenterText(context, tr: 'Destek talebin başarıyla oluşturuldu.', en: 'Your support request was created successfully.', de: 'Deine Support-Anfrage wurde erfolgreich erstellt.'),
                                     ),
                                   ),
                                 );
@@ -221,16 +238,16 @@ class SupportCenterScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Açıklama',
+                Text(
+                  _supportCenterText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'),
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
                 Text(request.description),
                 if (request.adminResponse.trim().isNotEmpty) ...<Widget>[
                   const SizedBox(height: 20),
-                  const Text(
-                    'Destek ekibi cevabı',
+                  Text(
+                    _supportCenterText(context, tr: 'Destek ekibi cevabı', en: 'Support team response', de: 'Antwort des Support-Teams'),
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 6),
@@ -293,7 +310,7 @@ class _SupportHeader extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Yardıma mı ihtiyacın var?',
+              _supportCenterText(context, tr: 'Yardıma mı ihtiyacın var?', en: 'Need help?', de: 'Brauchst du Hilfe?'),
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
@@ -303,7 +320,7 @@ class _SupportHeader extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               requestCount == 0
-                  ? 'Öneri, hata, ödeme veya güvenlik konularında bize ulaşabilirsin.'
+                  ? _supportCenterText(context, tr: 'Öneri, hata, ödeme veya güvenlik konularında bize ulaşabilirsin.', en: 'You can contact us about suggestions, bugs, payments or security.', de: 'Du kannst uns zu Vorschlägen, Fehlern, Zahlungen oder Sicherheit kontaktieren.')
                   : '$requestCount destek talebin bulunuyor.',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -313,7 +330,7 @@ class _SupportHeader extends StatelessWidget {
             FilledButton.icon(
               onPressed: onCreateRequest,
               icon: const Icon(Icons.add),
-              label: const Text('Yeni talep oluştur'),
+              label: Text(_supportCenterText(context, tr: 'Yeni talep oluştur', en: 'Create new request', de: 'Neue Anfrage erstellen')),
             ),
           ],
         ),
@@ -384,12 +401,12 @@ class _SupportRequestCard extends StatelessWidget {
                     ],
                     if (request.adminResponse.trim().isNotEmpty) ...<Widget>[
                       const SizedBox(height: 8),
-                      const Row(
+                      Row(
                         children: <Widget>[
                           Icon(Icons.mark_email_read_outlined, size: 17),
                           SizedBox(width: 5),
                           Text(
-                            'Destek ekibi cevapladı',
+                            _supportCenterText(context, tr: 'Destek ekibi cevapladı', en: 'Support replied', de: 'Support hat geantwortet'),
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ],
@@ -456,7 +473,7 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
         padding: EdgeInsets.all(32),
         child: Column(
@@ -465,13 +482,13 @@ class _EmptyView extends StatelessWidget {
             Icon(Icons.inbox_outlined, size: 64),
             SizedBox(height: 14),
             Text(
-              'Henüz destek talebin yok',
+              _supportCenterText(context, tr: 'Henüz destek talebin yok', en: 'You have no support requests yet', de: 'Du hast noch keine Support-Anfragen'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             SizedBox(height: 7),
             Text(
-              'Yeni bir talep oluşturduğunda durumunu buradan takip edebilirsin.',
+              _supportCenterText(context, tr: 'Yeni bir talep oluşturduğunda durumunu buradan takip edebilirsin.', en: 'When you create a request, you can track its status here.', de: 'Wenn du eine Anfrage erstellst, kannst du ihren Status hier verfolgen.'),
               textAlign: TextAlign.center,
             ),
           ],
@@ -496,8 +513,8 @@ class _ErrorView extends StatelessWidget {
           children: <Widget>[
             const Icon(Icons.error_outline, size: 56),
             const SizedBox(height: 12),
-            const Text(
-              'Destek talepleri yüklenemedi.',
+            Text(
+              _supportCenterText(context, tr: 'Destek talepleri yüklenemedi.', en: 'Support requests could not be loaded.', de: 'Support-Anfragen konnten nicht geladen werden.'),
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.w800),
             ),

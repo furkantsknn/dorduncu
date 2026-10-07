@@ -3,14 +3,32 @@ import {
   FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
+import {
+  ACCESS_MODEL_FREE,
+  APPLICATION_LIFECYCLE_VERSION,
+  DEFAULT_PAYMENT_WINDOW_MINUTES,
+  MAX_PAYMENT_WINDOW_MINUTES,
+  MIN_PAYMENT_WINDOW_MINUTES,
+  addressAccessStatus,
+  applicationDecisionStatus,
+  applicationPaymentStatus,
+  applicationStatus,
+  assertEventNotPast,
+  isFreeAccessEvent,
+  reservationStatus,
+} from "./eventLifecycle";
+import {
+  writeUserNotification,
+} from "../notifications/writeUserNotification";
 
 const REGION = "europe-west1";
 
 /**
  * Bir oyuncunun etkinlik başvurusunu kabul eder.
  *
- * Oyuncu kadrosu tamamlandığında ödeme oturumunu
- * yalnızca sunucu tarafında oluşturur.
+ * Kabul edilen başvuru canonical olarak ödeme bekleyen duruma geçer.
+ * Mevcut event-level ödeme modeli korunur; kadro tamamlandığında ödeme oturumu
+ * sunucu tarafında oluşturulur.
  */
 export const acceptApplication = onCall(
   {
@@ -60,6 +78,31 @@ export const acceptApplication = onCall(
       .collection("paymentSessions")
       .doc(eventId);
 
+    const organizerBlockedPlayerReference = firestore
+      .collection("users")
+      .doc(organizerId)
+      .collection("blockedUsers")
+      .doc(playerId);
+
+    const playerBlockedOrganizerReference = firestore
+      .collection("users")
+      .doc(playerId)
+      .collection("blockedUsers")
+      .doc(organizerId);
+
+    const settingsSnapshot = await firestore
+      .collection("system_settings")
+      .doc("global")
+      .get();
+
+    const paymentWindowMinutes = normalizePaymentWindowMinutes(
+      settingsSnapshot.data()?.paymentWindowMinutes,
+    );
+
+    const paymentDueAt = new Date(
+      Date.now() + paymentWindowMinutes * 60 * 1000,
+    );
+
     const result = await firestore.runTransaction(
       async (transaction) => {
         const eventSnapshot = await transaction.get(
@@ -69,6 +112,16 @@ export const acceptApplication = onCall(
         const applicationSnapshot = await transaction.get(
           applicationReference,
         );
+
+        const organizerBlockedPlayer =
+          await transaction.get(
+            organizerBlockedPlayerReference,
+          );
+
+        const playerBlockedOrganizer =
+          await transaction.get(
+            playerBlockedOrganizerReference,
+          );
 
         if (!eventSnapshot.exists) {
           throw new HttpsError(
@@ -81,6 +134,16 @@ export const acceptApplication = onCall(
           throw new HttpsError(
             "not-found",
             "Başvuru kaydı bulunamadı.",
+          );
+        }
+
+        if (
+          organizerBlockedPlayer.exists ||
+          playerBlockedOrganizer.exists
+        ) {
+          throw new HttpsError(
+            "permission-denied",
+            "Engellenmiş kullanıcılar arasında başvuru kabul edilemez.",
           );
         }
 
@@ -99,13 +162,16 @@ export const acceptApplication = onCall(
           );
         }
 
-        const applicationStatus = String(
+        const currentApplicationStatus = String(
           applicationData.status ?? "",
         )
           .trim()
           .toLowerCase();
 
-        if (applicationStatus !== "pending") {
+        if (
+          currentApplicationStatus !==
+          applicationStatus.pending
+        ) {
           throw new HttpsError(
             "failed-precondition",
             "Yalnızca bekleyen başvurular kabul edilebilir.",
@@ -126,6 +192,8 @@ export const acceptApplication = onCall(
             "Bu etkinlik artık başvuru kabul etmiyor.",
           );
         }
+
+        assertEventNotPast(eventData);
 
         const requiredPlayerCount = readPlayerCount(
           eventData,
@@ -164,12 +232,79 @@ export const acceptApplication = onCall(
         const rosterCompleted =
           updatedSelectedPlayerIds.length >=
           requiredPlayerCount;
+        const freeEvent = isFreeAccessEvent(eventData);
+
+        if (freeEvent) {
+          transaction.update(
+            applicationReference,
+            {
+              lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+              status: applicationStatus.addressUnlocked,
+              decisionStatus: applicationDecisionStatus.accepted,
+              paymentStatus: applicationPaymentStatus.notRequired,
+              addressAccessStatus: addressAccessStatus.unlocked,
+              reservationStatus: reservationStatus.none,
+              acceptedAt: FieldValue.serverTimestamp(),
+              addressUnlockedAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+          );
+
+          transaction.update(
+            eventReference,
+            {
+              lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+              accessModel: ACCESS_MODEL_FREE,
+              paymentRequired: false,
+              paymentStatus: applicationPaymentStatus.notRequired,
+              selectedPlayerIds: updatedSelectedPlayerIds,
+              katilanlar: FieldValue.arrayUnion(playerId),
+              chatMemberUids: FieldValue.arrayUnion(
+                organizerId,
+                playerId,
+              ),
+              basvuranOyuncuIds: pendingApplicantIds,
+              basvuruSayisi: pendingApplicantIds.length,
+              durum: "aktif",
+              status: "active",
+              rosterStatus: rosterCompleted ? "full" : "collecting",
+              ...(rosterCompleted ?
+                {
+                  rosterCompletedAt: FieldValue.serverTimestamp(),
+                } :
+                {}),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+          );
+
+          return {
+            freeEvent: true,
+            rosterCompleted,
+            selectedPlayerCount: updatedSelectedPlayerIds.length,
+            requiredPlayerCount,
+          };
+        }
 
         transaction.update(
           applicationReference,
           {
-            status: "accepted",
+            lifecycleVersion:
+              APPLICATION_LIFECYCLE_VERSION,
+            status:
+              applicationStatus.acceptedPaymentPending,
+            decisionStatus:
+              applicationDecisionStatus.accepted,
+            paymentStatus:
+              applicationPaymentStatus.pending,
+            addressAccessStatus:
+              addressAccessStatus.locked,
+            reservationStatus:
+              reservationStatus.held,
             acceptedAt: FieldValue.serverTimestamp(),
+            reservationStartedAt:
+              FieldValue.serverTimestamp(),
+            reservationExpiresAt:
+              rosterCompleted ? paymentDueAt : null,
             updatedAt: FieldValue.serverTimestamp(),
           },
         );
@@ -177,6 +312,8 @@ export const acceptApplication = onCall(
         transaction.update(
           eventReference,
           {
+            lifecycleVersion:
+              APPLICATION_LIFECYCLE_VERSION,
             selectedPlayerIds: updatedSelectedPlayerIds,
             katilanlar: FieldValue.arrayUnion(playerId),
             chatMemberUids: FieldValue.arrayUnion(
@@ -185,6 +322,8 @@ export const acceptApplication = onCall(
             ),
             basvuranOyuncuIds: pendingApplicantIds,
             basvuruSayisi: pendingApplicantIds.length,
+            rosterStatus:
+              rosterCompleted ? "full" : "collecting",
             ...(rosterCompleted ?
               {
                 durum: "odeme_bekliyor",
@@ -193,6 +332,8 @@ export const acceptApplication = onCall(
                 paymentStatus: "payment_pending",
                 rosterCompletedAt:
                   FieldValue.serverTimestamp(),
+                paymentWindowMinutes,
+                paymentDueAt,
               } :
               {}),
             updatedAt: FieldValue.serverTimestamp(),
@@ -205,6 +346,37 @@ export const acceptApplication = onCall(
             ...updatedSelectedPlayerIds,
           ];
 
+          for (const acceptedPlayerId of updatedSelectedPlayerIds) {
+            const acceptedApplicationReference = eventReference
+              .collection("applications")
+              .doc(acceptedPlayerId);
+
+            transaction.set(
+              acceptedApplicationReference,
+              {
+                lifecycleVersion:
+                  APPLICATION_LIFECYCLE_VERSION,
+                status:
+                  applicationStatus.acceptedPaymentPending,
+                decisionStatus:
+                  applicationDecisionStatus.accepted,
+                paymentStatus:
+                  applicationPaymentStatus.pending,
+                addressAccessStatus:
+                  addressAccessStatus.locked,
+                reservationStatus:
+                  reservationStatus.held,
+                paymentWindowMinutes,
+                paymentDueAt,
+                reservationExpiresAt: paymentDueAt,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              {
+                merge: true,
+              },
+            );
+          }
+
           transaction.set(
             paymentSessionReference,
             {
@@ -212,10 +384,14 @@ export const acceptApplication = onCall(
               eventId,
               organizerId,
               participantIds,
+              lifecycleVersion:
+                APPLICATION_LIFECYCLE_VERSION,
               status: "payment_pending",
               gatewayStatus: "not_started",
               currency: "TRY",
               paymentRequired: true,
+              paymentWindowMinutes,
+              paymentDueAt,
               createdAt: FieldValue.serverTimestamp(),
               updatedAt: FieldValue.serverTimestamp(),
             },
@@ -226,6 +402,7 @@ export const acceptApplication = onCall(
         }
 
         return {
+          freeEvent: false,
           rosterCompleted,
           selectedPlayerCount:
             updatedSelectedPlayerIds.length,
@@ -234,18 +411,37 @@ export const acceptApplication = onCall(
       },
     );
 
-    await createNotification({
+    await writeUserNotification(
       firestore,
-      userId: playerId,
-      actorId: organizerId,
-      eventId,
-      type: "applicationAccepted",
-      title: "Başvurun kabul edildi",
-      message:
-        "Etkinlik başvurun organizatör tarafından kabul edildi.",
-    });
+      {
+        userId: playerId,
+        actorId: organizerId,
+        eventId,
+        type: "application_accepted",
+        title: "Başvurun kabul edildi",
+        message: result.freeEvent ?
+          "Başvurun kabul edildi. Etkinlik adresi ve sohbetin açıldı." :
+          "Başvurun kabul edildi. Ödeme süreci bekleniyor.",
+        route: "event_detail",
+        data: {
+          eventId,
+          applicationStatus: result.freeEvent ?
+            applicationStatus.addressUnlocked :
+            applicationStatus.acceptedPaymentPending,
+          paymentStatus: result.freeEvent ?
+            applicationPaymentStatus.notRequired :
+            applicationPaymentStatus.pending,
+        },
+      },
+    );
 
-    if (result.rosterCompleted) {
+    if (result.rosterCompleted && result.freeEvent) {
+      await createRosterCompletedNotifications({
+        firestore,
+        eventId,
+        organizerId,
+      });
+    } else if (result.rosterCompleted) {
       await createPaymentNotifications({
         firestore,
         eventId,
@@ -257,6 +453,9 @@ export const acceptApplication = onCall(
       success: true,
       eventId,
       playerId,
+      applicationStatus: result.freeEvent ?
+        applicationStatus.addressUnlocked :
+        applicationStatus.acceptedPaymentPending,
       rosterCompleted: result.rosterCompleted,
       selectedPlayerCount: result.selectedPlayerCount,
       requiredPlayerCount: result.requiredPlayerCount,
@@ -362,50 +561,93 @@ function isActiveStatus(
     value === "active";
 }
 
-/**
- * Kullanıcı bildirimini oluşturur.
- */
-async function createNotification({
-  firestore,
-  userId,
-  actorId,
-  eventId,
-  type,
-  title,
-  message,
-}: {
-  firestore: FirebaseFirestore.Firestore;
-  userId: string;
-  actorId: string;
-  eventId: string;
-  type: string;
-  title: string;
-  message: string;
-}): Promise<void> {
-  const reference = firestore
-    .collection("users")
-    .doc(userId)
-    .collection("notifications")
-    .doc();
 
-  await reference.set({
-    notificationId: reference.id,
-    userId,
-    actorId,
-    eventId,
-    type,
-    title,
-    message,
-    isRead: false,
-    read: false,
-    okundu: false,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+/**
+ * Resolves the server-controlled payment window.
+ *
+ * @param {unknown} value Configured payment window.
+ * @return {number} Safe payment window in minutes.
+ */
+function normalizePaymentWindowMinutes(
+  value: unknown,
+): number {
+  const parsed = Number(value);
+
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < MIN_PAYMENT_WINDOW_MINUTES ||
+    parsed > MAX_PAYMENT_WINDOW_MINUTES
+  ) {
+    return DEFAULT_PAYMENT_WINDOW_MINUTES;
+  }
+
+  return parsed;
 }
 
 /**
  * Kadro tamamlandığında ödeme bildirimlerini oluşturur.
+ *
+ * @param {object} params Bildirim parametreleri.
+ * @param {FirebaseFirestore.Firestore} params.firestore Firestore örneği.
+ * @param {string} params.eventId Etkinlik kimliği.
+ * @param {string} params.organizerId Etkinlik sahibi.
+ * @return {Promise<void>} İşlem tamamlandığında sonuçlanır.
+ */
+async function createRosterCompletedNotifications({
+  firestore,
+  eventId,
+  organizerId,
+}: {
+  firestore: FirebaseFirestore.Firestore;
+  eventId: string;
+  organizerId: string;
+}): Promise<void> {
+  const eventSnapshot = await firestore
+    .collection("events")
+    .doc(eventId)
+    .get();
+
+  if (!eventSnapshot.exists) {
+    return;
+  }
+
+  const participantIds = [
+    ...new Set([
+      organizerId,
+      ...readStringList(eventSnapshot.data()?.selectedPlayerIds),
+    ]),
+  ];
+
+  await Promise.all(
+    participantIds.map(async (userId) => {
+      await writeUserNotification(
+        firestore,
+        {
+          userId,
+          actorId: organizerId,
+          eventId,
+          type: "event_roster_completed",
+          title: "Kadro tamamlandı",
+          message:
+            "Etkinlik kadrosu tamamlandı. Adres ve sohbet açıldı.",
+          route: "event_detail",
+          data: {
+            eventId,
+          },
+        },
+      );
+    }),
+  );
+}
+
+/**
+ * Kadro tamamlandığında ödeme bildirimlerini oluşturur.
+ *
+ * @param {object} params Bildirim parametreleri.
+ * @param {FirebaseFirestore.Firestore} params.firestore Firestore örneği.
+ * @param {string} params.eventId Etkinlik kimliği.
+ * @param {string} params.organizerId Etkinlik sahibi.
+ * @return {Promise<void>} İşlem tamamlandığında sonuçlanır.
  */
 async function createPaymentNotifications({
   firestore,
@@ -438,37 +680,27 @@ async function createPaymentNotifications({
     ...new Set(participantIds),
   ];
 
-  const batch = firestore.batch();
-
-  for (const userId of uniqueParticipantIds) {
-    const notificationReference = firestore
-      .collection("users")
-      .doc(userId)
-      .collection("notifications")
-      .doc();
-
-    batch.set(
-      notificationReference,
-      {
-        notificationId:
-          notificationReference.id,
-        userId,
-        actorId: organizerId,
-        eventId,
-        type: "eventPaymentRequired",
-        title: "Ödeme bekleniyor",
-        message:
-          "Etkinlik kadrosu tamamlandı. Ödeme işlemi bekleniyor.",
-        isRead: false,
-        read: false,
-        okundu: false,
-        createdAt:
-          FieldValue.serverTimestamp(),
-        updatedAt:
-          FieldValue.serverTimestamp(),
+  await Promise.all(
+    uniqueParticipantIds.map(
+      async (userId) => {
+        await writeUserNotification(
+          firestore,
+          {
+            userId,
+            actorId: organizerId,
+            eventId,
+            type: "event_payment_required",
+            title: "Etkinlik durumu güncelleniyor",
+            message:
+              "Etkinlik kadrosu tamamlandı.",
+            route: "event_detail",
+            data: {
+              eventId,
+              paymentStatus: "payment_pending",
+            },
+          },
+        );
       },
-    );
-  }
-
-  await batch.commit();
+    ),
+  );
 }

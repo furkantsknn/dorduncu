@@ -7,12 +7,15 @@ import {
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
-import {assertAdmin} from "../security/assertAdmin";
+import {
+  assertVerificationAssignment,
+} from "../security/assertVerificationAssignment";
 import {writeAuditLog} from "../audit/writeAuditLog";
 
 interface ProcessVerificationRequest {
   requestId?: unknown;
   status?: unknown;
+  decisionReason?: unknown;
   adminNote?: unknown;
 }
 
@@ -22,8 +25,6 @@ export const processVerification = onCall(
     enforceAppCheck: true,
   },
   async (request) => {
-    assertAdmin(request);
-
     const data =
       request.data as ProcessVerificationRequest;
 
@@ -37,10 +38,12 @@ export const processVerification = onCall(
         data.status.trim().toLowerCase() :
         "";
 
-    const adminNote =
-      typeof data.adminNote === "string" ?
-        data.adminNote.trim() :
-        "";
+    const decisionReason =
+      typeof data.decisionReason === "string" ?
+        data.decisionReason.trim() :
+        typeof data.adminNote === "string" ?
+          data.adminNote.trim() :
+          "";
 
     if (!requestId) {
       throw new HttpsError(
@@ -65,7 +68,7 @@ export const processVerification = onCall(
         status === "rejected" ||
         status === "revision"
       ) &&
-      adminNote.length < 3
+      decisionReason.length < 3
     ) {
       throw new HttpsError(
         "invalid-argument",
@@ -92,6 +95,11 @@ export const processVerification = onCall(
 
     const requestData =
       requestSnapshot.data() ?? {};
+
+    assertVerificationAssignment(
+      request,
+      requestData,
+    );
 
     const uid =
       requestData.uid
@@ -239,7 +247,9 @@ export const processVerification = onCall(
           requestReference,
           {
             status,
-            adminNote,
+            decisionReason,
+            adminNote:
+              FieldValue.delete(),
             reviewedAt:
               FieldValue.serverTimestamp(),
             reviewedBy:
@@ -300,9 +310,9 @@ export const processVerification = onCall(
               verificationStatus:
                 status,
               verificationRejectionReason:
-                adminNote,
+                decisionReason,
               verificationAdminNote:
-                adminNote,
+                FieldValue.delete(),
               oyuncuRozeti: false,
               guncellemeTarihi:
                 FieldValue.serverTimestamp(),
@@ -321,11 +331,11 @@ export const processVerification = onCall(
             status === "revision" ?
               [
                 "Belgeni düzeltip yeniden göndermen gerekiyor.",
-                `Neden: ${adminNote}`,
+                `Neden: ${decisionReason}`,
               ].join(" ") :
               [
                 "Profil doğrulama başvurun reddedildi.",
-                `Neden: ${adminNote}`,
+                `Neden: ${decisionReason}`,
               ].join(" ");
 
           transaction.set(
@@ -342,7 +352,7 @@ export const processVerification = onCall(
                   "verification_rejected",
               title,
               message,
-              reason: adminNote,
+              reason: decisionReason,
               isRead: false,
               read: false,
               okundu: false,
@@ -364,7 +374,7 @@ export const processVerification = onCall(
       metadata: {
         requestId,
         status,
-        adminNote,
+        decisionReason,
       },
     });
 

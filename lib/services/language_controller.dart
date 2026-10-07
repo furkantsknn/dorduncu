@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,7 +16,7 @@ class LanguageController {
   static final ValueNotifier<AppLanguage> language =
   ValueNotifier<AppLanguage>(AppLanguage.turkish);
 
-  static bool _changingLanguage = false;
+  static Future<void> _languageWrite = Future<void>.value();
 
   static Future<void> initialize() async {
     final SharedPreferencesAsync preferences = SharedPreferencesAsync();
@@ -32,11 +34,15 @@ class LanguageController {
   }
 
   static Future<void> setLanguage(AppLanguage selectedLanguage) async {
-    if (_changingLanguage || language.value == selectedLanguage) {
+    if (language.value == selectedLanguage) {
       return;
     }
 
-    _changingLanguage = true;
+    final Future<void> previousWrite = _languageWrite;
+    final Completer<void> completer = Completer<void>();
+    _languageWrite = completer.future;
+
+    await previousWrite;
 
     try {
       final SharedPreferencesAsync preferences = SharedPreferencesAsync();
@@ -56,7 +62,7 @@ class LanguageController {
         locale.value = selectedLocale;
       }
     } finally {
-      _changingLanguage = false;
+      completer.complete();
     }
   }
 

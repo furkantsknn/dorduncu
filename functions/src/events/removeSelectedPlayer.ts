@@ -3,6 +3,20 @@ import {
   FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
+import {
+  APPLICATION_LIFECYCLE_VERSION,
+  addressAccessStatus,
+  applicationDecisionStatus,
+  applicationPaymentStatus,
+  applicationStatus,
+  assertEventNotPast,
+  isFreeAccessEvent,
+  reservationStatus,
+} from "./eventLifecycle";
+import {
+  writeUserNotification,
+} from "../notifications/writeUserNotification";
+import {writeAuditLog} from "../audit/writeAuditLog";
 
 const REGION = "europe-west1";
 
@@ -26,17 +40,12 @@ export const removeSelectedPlayer = onCall(
       "eventId",
       "Etkinlik kimliği gereklidir.",
     );
-
     const playerId = readRequiredString(
       request.data,
       "playerId",
       "Oyuncu kimliği gereklidir.",
     );
-
-    const reason = readOptionalString(
-      request.data,
-      "reason",
-    );
+    const reason = readOptionalString(request.data, "reason");
 
     if (organizerId === playerId) {
       throw new HttpsError(
@@ -46,140 +55,198 @@ export const removeSelectedPlayer = onCall(
     }
 
     const firestore = getFirestore();
-
-    const eventReference = firestore
-      .collection("events")
-      .doc(eventId);
-
+    const eventReference = firestore.collection("events").doc(eventId);
     const applicationReference = eventReference
       .collection("applications")
       .doc(playerId);
-
     const paymentSessionReference = firestore
       .collection("paymentSessions")
       .doc(eventId);
 
-    await firestore.runTransaction(
-      async (transaction) => {
-        const eventSnapshot = await transaction.get(
-          eventReference,
+    let remainingPlayerIds: string[] = [];
+
+    await firestore.runTransaction(async (transaction) => {
+      const eventSnapshot = await transaction.get(eventReference);
+
+      if (!eventSnapshot.exists) {
+        throw new HttpsError("not-found", "Etkinlik bulunamadı.");
+      }
+
+      const eventData = eventSnapshot.data() ?? {};
+      const eventOrganizerId = String(
+        eventData.olusturanUid ?? "",
+      ).trim();
+
+      if (eventOrganizerId !== organizerId) {
+        throw new HttpsError(
+          "permission-denied",
+          "Oyuncuyu kaldırma yetkiniz bulunmuyor.",
         );
+      }
 
-        if (!eventSnapshot.exists) {
-          throw new HttpsError(
-            "not-found",
-            "Etkinlik bulunamadı.",
-          );
-        }
+      assertEventNotPast(eventData);
 
-        const eventData = eventSnapshot.data() ?? {};
+      const paymentStatus = normalizeStatus(eventData.paymentStatus);
 
-        const eventOrganizerId = String(
-          eventData.olusturanUid ?? "",
-        ).trim();
-
-        if (eventOrganizerId !== organizerId) {
-          throw new HttpsError(
-            "permission-denied",
-            "Oyuncuyu kaldırma yetkiniz bulunmuyor.",
-          );
-        }
-
-        const paymentStatus = String(
-          eventData.paymentStatus ?? "not_created",
-        )
-          .trim()
-          .toLowerCase();
-
-        if (isPaidStatus(paymentStatus)) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Ödeme alındıktan sonra oyuncu doğrudan kaldırılamaz.",
-          );
-        }
-
-        const selectedPlayerIds = readStringList(
-          eventData.selectedPlayerIds,
+      if (isPaidStatus(paymentStatus)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Ödeme alındıktan sonra oyuncu doğrudan kaldırılamaz.",
         );
+      }
 
-        if (!selectedPlayerIds.includes(playerId)) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Bu oyuncu etkinlik kadrosunda bulunmuyor.",
-          );
-        }
+      const selectedPlayerIds = readStringList(
+        eventData.selectedPlayerIds,
+      );
 
-        const updatedSelectedPlayerIds =
-          selectedPlayerIds.filter(
-            (id) => id !== playerId,
-          );
-
-        const requiredPlayerCount = readPlayerCount(
-          eventData,
+      if (!selectedPlayerIds.includes(playerId)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Bu oyuncu etkinlik kadrosunda bulunmuyor.",
         );
+      }
 
-        const rosterIncomplete =
-          updatedSelectedPlayerIds.length <
-          requiredPlayerCount;
+      remainingPlayerIds = selectedPlayerIds.filter(
+        (id) => id !== playerId,
+      );
 
-        transaction.update(
-          eventReference,
-          {
-            selectedPlayerIds: updatedSelectedPlayerIds,
-            katilanlar: FieldValue.arrayRemove(playerId),
-            chatMemberUids: FieldValue.arrayRemove(playerId),
-            ...(rosterIncomplete ?
-              {
-                durum: "aktif",
-                status: "active",
-                paymentRequired: false,
-                paymentStatus: "not_created",
-                rosterCompletedAt: FieldValue.delete(),
-              } :
-              {}),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
+      if (isFreeAccessEvent(eventData)) {
+        const requiredPlayerCount = Number(
+          eventData.oyuncuSayisi ?? eventData.playerCount ?? 1,
         );
-
+        transaction.update(eventReference, {
+          selectedPlayerIds: remainingPlayerIds,
+          katilanlar: FieldValue.arrayRemove(playerId),
+          participantIds: FieldValue.arrayRemove(playerId),
+          chatMemberUids: FieldValue.arrayRemove(playerId),
+          rosterStatus:
+            remainingPlayerIds.length >= requiredPlayerCount ?
+              "full" :
+              "collecting",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         transaction.set(
           applicationReference,
           {
-            status: "removed",
+            lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+            status: applicationStatus.removed,
+            decisionStatus: applicationDecisionStatus.accepted,
+            paymentStatus: applicationPaymentStatus.notRequired,
+            addressAccessStatus: addressAccessStatus.locked,
+            reservationStatus: reservationStatus.released,
             removalReason: reason,
             removedBy: organizerId,
             removedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           },
-          {
-            merge: true,
-          },
+          {merge: true},
         );
+        return;
+      }
 
-        if (rosterIncomplete) {
-          transaction.set(
-            paymentSessionReference,
-            {
-              status: "cancelled",
-              gatewayStatus: "not_started",
-              paymentRequired: false,
-              cancellationReason: "roster_incomplete",
-              cancelledAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            {
-              merge: true,
-            },
-          );
-        }
+      transaction.update(eventReference, {
+        lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+        selectedPlayerIds: remainingPlayerIds,
+        katilanlar: FieldValue.arrayRemove(playerId),
+        participantIds: FieldValue.arrayRemove(playerId),
+        chatMemberUids: FieldValue.arrayRemove(playerId),
+        durum: "aktif",
+        status: "active",
+        rosterStatus: "collecting",
+        paymentRequired: false,
+        paymentStatus: "not_created",
+        paymentDueAt: FieldValue.delete(),
+        paymentWindowMinutes: FieldValue.delete(),
+        rosterCompletedAt: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(
+        applicationReference,
+        {
+          lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+          status: applicationStatus.removed,
+          decisionStatus: applicationDecisionStatus.accepted,
+          paymentStatus: applicationPaymentStatus.notRequired,
+          addressAccessStatus: addressAccessStatus.locked,
+          reservationStatus: reservationStatus.released,
+          paymentDueAt: FieldValue.delete(),
+          reservationExpiresAt: FieldValue.delete(),
+          removalReason: reason,
+          removedBy: organizerId,
+          removedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+
+      for (const remainingPlayerId of remainingPlayerIds) {
+        const remainingApplicationReference = eventReference
+          .collection("applications")
+          .doc(remainingPlayerId);
+
+        transaction.set(
+          remainingApplicationReference,
+          {
+            lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+            status: applicationStatus.acceptedWaitingRoster,
+            decisionStatus: applicationDecisionStatus.accepted,
+            paymentStatus: applicationPaymentStatus.notRequired,
+            addressAccessStatus: addressAccessStatus.locked,
+            reservationStatus: reservationStatus.held,
+            paymentDueAt: FieldValue.delete(),
+            reservationExpiresAt: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          {merge: true},
+        );
+      }
+
+      transaction.set(
+        paymentSessionReference,
+        {
+          lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+          status: "cancelled",
+          gatewayStatus: "not_started",
+          paymentRequired: false,
+          cancellationReason: "roster_incomplete",
+          paymentDueAt: FieldValue.delete(),
+          cancelledAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
+
+    await writeUserNotification(
+      firestore,
+      {
+        userId: playerId,
+        actorId: organizerId,
+        eventId,
+        type: "event_participant_removed",
+        title: "Etkinlik kadrosu güncellendi",
+        message: reason ?
+          `Etkinlik kadrosundan çıkarıldın. ${reason}` :
+          "Etkinlik kadrosundan çıkarıldın.",
+        route: "event_detail",
+        data: {
+          eventId,
+          reason,
+        },
       },
     );
 
-    await createNotification({
-      firestore,
-      userId: playerId,
-      actorId: organizerId,
-      eventId,
-      reason,
+    await writeAuditLog({
+      action: "event_participant_removed",
+      performedBy: organizerId,
+      targetUid: playerId,
+      metadata: {
+        eventId,
+        reason,
+        remainingPlayerIds,
+        lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+      },
     });
 
     return {
@@ -191,26 +258,20 @@ export const removeSelectedPlayer = onCall(
 );
 
 /**
- * Gerekli metin alanını okur.
+ * Reads a required string.
  *
- * @param {unknown} data İstek verisi.
- * @param {string} key Okunacak alan adı.
- * @param {string} errorMessage Hata mesajı.
- * @return {string} Temizlenmiş metin.
+ * @param {unknown} data Callable payload.
+ * @param {string} key Field name.
+ * @param {string} errorMessage Validation message.
+ * @return {string} Normalized string.
  */
 function readRequiredString(
   data: unknown,
   key: string,
   errorMessage: string,
 ): string {
-  if (
-    data === null ||
-    typeof data !== "object"
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      errorMessage,
-    );
+  if (data === null || typeof data !== "object") {
+    throw new HttpsError("invalid-argument", errorMessage);
   }
 
   const value = String(
@@ -218,30 +279,24 @@ function readRequiredString(
   ).trim();
 
   if (!value) {
-    throw new HttpsError(
-      "invalid-argument",
-      errorMessage,
-    );
+    throw new HttpsError("invalid-argument", errorMessage);
   }
 
   return value;
 }
 
 /**
- * İsteğe bağlı metin alanını okur.
+ * Reads an optional string.
  *
- * @param {unknown} data İstek verisi.
- * @param {string} key Okunacak alan adı.
- * @return {string} Temizlenmiş metin.
+ * @param {unknown} data Callable payload.
+ * @param {string} key Field name.
+ * @return {string} Normalized string.
  */
 function readOptionalString(
   data: unknown,
   key: string,
 ): string {
-  if (
-    data === null ||
-    typeof data !== "object"
-  ) {
+  if (data === null || typeof data !== "object") {
     return "";
   }
 
@@ -251,44 +306,22 @@ function readOptionalString(
 }
 
 /**
- * Etkinlik için gerekli oyuncu sayısını okur.
+ * Normalizes a status.
  *
- * @param {Record<string, unknown>} data Etkinlik verisi.
- * @return {number} Gerekli oyuncu sayısı.
+ * @param {unknown} value Status value.
+ * @return {string} Normalized status.
  */
-function readPlayerCount(
-  data: Record<string, unknown>,
-): number {
-  const rawValue =
-    data.oyuncuSayisi ??
-    data.playerCount ??
-    1;
-
-  const value = Number(rawValue);
-
-  if (
-    !Number.isInteger(value) ||
-    value < 1 ||
-    value > 4
-  ) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Etkinliğin oyuncu sayısı geçersiz.",
-    );
-  }
-
-  return value;
+function normalizeStatus(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 /**
- * Bilinmeyen değeri güvenli metin listesine dönüştürür.
+ * Reads a safe string list.
  *
- * @param {unknown} value Dönüştürülecek değer.
- * @return {string[]} Temizlenmiş metin listesi.
+ * @param {unknown} value Raw list.
+ * @return {string[]} String list.
  */
-function readStringList(
-  value: unknown,
-): string[] {
+function readStringList(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -299,66 +332,14 @@ function readStringList(
 }
 
 /**
- * Ödeme alınmış durumları kontrol eder.
+ * Checks final paid states.
  *
- * @param {string} value Ödeme durum değeri.
- * @return {boolean} Ödeme alınmışsa true.
+ * @param {string} value Payment state.
+ * @return {boolean} True when paid.
  */
-function isPaidStatus(
-  value: string,
-): boolean {
-  return value === "escrowheld" ||
-    value === "escrow_held" ||
-    value === "paid" ||
-    value === "completed";
-}
-
-/**
- * Kadrodan çıkarılan oyuncuya bildirim oluşturur.
- *
- * @param {object} params Bildirim parametreleri.
- * @param {FirebaseFirestore.Firestore} params.firestore Firestore örneği.
- * @param {string} params.userId Bildirim alacak kullanıcı.
- * @param {string} params.actorId İşlemi yapan kullanıcı.
- * @param {string} params.eventId Etkinlik kimliği.
- * @param {string} params.reason Kadrodan çıkarma sebebi.
- * @return {Promise<void>} İşlem tamamlandığında sonuçlanır.
- */
-async function createNotification({
-  firestore,
-  userId,
-  actorId,
-  eventId,
-  reason,
-}: {
-  firestore: FirebaseFirestore.Firestore;
-  userId: string;
-  actorId: string;
-  eventId: string;
-  reason: string;
-}): Promise<void> {
-  const reference = firestore
-    .collection("users")
-    .doc(userId)
-    .collection("notifications")
-    .doc();
-
-  const message = reason.length > 0 ?
-    `Etkinlik oyuncu listesinden çıkarıldın: ${reason}` :
-    "Etkinlik oyuncu listesinden çıkarıldın.";
-
-  await reference.set({
-    notificationId: reference.id,
-    userId,
-    actorId,
-    eventId,
-    type: "removedFromEvent",
-    title: "Etkinlik oyuncu seçimi",
-    message,
-    isRead: false,
-    read: false,
-    okundu: false,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+function isPaidStatus(value: string): boolean {
+  return value === "paid" ||
+    value === "completed" ||
+    value === "escrowheld" ||
+    value === "escrow_held";
 }

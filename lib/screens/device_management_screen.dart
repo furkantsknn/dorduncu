@@ -2,6 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../services/session_service.dart';
 
+String _deviceText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class DeviceManagementScreen extends StatefulWidget {
   const DeviceManagementScreen({super.key});
 
@@ -47,7 +64,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
 
       setState(() {
         _loading = false;
-        _errorMessage = 'Oturum bilgileri yüklenemedi.';
+        _errorMessage = _deviceText(context, tr: 'Oturum bilgileri yüklenemedi.', en: 'Session information could not be loaded.', de: 'Sitzungsinformationen konnten nicht geladen werden.');
       });
     }
   }
@@ -61,19 +78,19 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Diğer oturumları kapat'),
-          content: const Text(
+          title: Text(_deviceText(context, tr: 'Diğer oturumları kapat', en: 'Close other sessions', de: 'Andere Sitzungen schließen')),
+          content: Text(
             'Bu cihazdaki oturumun açık kalır. Hesabın diğer cihazlarda '
                 'açıksa o oturumlar kapatılır.',
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Vazgeç'),
+              child: Text(_deviceText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Oturumları kapat'),
+              child: Text(_deviceText(context, tr: 'Oturumları kapat', en: 'Close sessions', de: 'Sitzungen schließen')),
             ),
           ],
         );
@@ -101,9 +118,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
         _metadata = metadata;
       });
 
-      _showMessage('Diğer cihazlardaki oturumlar kapatıldı.');
+      _showMessage(_deviceText(context, tr: 'Diğer cihazlardaki oturumlar kapatıldı.', en: 'Sessions on other devices were closed.', de: 'Sitzungen auf anderen Geräten wurden geschlossen.'));
     } catch (_) {
-      _showMessage('Diğer oturumlar kapatılamadı.');
+      _showMessage(_deviceText(context, tr: 'Diğer oturumlar kapatılamadı.', en: 'Other sessions could not be closed.', de: 'Andere Sitzungen konnten nicht geschlossen werden.'));
     } finally {
       if (mounted) {
         setState(() {
@@ -166,7 +183,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
 
   String _formatDate(DateTime? dateTime) {
     if (dateTime == null) {
-      return 'Bilgi bulunamadı';
+      return _deviceText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar');
     }
 
     final DateTime local = dateTime.toLocal();
@@ -254,7 +271,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                     size: 30,
                   ),
                   title: Text(_platformLabel(session.platform)),
-                  subtitle: const Text('Mevcut aktif oturum'),
+                  subtitle: Text('Mevcut aktif oturum'),
                   trailing: const Icon(
                     Icons.check_circle,
                     color: Colors.green,
@@ -263,13 +280,13 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.fingerprint_outlined),
-                  title: const Text('Cihaz kimliği'),
+                  title: Text(_deviceText(context, tr: 'Cihaz kimliği', en: 'Device ID', de: 'Geräte-ID')),
                   subtitle: Text(_shortDeviceId(session.deviceId)),
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.apps_outlined),
-                  title: const Text('Uygulama sürümü'),
+                  title: Text(_deviceText(context, tr: 'Uygulama sürümü', en: 'App version', de: 'App-Version')),
                   subtitle: Text(
                     session.appVersion == 'unknown'
                         ? 'Bilinmiyor'
@@ -279,13 +296,13 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.login_outlined),
-                  title: const Text('Oturum başlangıcı'),
+                  title: Text(_deviceText(context, tr: 'Oturum başlangıcı', en: 'Session started', de: 'Sitzungsbeginn')),
                   subtitle: Text(_formatDate(metadata.createdAt)),
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.schedule_outlined),
-                  title: const Text('Son etkinlik'),
+                  title: Text('Son etkinlik'),
                   subtitle: Text(_formatDate(metadata.lastSeenAt)),
                 ),
               ],
@@ -293,7 +310,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
           ),
           const SizedBox(height: 22),
           Text(
-            'Güvenlik',
+            _deviceText(context, tr: 'Güvenlik', en: 'Security', de: 'Sicherheit'),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
             ),
@@ -312,9 +329,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                     ),
                   )
                       : const Icon(Icons.phonelink_erase_outlined),
-                  title: const Text('Diğer cihazlardaki oturumları kapat'),
-                  subtitle: const Text(
-                    'Bu cihaz açık kalır, diğer aktif oturumlar kapatılır.',
+                  title: Text(_deviceText(context, tr: 'Diğer cihazlardaki oturumları kapat', en: 'Close sessions on other devices', de: 'Sitzungen auf anderen Geräten schließen')),
+                  subtitle: Text(
+                    _deviceText(context, tr: 'Bu cihaz açık kalır, diğer aktif oturumlar kapatılır.', en: 'This device stays signed in while other active sessions are closed.', de: 'Dieses Gerät bleibt angemeldet, während andere aktive Sitzungen geschlossen werden.'),
                   ),
                   trailing: _signingOutOtherDevices
                       ? null

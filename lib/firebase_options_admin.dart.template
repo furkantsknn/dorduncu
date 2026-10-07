@@ -1,0 +1,10 @@
+// Bu dosya elle kullanılmaz.
+// A7.3 kurulum komutu aşağıdaki gerçek dosyayı üretir:
+// lib/firebase_options_admin.dart
+//
+// flutterfire configure --project=dorduncu-8e599 --platforms=web --out=lib/firebase_options_admin.dart
+//
+// Üretilen sınıf adı DefaultFirebaseOptions ise dosyada sınıf adını
+// AdminFirebaseOptions olarak değiştir.
+// Bu isim admin web entrypoint'inin kullanıcı uygulamasının
+// firebase_options.dart dosyasından tamamen ayrı kalmasını sağlar.

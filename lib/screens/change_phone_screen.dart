@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 String _changePhoneText(
-    BuildContext context, {
-      required String tr,
-      required String en,
-      required String de,
-    }) {
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
   switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
     case 'en':
       return en;
@@ -223,10 +223,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
             return;
           }
 
-          await _completePhoneChange(
-            credential: credential,
-            newPhoneNumber: phoneNumber,
-          );
+          await _completePhoneChange(credential: credential);
         },
         verificationFailed: (FirebaseAuthException error) {
           _logFirebaseAuthError(
@@ -242,7 +239,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
             _sendingCode = false;
           });
 
-          _showMessage(_firebaseDiagnosticMessage(error));
+          _showMessage(_firebaseErrorMessage(error));
         },
         codeSent: (String verificationId, int? resendToken) {
           if (!mounted) {
@@ -281,18 +278,12 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     } on _ChangePhoneException catch (error) {
       _showMessage(error.message);
     } on FirebaseAuthException catch (error) {
-      _logFirebaseAuthError(
-        stage: '_completePhoneChange',
-        error: error,
-      );
+      _logFirebaseAuthError(stage: '_completePhoneChange', error: error);
 
       if (!mounted) return;
 
-      _showMessage(_firebaseDiagnosticMessage(error));
-    } catch (error, stackTrace) {
-      debugPrint('ChangePhoneScreen _sendCode beklenmeyen hata: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
+      _showMessage(_firebaseErrorMessage(error));
+    } catch (error) {
       if (!mounted) return;
 
       _showMessage(
@@ -345,17 +336,12 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     }
 
     try {
-      final String newPhoneNumber = _normalizedPhoneNumber();
-
       final PhoneAuthCredential credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: smsCode,
       );
 
-      await _completePhoneChange(
-        credential: credential,
-        newPhoneNumber: newPhoneNumber,
-      );
+      await _completePhoneChange(credential: credential);
     } on _ChangePhoneException catch (error) {
       _showMessage(error.message);
     }
@@ -363,7 +349,6 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
 
   Future<void> _completePhoneChange({
     required PhoneAuthCredential credential,
-    required String newPhoneNumber,
   }) async {
     if (_verifyingCode) {
       return;
@@ -378,16 +363,34 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
 
       await user.updatePhoneNumber(credential);
       await user.reload();
+      final User verifiedUser = _auth.currentUser ?? user;
+      await verifiedUser.getIdToken(true);
+      final String verifiedPhone = verifiedUser.phoneNumber?.trim() ?? '';
 
-      await _firestore.collection('users').doc(user.uid).set(
-        <String, dynamic>{
-          'telefon': newPhoneNumber,
-          'phoneNumber': newPhoneNumber,
-          'phoneChangedAt': FieldValue.serverTimestamp(),
-          'guncellemeTarihi': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      if (verifiedPhone.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+
+        throw _ChangePhoneException(
+          _changePhoneText(
+            context,
+            tr: 'Doğrulanmış telefon numarası alınamadı.',
+            en: 'The verified phone number could not be read.',
+            de: 'Die bestätigte Telefonnummer konnte nicht gelesen werden.',
+          ),
+        );
+      }
+
+      await _firestore
+          .collection('users')
+          .doc(verifiedUser.uid)
+          .set(<String, dynamic>{
+            'telefon': verifiedPhone,
+            'phoneNumber': verifiedPhone,
+            'phoneChangedAt': FieldValue.serverTimestamp(),
+            'guncellemeTarihi': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       if (!mounted) {
         return;
@@ -416,9 +419,9 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
             content: Text(
               _changePhoneText(
                 dialogContext,
-                tr: 'Hesabının telefon numarası $newPhoneNumber olarak güncellendi.',
-                en: 'Your account phone number has been updated to $newPhoneNumber.',
-                de: 'Die Telefonnummer deines Kontos wurde auf $newPhoneNumber aktualisiert.',
+                tr: 'Hesabının telefon numarası $verifiedPhone olarak güncellendi.',
+                en: 'Your account phone number has been updated to $verifiedPhone.',
+                de: 'Die Telefonnummer deines Kontos wurde auf $verifiedPhone aktualisiert.',
               ),
               textAlign: TextAlign.center,
             ),
@@ -442,12 +445,13 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
       if (mounted) {
         Navigator.pop(context, true);
       }
+    } on _ChangePhoneException catch (error) {
+      if (!mounted) return;
+
+      _showMessage(error.message);
     } on FirebaseAuthException catch (error) {
-      _logFirebaseAuthError(
-        stage: '_completePhoneChange',
-        error: error,
-      );
-      _showMessage(_firebaseDiagnosticMessage(error));
+      _logFirebaseAuthError(stage: '_completePhoneChange', error: error);
+      _showMessage(_firebaseErrorMessage(error));
     } on FirebaseException catch (error) {
       if (!mounted) return;
 
@@ -455,11 +459,11 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
         error.message?.trim().isNotEmpty == true
             ? error.message!.trim()
             : _changePhoneText(
-          context,
-          tr: 'Telefon numarası profil bilgilerine kaydedilemedi.',
-          en: 'The phone number could not be saved to your profile.',
-          de: 'Die Telefonnummer konnte nicht in deinem Profil gespeichert werden.',
-        ),
+                context,
+                tr: 'Telefon numarası profil bilgilerine kaydedilemedi.',
+                en: 'The phone number could not be saved to your profile.',
+                de: 'Die Telefonnummer konnte nicht in deinem Profil gespeichert werden.',
+              ),
       );
     } catch (_) {
       if (!mounted) return;
@@ -497,37 +501,11 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     });
   }
 
-
   void _logFirebaseAuthError({
     required String stage,
     required FirebaseAuthException error,
   }) {
-    debugPrint('========== FIREBASE AUTH HATASI ==========');
-    debugPrint('Aşama: $stage');
-    debugPrint('Kod: ${error.code}');
-    debugPrint('Mesaj: ${error.message}');
-    debugPrint('Plugin: ${error.plugin}');
-    debugPrint('Telefon: ${error.phoneNumber}');
-    debugPrint('E-posta: ${error.email}');
-    debugPrint('==========================================');
-  }
-
-  String _firebaseDiagnosticMessage(FirebaseAuthException error) {
-    final String rawMessage = error.message?.trim() ?? '';
-    final String friendlyMessage = _firebaseErrorMessage(error);
-
-    return _changePhoneText(
-      context,
-      tr: 'Firebase hata kodu: ${error.code}\n'
-          'Firebase mesajı: ${rawMessage.isEmpty ? "Mesaj bulunamadı" : rawMessage}\n\n'
-          '$friendlyMessage',
-      en: 'Firebase error code: ${error.code}\n'
-          'Firebase message: ${rawMessage.isEmpty ? "No message available" : rawMessage}\n\n'
-          '$friendlyMessage',
-      de: 'Firebase-Fehlercode: ${error.code}\n'
-          'Firebase-Nachricht: ${rawMessage.isEmpty ? "Keine Nachricht verfügbar" : rawMessage}\n\n'
-          '$friendlyMessage',
-    );
+    debugPrint('ChangePhoneScreen $stage failed: ${error.code}');
   }
 
   String _firebaseErrorMessage(FirebaseAuthException error) {
@@ -616,11 +594,11 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
         return message.isNotEmpty
             ? message
             : _changePhoneText(
-          context,
-          tr: 'Telefon numarası değiştirilemedi.',
-          en: 'The phone number could not be changed.',
-          de: 'Die Telefonnummer konnte nicht geändert werden.',
-        );
+                context,
+                tr: 'Telefon numarası değiştirilemedi.',
+                en: 'The phone number could not be changed.',
+                de: 'Die Telefonnummer konnte nicht geändert werden.',
+              );
     }
   }
 
@@ -632,10 +610,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -645,11 +620,11 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     final String currentPhone = user?.phoneNumber?.trim().isNotEmpty == true
         ? user!.phoneNumber!.trim()
         : _changePhoneText(
-      context,
-      tr: 'Telefon numarası bulunamadı',
-      en: 'Phone number not found',
-      de: 'Telefonnummer nicht gefunden',
-    );
+            context,
+            tr: 'Telefon numarası bulunamadı',
+            en: 'Phone number not found',
+            de: 'Telefonnummer nicht gefunden',
+          );
 
     return Scaffold(
       appBar: AppBar(
@@ -680,9 +655,9 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                 de: 'Bestätige deine neue Nummer',
               ),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
@@ -724,23 +699,25 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.public_outlined),
                 ),
-                items: _countries.map((_CountryOption country) {
-                  return DropdownMenuItem<String>(
-                    value: country.code,
-                    child: Text(
-                      '${country.flag}  ${country.name} (${country.code})',
-                    ),
-                  );
-                }).toList(growable: false),
+                items: _countries
+                    .map((_CountryOption country) {
+                      return DropdownMenuItem<String>(
+                        value: country.code,
+                        child: Text(
+                          '${country.flag}  ${country.name} (${country.code})',
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
                 onChanged: _sendingCode
                     ? null
                     : (String? value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedCountryCode = value;
-                    });
-                  }
-                },
+                        if (value != null) {
+                          setState(() {
+                            _selectedCountryCode = value;
+                          });
+                        }
+                      },
               ),
               const SizedBox(height: 14),
               TextField(
@@ -749,9 +726,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.done,
                 inputFormatters: <TextInputFormatter>[
-                  FilteringTextInputFormatter.allow(
-                    RegExp(r'[0-9\s\-\(\)]'),
-                  ),
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9\s\-\(\)]')),
                   LengthLimitingTextInputFormatter(20),
                 ],
                 decoration: InputDecoration(
@@ -764,11 +739,11 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                   hintText: _selectedCountryCode == '+90'
                       ? '5XX XXX XX XX'
                       : _changePhoneText(
-                    context,
-                    tr: 'Telefon numarası',
-                    en: 'Phone number',
-                    de: 'Telefonnummer',
-                  ),
+                          context,
+                          tr: 'Telefon numarası',
+                          en: 'Phone number',
+                          de: 'Telefonnummer',
+                        ),
                   prefixText: '$_selectedCountryCode ',
                   border: const OutlineInputBorder(),
                 ),
@@ -781,25 +756,25 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                   onPressed: _sendingCode ? null : () => _sendCode(),
                   icon: _sendingCode
                       ? const SizedBox(
-                    width: 19,
-                    height: 19,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.sms_outlined),
                   label: Text(
                     _sendingCode
                         ? _changePhoneText(
-                      context,
-                      tr: 'Kod gönderiliyor...',
-                      en: 'Sending code...',
-                      de: 'Code wird gesendet...',
-                    )
+                            context,
+                            tr: 'Kod gönderiliyor...',
+                            en: 'Sending code...',
+                            de: 'Code wird gesendet...',
+                          )
                         : _changePhoneText(
-                      context,
-                      tr: 'Kod Gönder',
-                      en: 'Send Code',
-                      de: 'Code senden',
-                    ),
+                            context,
+                            tr: 'Kod Gönder',
+                            en: 'Send Code',
+                            de: 'Code senden',
+                          ),
                   ),
                 ),
               ),
@@ -861,56 +836,55 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                   onPressed: _verifyingCode ? null : _verifyCode,
                   icon: _verifyingCode
                       ? const SizedBox(
-                    width: 19,
-                    height: 19,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.verified_outlined),
                   label: Text(
                     _verifyingCode
                         ? _changePhoneText(
-                      context,
-                      tr: 'Doğrulanıyor...',
-                      en: 'Verifying...',
-                      de: 'Wird bestätigt...',
-                    )
+                            context,
+                            tr: 'Doğrulanıyor...',
+                            en: 'Verifying...',
+                            de: 'Wird bestätigt...',
+                          )
                         : _changePhoneText(
-                      context,
-                      tr: 'Numarayı Değiştir',
-                      en: 'Change Number',
-                      de: 'Nummer ändern',
-                    ),
+                            context,
+                            tr: 'Numarayı Değiştir',
+                            en: 'Change Number',
+                            de: 'Nummer ändern',
+                          ),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
               TextButton(
-                onPressed: _remainingSeconds == 0 &&
-                    !_sendingCode &&
-                    !_verifyingCode
+                onPressed:
+                    _remainingSeconds == 0 && !_sendingCode && !_verifyingCode
                     ? () => _sendCode(forceResend: true)
                     : null,
                 child: Text(
                   _remainingSeconds > 0
                       ? _changePhoneText(
-                    context,
-                    tr: 'Tekrar gönder ($_remainingSeconds sn)',
-                    en: 'Resend ($_remainingSeconds sec)',
-                    de: 'Erneut senden ($_remainingSeconds Sek.)',
-                  )
+                          context,
+                          tr: 'Tekrar gönder ($_remainingSeconds sn)',
+                          en: 'Resend ($_remainingSeconds sec)',
+                          de: 'Erneut senden ($_remainingSeconds Sek.)',
+                        )
                       : _sendingCode
                       ? _changePhoneText(
-                    context,
-                    tr: 'Kod gönderiliyor...',
-                    en: 'Sending code...',
-                    de: 'Code wird gesendet...',
-                  )
+                          context,
+                          tr: 'Kod gönderiliyor...',
+                          en: 'Sending code...',
+                          de: 'Code wird gesendet...',
+                        )
                       : _changePhoneText(
-                    context,
-                    tr: 'Kodu tekrar gönder',
-                    en: 'Resend code',
-                    de: 'Code erneut senden',
-                  ),
+                          context,
+                          tr: 'Kodu tekrar gönder',
+                          en: 'Resend code',
+                          de: 'Code erneut senden',
+                        ),
                 ),
               ),
             ],

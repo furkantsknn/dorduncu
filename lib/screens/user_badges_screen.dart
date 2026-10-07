@@ -1,6 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../models/market_badge_display.dart';
+import '../widgets/market_badge_strip.dart';
+
+String _userBadgesText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 class UserBadgesScreen extends StatelessWidget {
   const UserBadgesScreen({
     super.key,
@@ -17,9 +36,7 @@ class UserBadgesScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           isOwnProfile ? 'Rozetlerim' : 'Rozetleri',
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         centerTitle: true,
       ),
@@ -37,45 +54,29 @@ class UserBadgesScreen extends StatelessWidget {
 
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
-          final documents = snapshot.data?.docs ??
+          final documents =
+              snapshot.data?.docs ??
               const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
           if (documents.isEmpty) {
-            return _EmptyBadges(
-              isOwnProfile: isOwnProfile,
-            );
+            return _EmptyBadges(isOwnProfile: isOwnProfile);
           }
 
           return GridView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
             itemCount: documents.length,
-            gridDelegate:
-            const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               childAspectRatio: 0.88,
             ),
             itemBuilder: (context, index) {
-              final data = documents[index].data();
-
               return _BadgeCollectionCard(
-                title: data['title']?.toString().trim().isNotEmpty == true
-                    ? data['title'].toString().trim()
-                    : 'Oyun Rozeti',
-                gameName:
-                data['gameName']?.toString().trim() ?? '',
-                emoji: data['emoji']?.toString().trim().isNotEmpty == true
-                    ? data['emoji'].toString().trim()
-                    : '🏅',
-                imageUrl:
-                data['imageUrl']?.toString().trim() ?? '',
-                purchasedAt: data['purchasedAt'],
+                badge: MarketBadgeDisplay.fromOwnedDocument(documents[index]),
               );
             },
           );
@@ -86,30 +87,31 @@ class UserBadgesScreen extends StatelessWidget {
 }
 
 class _BadgeCollectionCard extends StatelessWidget {
-  const _BadgeCollectionCard({
-    required this.title,
-    required this.gameName,
-    required this.emoji,
-    required this.imageUrl,
-    required this.purchasedAt,
-  });
+  const _BadgeCollectionCard({required this.badge});
 
-  final String title;
-  final String gameName;
-  final String emoji;
-  final String imageUrl;
-  final dynamic purchasedAt;
+  final MarketBadgeDisplay badge;
 
-  String _dateText() {
-    if (purchasedAt is! Timestamp) {
-      return 'Koleksiyonda';
+  String _dateText(BuildContext context) {
+    final DateTime? date = badge.purchasedAt;
+    if (date == null) {
+      return _userBadgesText(
+        context,
+        tr: 'Satın alınma tarihi yok',
+        en: 'No purchase date',
+        de: 'Kein Kaufdatum',
+      );
     }
 
-    final date = (purchasedAt as Timestamp).toDate();
-
-    return '${date.day.toString().padLeft(2, '0')}.'
+    final String formatted =
+        '${date.day.toString().padLeft(2, '0')}.'
         '${date.month.toString().padLeft(2, '0')}.'
         '${date.year}';
+    return _userBadgesText(
+      context,
+      tr: 'Satın alınma: $formatted',
+      en: 'Purchased: $formatted',
+      de: 'Gekauft: $formatted',
+    );
   }
 
   @override
@@ -137,28 +139,13 @@ class _BadgeCollectionCard extends StatelessWidget {
                   color: colors.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: imageUrl.isNotEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Image.network(
-                          imageUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => Text(
-                            emoji,
-                            style: const TextStyle(fontSize: 48),
-                          ),
-                        ),
-                      )
-                    : Text(
-                        emoji,
-                        style: const TextStyle(fontSize: 48),
-                      ),
+                child: CatalogBadgeEmblem(badge: badge, size: 72),
               ),
             ),
             const SizedBox(height: 12),
-            if (gameName.isNotEmpty) ...<Widget>[
+            if (badge.gameName.isNotEmpty) ...<Widget>[
               Text(
-                gameName.toUpperCase(),
+                badge.gameName.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -170,10 +157,8 @@ class _BadgeCollectionCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
             ],
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            MarketBadgeTitle(
+              badge: badge,
               style: const TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 14,
@@ -181,27 +166,15 @@ class _BadgeCollectionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: <Widget>[
-                Icon(
-                  Icons.workspace_premium_rounded,
-                  size: 14,
-                  color: colors.onSurfaceVariant,
-                ),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    _dateText(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+            Text(
+              _dateText(context),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -211,9 +184,7 @@ class _BadgeCollectionCard extends StatelessWidget {
 }
 
 class _EmptyBadges extends StatelessWidget {
-  const _EmptyBadges({
-    required this.isOwnProfile,
-  });
+  const _EmptyBadges({required this.isOwnProfile});
 
   final bool isOwnProfile;
 
@@ -233,18 +204,38 @@ class _EmptyBadges extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               isOwnProfile
-                  ? 'Henüz rozetin yok'
-                  : 'Bu kullanıcının henüz rozeti yok',
+                  ? _userBadgesText(
+                      context,
+                      tr: 'Henüz rozetin yok',
+                      en: 'You have no badges yet',
+                      de: 'Du hast noch keine Abzeichen',
+                    )
+                  : _userBadgesText(
+                      context,
+                      tr: 'Bu kullanıcının henüz rozeti yok',
+                      en: 'This user has no badges yet',
+                      de: 'Dieser Nutzer hat noch keine Abzeichen',
+                    ),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
               isOwnProfile
-                  ? 'Marketten aldığın oyun rozetleri burada görünür.'
-                  : 'Satın alınan oyun rozetleri burada görünür.',
+                  ? _userBadgesText(
+                      context,
+                      tr: 'Marketten aldığın oyun rozetleri burada görünür.',
+                      en: 'Game badges you purchase from the store appear here.',
+                      de: 'Im Store gekaufte Spielabzeichen erscheinen hier.',
+                    )
+                  : _userBadgesText(
+                      context,
+                      tr: 'Satın alınan oyun rozetleri burada görünür.',
+                      en: 'Purchased game badges appear here.',
+                      de: 'Gekaufte Spielabzeichen erscheinen hier.',
+                    ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -259,11 +250,16 @@ class _BadgesError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
         padding: EdgeInsets.all(24),
         child: Text(
-          'Rozetler yüklenemedi.',
+          _userBadgesText(
+            context,
+            tr: 'Rozetler yüklenemedi.',
+            en: 'Badges could not be loaded.',
+            de: 'Abzeichen konnten nicht geladen werden.',
+          ),
           textAlign: TextAlign.center,
         ),
       ),

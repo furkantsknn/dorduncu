@@ -31,8 +31,6 @@ class SupportRequestModel {
 
   final String lastMessageSenderId;
 
-  final String adminNotes;
-
   final Timestamp? createdAt;
 
   final Timestamp? updatedAt;
@@ -59,7 +57,7 @@ class SupportRequestModel {
   final int priorityScore;
   final int? satisfactionScore;
 
-    const SupportRequestModel({
+  const SupportRequestModel({
     required this.id,
     required this.userId,
     required this.category,
@@ -69,35 +67,34 @@ class SupportRequestModel {
     required this.urgency,
     required this.status,
     required this.adminResponse,
-      this.lastMessage = '',
+    this.lastMessage = '',
 
-      this.lastMessageSenderId = '',
-    required this.adminNotes,
+    this.lastMessageSenderId = '',
     this.relatedUserId,
     this.relatedEventId,
     this.relatedMessageId,
     this.createdAt,
     this.updatedAt,
     this.closedAt,
-      this.ticketId = '',
+    this.ticketId = '',
 
-      this.replyCount = 0,
+    this.replyCount = 0,
 
-      this.isReadByUser = true,
+    this.isReadByUser = true,
 
-      this.isReadByAdmin = false,
+    this.isReadByAdmin = false,
 
-      this.isDeleted = false,
+    this.isDeleted = false,
 
-      this.tags = const [],
+    this.tags = const [],
 
-      this.assignedAdminId,
+    this.assignedAdminId,
 
-      this.firstResponseAt,
+    this.firstResponseAt,
 
-      this.lastReplyAt,
-      this.priorityScore = 0,
-      this.satisfactionScore,
+    this.lastReplyAt,
+    this.priorityScore = 0,
+    this.satisfactionScore,
   });
 
   factory SupportRequestModel.fromMap(String id, Map<String, dynamic> map) {
@@ -117,7 +114,6 @@ class SupportRequestModel {
       lastMessage: map['lastMessage'] ?? '',
 
       lastMessageSenderId: map['lastMessageSenderId'] ?? '',
-      adminNotes: map['adminNotes'] ?? '',
       createdAt: map['createdAt'],
       updatedAt: map['updatedAt'],
       closedAt: map['closedAt'],
@@ -159,7 +155,6 @@ class SupportRequestModel {
       'lastMessage': lastMessage,
 
       'lastMessageSenderId': lastMessageSenderId,
-      'adminNotes': adminNotes,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'closedAt': closedAt,
@@ -201,7 +196,6 @@ class SupportRequestModel {
     String? lastMessage,
 
     String? lastMessageSenderId,
-    String? adminNotes,
     Timestamp? createdAt,
     Timestamp? updatedAt,
     Timestamp? closedAt,
@@ -240,9 +234,7 @@ class SupportRequestModel {
       adminResponse: adminResponse ?? this.adminResponse,
       lastMessage: lastMessage ?? this.lastMessage,
 
-      lastMessageSenderId:
-      lastMessageSenderId ?? this.lastMessageSenderId,
-      adminNotes: adminNotes ?? this.adminNotes,
+      lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       closedAt: closedAt ?? this.closedAt,
@@ -264,8 +256,7 @@ class SupportRequestModel {
 
       lastReplyAt: lastReplyAt ?? this.lastReplyAt,
       priorityScore: priorityScore ?? this.priorityScore,
-      satisfactionScore:
-      satisfactionScore ?? this.satisfactionScore,
+      satisfactionScore: satisfactionScore ?? this.satisfactionScore,
     );
   }
 }

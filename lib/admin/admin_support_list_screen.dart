@@ -1,7 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import 'admin_access.dart';
 import 'admin_support_detail_screen.dart';
+
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 
 class AdminSupportListScreen extends StatefulWidget {
   const AdminSupportListScreen({super.key});
@@ -14,7 +33,34 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   String _selectedStatus = 'all';
+  String _selectedCategory = 'all';
+  String _selectedUrgency = 'all';
   String _searchText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _migrateLegacyPrivateNotes();
+  }
+
+  Future<void> _migrateLegacyPrivateNotes() async {
+    try {
+      final Map<String, dynamic>? claims = await AdminAccess.currentClaims();
+
+      if (AdminAccess.roleFromClaims(claims) != 'super_admin') {
+        return;
+      }
+
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminMigrateSupportPrivateNotes');
+
+      await callable.call<void>();
+    } catch (_) {
+      // Privacy rules already protect legacy non-empty notes.
+      // Migration will retry when a super admin opens this screen.
+    }
+  }
 
   @override
   void dispose() {
@@ -35,6 +81,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         stream: FirebaseFirestore.instance
             .collection('support_requests')
             .orderBy('createdAt', descending: true)
+            .limit(250)
             .snapshots(),
         builder:
             (
@@ -72,6 +119,17 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                   return false;
                 }
 
+                final String category = data['category']?.toString() ?? '';
+                if (_selectedCategory != 'all' &&
+                    category != _selectedCategory) {
+                  return false;
+                }
+
+                final String urgency = data['urgency']?.toString() ?? 'normal';
+                if (_selectedUrgency != 'all' && urgency != _selectedUrgency) {
+                  return false;
+                }
+
                 if (_searchText.isEmpty) {
                   return true;
                 }
@@ -81,7 +139,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                 final String subject =
                     data['subject']?.toString().toLowerCase() ?? '';
 
-                final String category =
+                final String categorySearch =
                     data['category']?.toString().toLowerCase() ?? '';
 
                 final String userId =
@@ -93,11 +151,36 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                 final String requestId = document.id.toLowerCase();
 
                 return subject.contains(query) ||
-                    category.contains(query) ||
+                    categorySearch.contains(query) ||
                     userId.contains(query) ||
                     description.contains(query) ||
                     requestId.contains(query);
               }).toList();
+
+              filteredDocuments.sort((
+                QueryDocumentSnapshot<Map<String, dynamic>> a,
+                QueryDocumentSnapshot<Map<String, dynamic>> b,
+              ) {
+                final Map<String, dynamic> aData = a.data();
+                final Map<String, dynamic> bData = b.data();
+
+                final int aPriority =
+                    (aData['priorityScore'] as num?)?.toInt() ?? 0;
+                final int bPriority =
+                    (bData['priorityScore'] as num?)?.toInt() ?? 0;
+
+                final int priorityCompare = bPriority.compareTo(aPriority);
+                if (priorityCompare != 0) {
+                  return priorityCompare;
+                }
+
+                final Timestamp? aCreated = aData['createdAt'] as Timestamp?;
+                final Timestamp? bCreated = bData['createdAt'] as Timestamp?;
+
+                return (bCreated?.millisecondsSinceEpoch ?? 0).compareTo(
+                  aCreated?.millisecondsSinceEpoch ?? 0,
+                );
+              });
 
               return Column(
                 children: <Widget>[
@@ -164,6 +247,115 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                                 _buildStatusFilter(
                                   value: 'closed',
                                   label: 'Kapatıldı',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                            child: Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: _selectedCategory,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Kategori',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items: <DropdownMenuItem<String>>[
+                                      DropdownMenuItem(
+                                        value: 'all',
+                                        child: Text('Tümü'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'suggestion',
+                                        child: Text('Öneri'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'bug_report',
+                                        child: Text('Hata'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'general_support',
+                                        child: Text('Genel destek'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'payment_issue',
+                                        child: Text('Ödeme'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'account_appeal',
+                                        child: Text('Hesap itirazı'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'user_report',
+                                        child: Text(_locText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer')),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'event_report',
+                                        child: Text('Etkinlik'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'message_report',
+                                        child: Text('Mesaj'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'inappropriate_image',
+                                        child: Text('Görsel'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'security_emergency',
+                                        child: Text('Güvenlik'),
+                                      ),
+                                    ],
+                                    onChanged: (String? value) {
+                                      setState(
+                                        () =>
+                                            _selectedCategory = value ?? 'all',
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: _selectedUrgency,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Aciliyet',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items: <DropdownMenuItem<String>>[
+                                      DropdownMenuItem(
+                                        value: 'all',
+                                        child: Text('Tümü'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'low',
+                                        child: Text('Düşük'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'normal',
+                                        child: Text('Normal'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'high',
+                                        child: Text('Yüksek'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'critical',
+                                        child: Text('Kritik'),
+                                      ),
+                                    ],
+                                    onChanged: (String? value) {
+                                      setState(
+                                        () => _selectedUrgency = value ?? 'all',
+                                      );
+                                    },
+                                  ),
                                 ),
                               ],
                             ),

@@ -1,317 +1,82 @@
-# DATENSCHUTZHINWEIS
+# KVKK-Hinweis
 
 **Version:** 1.0.0
 
-**Inkrafttreten:** 24.07.2026
+**Inkrafttreten:** 5. Oktober 2026
 
-**Zuletzt aktualisiert:** 24.07.2026
+Dieser Hinweis erfüllt die Informationspflicht nach dem türkischen Datenschutzgesetz Nr. 6698. Die Datenschutzerklärung ist ein separates Dokument.
 
----
+# 1. Verantwortlicher
 
-# 1. Einleitung
+Verantwortlicher ist die natürliche Person, die die Anwendung Dört. betreibt.
 
-Dieser Datenschutzhinweis informiert die Nutzer der mobilen Anwendung Dördüncü sowie der damit verbundenen Dienste über die Verarbeitung personenbezogener Daten.
+Anfragen und allgemeiner Kontakt: iletisim@dortapp.com
 
-Er erläutert insbesondere:
+Support: destek@dortapp.com
 
-- welche personenbezogenen Daten verarbeitet werden,
-- zu welchen Zwecken die Verarbeitung erfolgt,
-- auf welcher Rechtsgrundlage die Verarbeitung beruht,
-- wie lange personenbezogene Daten gespeichert werden,
-- an wen Daten übermittelt werden können,
-- welche Rechte den betroffenen Personen zustehen.
+Website: https://dortapp.com
 
-Die Verarbeitung personenbezogener Daten erfolgt unter Beachtung der Datenschutz-Grundverordnung (DSGVO) sowie der jeweils anwendbaren nationalen Datenschutzgesetze.
+# 2. Zwecke
 
----
+Personenbezogene Daten werden verarbeitet, um:
 
-# 2. Verantwortlicher
+- ein Konto zu erstellen und die Telefonnummer zu bestätigen
+- Profil- und öffentliche Profilangaben anzuzeigen
+- kostenlose Veranstaltungen zu erstellen, sich zu bewerben und teilzunehmen
+- Veranstaltungsnachrichten und Support-Anfragen bereitzustellen
+- Benachrichtigungen zu senden
+- Standort- und Treffpunktfunktionen zu betreiben
+- Sperren, Beschwerden und Sicherheitsprüfungen zu bearbeiten
+- Verifizierungsdokumente zu prüfen
+- Dört.-Plus- und digitale Abzeichenkäufe über Google Play zu bestätigen
+- ein Konto zu sperren, zu schließen oder zu löschen
+- gesetzliche Pflichten zu erfüllen und die Sicherheit zu schützen
 
-Verantwortlicher für die Verarbeitung personenbezogener Daten ist:
+# 3. Rechtsgrundlagen
 
-**Verantwortlicher**
+Daten können nach Artikel 5 verarbeitet werden, wenn dies zur Vertragserfüllung, zur Erfüllung einer Rechtspflicht, zur Begründung oder Verteidigung eines Rechts oder für berechtigte Interessen erforderlich ist, ohne die Grundrechte der Person zu beeinträchtigen.
 
-Die Unternehmensinformationen werden nach Abschluss der Unternehmensgründung ergänzt.
+Eine Standortfreigabe des Geräts wird vom Betriebssystem gesondert abgefragt. Diese Freigabe bedeutet nicht, dass jede Verarbeitung auf einer Einwilligung beruht.
 
-Folgende Angaben werden veröffentlicht:
+# 4. Kategorien
 
-- Firmenname
-- Handelsregistereintrag
-- Steueridentifikationsnummer
-- Geschäftsanschrift
-- Kontakt-E-Mail
-- Internetseite
-- Weitere gesetzlich erforderliche Angaben
+- Identität und Profil: Name, Kontodaten, Foto, ausgewählte Spiele
+- Kontakt: Telefonnummer
+- Standort: für eine Veranstaltung oder einen Treffpunkt geteilter oder freigegebener Standort
+- Nutzerinhalte: Veranstaltungen, Bewerbungen, Nachrichten und Support-Daten
+- Sicherheit: Sitzung, Gerät, Anmeldeverlauf, Sicherheits- und Prüfprotokolle
+- Verifizierung: Antrag und hochgeladene Dokumente
+- Käufe: Google-Play-Vorgangsreferenz, Produktkennung und Abonnement- oder Abzeichenrecht. Die App speichert keine Kartendaten
 
----
+# 5. Weitergabe
 
-# 3. Geltungsbereich
+Daten können nur soweit nötig weitergegeben werden an:
 
-Dieser Datenschutzhinweis gilt für:
+- Google Firebase für Anmeldung, Datenbank, Dateispeicher, Benachrichtigungen, App Check und Serverfunktionen
+- Google Play für digitale Käufe und die Abonnementprüfung
+- Karten- und Adresssuchdienste, um einen Veranstaltungsort anzuzeigen oder zu suchen
+- Behörden, wenn eine Rechtspflicht das verlangt
 
-- die mobile Anwendung Dördüncü,
-- zugehörige Webdienste,
-- Benutzerkonten,
-- Profilverwaltung,
-- Veranstaltungsfunktionen,
-- Nachrichtenfunktionen,
-- Benachrichtigungssysteme,
-- Premium-Mitgliedschaften,
-- digitale Käufe,
-- Identitätsprüfungen,
-- Sicherheitsmaßnahmen.
+Personenbezogene Daten werden nicht für unabhängige Werbung verkauft. Veranstaltungs- und Chat-Inhalte können anderen Nutzern gezeigt werden, wenn die Funktion das erfordert.
 
----
+# 6. Aufbewahrung
 
-# 4. Begriffsbestimmungen
+Kontodaten werden aufbewahrt, solange das Konto offen ist.
 
-Im Sinne dieses Datenschutzhinweises bedeutet:
+Nach Abschluss der Löschung werden Anmeldung, Profil, öffentliches Profil, Profilfotos und Verifizierungsdokumente gelöscht. Identitätsfelder in Anmelde- und Prüfprotokollen können anonymisiert werden. Eine Zusammenfassung der Telefonnummer kann gespeichert werden, um eine erneute Registrierung mit derselben Nummer zu verhindern.
 
-**Anwendung**
+Inhalte in Veranstaltungen und Nachrichten anderer Nutzer sowie begrenzte Aufzeichnungen für Sicherheit, Streitfälle oder Rechtspflichten können erhalten bleiben.
 
-die mobile Anwendung Dördüncü.
+# 7. Rechte
 
-**Nutzer**
+Nach Artikel 11 kannst du Auskunft verlangen, den Zweck und die Empfänger erfahren, Berichtigung oder Löschung verlangen, einem nur automatisiert erzeugten Ergebnis widersprechen und Ersatz eines rechtswidrigen Schadens verlangen.
 
-jede natürliche Person, die die Anwendung verwendet.
+# 8. Anträge
 
-**Personenbezogene Daten**
+Sende Anträge über diese Kanäle:
 
-alle Informationen, die sich auf eine identifizierte oder identifizierbare natürliche Person beziehen.
+- iletisim@dortapp.com
+- destek@dortapp.com
+- https://dortapp.com
 
-**Verarbeitung**
-
-jeden mit oder ohne Hilfe automatisierter Verfahren ausgeführten Vorgang im Zusammenhang mit personenbezogenen Daten.
-
-**DSGVO**
-
-die Datenschutz-Grundverordnung (Verordnung (EU) 2016/679).
-
----
-
-# 5. Grundsätze der Datenverarbeitung
-
-Personenbezogene Daten werden verarbeitet unter Beachtung der folgenden Grundsätze:
-
-- Rechtmäßigkeit, Verarbeitung nach Treu und Glauben sowie Transparenz;
-- Zweckbindung;
-- Datenminimierung;
-- Richtigkeit;
-- Speicherbegrenzung;
-- Integrität und Vertraulichkeit;
-- Rechenschaftspflicht.
-
----
-
-# 6. Zwecke der Verarbeitung
-
-Personenbezogene Daten können insbesondere verarbeitet werden für:
-
-- Registrierung und Benutzerverwaltung,
-- Authentifizierung,
-- Profilverwaltung,
-- Veranstaltungsorganisation,
-- Nachrichtenfunktionen,
-- technischen Support,
-- Betrugsprävention,
-- Sicherheit der Plattform,
-- Verbesserung der Dienste,
-- Verwaltung von Premium-Mitgliedschaften,
-- Zahlungsabwicklung,
-- Erfüllung gesetzlicher Verpflichtungen,
-- Geltendmachung und Verteidigung rechtlicher Ansprüche.
-
-Zahlungskartendaten werden von der Anwendung selbst nicht gespeichert. Zahlungsabwicklungen erfolgen ausschließlich über autorisierte Zahlungsdienstleister.
-
-# 7. Kategorien personenbezogener Daten
-
-Je nach Nutzung der Anwendung können folgende Kategorien personenbezogener Daten verarbeitet werden.
-
-| Datenkategorie | Beispiele |
-|----------------|------------|
-| Identitätsdaten | Vorname, Nachname, Benutzername |
-| Kontaktdaten | E-Mail-Adresse, Telefonnummer |
-| Profildaten | Profilfoto, Biografie, Interessen, Geschlecht, Geburtsdatum, Wohnort |
-| Standortdaten | Ungefährer oder genauer Standort (nur mit Einwilligung) |
-| Veranstaltungsdaten | Erstellte Veranstaltungen, Teilnahmen, Veranstaltungspräferenzen |
-| Nachrichtendaten | Nachrichten, Mediendateien, Zeitstempel |
-| Benachrichtigungsdaten | Push-Benachrichtigungseinstellungen und Versandinformationen |
-| Gerätedaten | Gerätemodell, Betriebssystem, App-Version, Sprache |
-| Netzwerkdaten | IP-Adresse, Sitzungsdaten, Anmeldeprotokolle |
-| Sicherheitsdaten | Authentifizierungsdaten, Sicherheitsprotokolle, Anmeldeversuche |
-| Beschwerdedaten | Meldungen, Moderationsmaßnahmen |
-| Verifizierungsdaten | E-Mail-Verifizierung, Telefonnummernverifizierung und zukünftige Identitätsnachweise |
-| Kaufdaten | Premium-Abonnements, digitale Käufe, Zahlungsreferenzen |
-| Supportdaten | Kommunikation mit dem Kundensupport |
-| Rechtliche Nachweise | Zustimmungen, akzeptierte Verträge, Versionshistorien |
-
----
-
-# 8. Erhebung personenbezogener Daten
-
-Personenbezogene Daten werden insbesondere erhoben durch:
-
-- Registrierung eines Benutzerkontos,
-- Nutzung der Anwendung,
-- Erstellung eines Benutzerprofils,
-- Teilnahme an Veranstaltungen,
-- Nachrichtenversand,
-- Premium-Abonnements,
-- digitale Käufe,
-- Supportanfragen,
-- Geräteberechtigungen,
-- Sicherheitsmechanismen,
-- automatisch erzeugte Systemprotokolle.
-
-Die Daten können sowohl direkt vom Nutzer als auch automatisiert erhoben werden.
-
----
-
-# 9. Rechtsgrundlagen der Verarbeitung
-
-Die Verarbeitung personenbezogener Daten erfolgt insbesondere auf Grundlage von:
-
-- Art. 6 Abs. 1 lit. a DSGVO (Einwilligung),
-- Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung),
-- Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung),
-- Art. 6 Abs. 1 lit. d DSGVO (Schutz lebenswichtiger Interessen),
-- Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse).
-
-Soweit besondere Kategorien personenbezogener Daten verarbeitet werden, erfolgt dies ausschließlich auf Grundlage der gesetzlichen Voraussetzungen gemäß Art. 9 DSGVO.
-
----
-
-# 10. Speicherdauer
-
-Personenbezogene Daten werden nur so lange gespeichert, wie dies für die jeweiligen Verarbeitungszwecke erforderlich ist.
-
-Die Speicherdauer richtet sich insbesondere nach:
-
-- gesetzlichen Aufbewahrungspflichten,
-- Vertragslaufzeiten,
-- berechtigten Interessen,
-- Verjährungsfristen,
-- Sicherheitsanforderungen.
-
-Nach Ablauf der jeweiligen Fristen werden personenbezogene Daten gelöscht, anonymisiert oder entsprechend den gesetzlichen Vorschriften vernichtet.
-
----
-
-# 11. Weitergabe personenbezogener Daten
-
-Personenbezogene Daten werden ausschließlich im erforderlichen Umfang weitergegeben.
-
-Empfänger können insbesondere sein:
-
-- Behörden,
-- Gerichte,
-- Strafverfolgungsbehörden,
-- Zahlungsdienstleister,
-- Cloud-Infrastruktur-Anbieter,
-- Authentifizierungsdienste,
-- Hosting-Anbieter,
-- technische Dienstleister,
-- Vertragspartner, soweit dies zur Leistungserbringung erforderlich ist.
-
-Alle Empfänger sind verpflichtet, personenbezogene Daten ausschließlich im Rahmen der vereinbarten Zwecke und unter Einhaltung der geltenden Datenschutzvorschriften zu verarbeiten.
-
-# 12. Internationale Datenübermittlung
-
-Die Anwendung kann Cloud-Dienste und technische Infrastruktur nutzen, deren Server oder Supporteinrichtungen sich außerhalb des Landes befinden, in dem der Nutzer seinen Wohnsitz hat.
-
-In diesem Fall können personenbezogene Daten in andere Länder übermittelt, dort gespeichert oder verarbeitet werden.
-
-Soweit eine internationale Datenübermittlung erfolgt, werden geeignete technische, organisatorische und vertragliche Schutzmaßnahmen gemäß der Datenschutz-Grundverordnung (DSGVO) und den jeweils geltenden Datenschutzgesetzen umgesetzt.
-
-Hierzu können insbesondere gehören:
-
-- Angemessenheitsbeschlüsse der Europäischen Kommission,
-- Standardvertragsklauseln (Standard Contractual Clauses – SCC),
-- Verschlüsselungsverfahren,
-- Zugriffsbeschränkungen,
-- Sicherheits- und Kontrollmechanismen.
-
-Soweit gesetzlich erforderlich, wird vor einer internationalen Datenübermittlung eine ausdrückliche Einwilligung eingeholt.
-
----
-
-# 13. Datensicherheit
-
-Der Schutz personenbezogener Daten besitzt für die Anwendung höchste Priorität.
-
-Es werden angemessene technische und organisatorische Maßnahmen getroffen, um personenbezogene Daten vor Verlust, Manipulation, unbefugtem Zugriff, Offenlegung oder sonstiger unrechtmäßiger Verarbeitung zu schützen.
-
-Zu diesen Maßnahmen können insbesondere gehören:
-
-- verschlüsselte Datenübertragung,
-- sichere Authentifizierungsverfahren,
-- rollenbasierte Zugriffsrechte,
-- Sicherheitsprotokollierung,
-- regelmäßige Software- und Sicherheitsupdates,
-- Datensicherungen,
-- Sicherheitsüberwachung,
-- Schwachstellenmanagement,
-- Notfall- und Wiederherstellungsverfahren.
-
-Trotz aller Sicherheitsmaßnahmen kann keine elektronische Datenübertragung oder IT-Infrastruktur vollständig gegen sämtliche Risiken geschützt werden.
-
----
-
-# 14. Rechte der betroffenen Personen
-
-Nach Maßgabe der Datenschutz-Grundverordnung stehen betroffenen Personen insbesondere folgende Rechte zu:
-
-- Auskunft über die verarbeiteten personenbezogenen Daten,
-- Berichtigung unrichtiger Daten,
-- Löschung personenbezogener Daten,
-- Einschränkung der Verarbeitung,
-- Widerspruch gegen bestimmte Verarbeitungsvorgänge,
-- Datenübertragbarkeit,
-- Widerruf einer erteilten Einwilligung mit Wirkung für die Zukunft,
-- Beschwerde bei einer zuständigen Datenschutzaufsichtsbehörde.
-
-Die Ausübung dieser Rechte kann von einer Identitätsprüfung abhängig gemacht werden.
-
----
-
-# 15. Datenschutz von Minderjährigen
-
-Die Anwendung richtet sich grundsätzlich nicht an Kinder, die nach den geltenden gesetzlichen Bestimmungen nicht berechtigt sind, die angebotenen Dienste eigenständig zu nutzen.
-
-Sollte festgestellt werden, dass personenbezogene Daten eines Kindes ohne die erforderliche gesetzliche Grundlage verarbeitet wurden, werden angemessene Maßnahmen zur unverzüglichen Löschung dieser Daten ergriffen.
-
-Erziehungsberechtigte können sich hierzu jederzeit an den Verantwortlichen wenden.
-
----
-
-# 16. Änderungen dieser Datenschutzhinweise
-
-Diese Datenschutzhinweise können aufgrund gesetzlicher Änderungen, technischer Weiterentwicklungen oder neuer Funktionen der Anwendung angepasst werden.
-
-Die jeweils aktuelle Version wird innerhalb der Anwendung veröffentlicht.
-
-Soweit gesetzlich erforderlich, werden Nutzer über wesentliche Änderungen informiert und gegebenenfalls erneut um ihre Zustimmung gebeten.
-
----
-
-# 17. Kontakt
-
-Fragen zum Datenschutz oder zur Verarbeitung personenbezogener Daten können über die offiziellen Kontaktkanäle des Verantwortlichen gestellt werden.
-
-Nach Abschluss der Unternehmensgründung werden in diesem Abschnitt insbesondere veröffentlicht:
-
-- Firmenname
-- Geschäftsanschrift
-- Kontakt-E-Mail
-- Internetseite
-- Datenschutzkontakt (falls vorhanden)
-
----
-
-# 18. Inkrafttreten
-
-Diese Datenschutzhinweise treten am **24.07.2026** in Kraft.
-
-**Dokumentversion:** 1.0.0
-
-Diese deutsche Fassung dient der Information deutschsprachiger Nutzer. Bei Widersprüchen zwischen den Sprachfassungen ist – soweit gesetzlich zulässig – die türkische Originalfassung maßgeblich.
+Nenne die Telefonnummer, die zeigt, dass das Konto dir gehört. Anträge werden innerhalb der gesetzlichen Fristen bearbeitet.

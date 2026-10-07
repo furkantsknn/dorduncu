@@ -703,9 +703,9 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Future<void> _refresh(String uid) async {
     await Future.wait<dynamic>(<Future<dynamic>>[
-      WalletService.walletRef(uid).get(),
-      WalletService.transactionsRef(uid).limit(1).get(),
-      WalletService.withdrawalsRef(uid).limit(1).get(),
+      WalletService.walletRef(uid).get(const GetOptions(source: Source.server)),
+      WalletService.transactionsRef(uid).limit(1).get(const GetOptions(source: Source.server)),
+      WalletService.withdrawalsRef(uid).limit(1).get(const GetOptions(source: Source.server)),
     ]);
   }
 
@@ -743,12 +743,16 @@ class _WalletScreenState extends State<WalletScreen> {
               en: 'My bank accounts',
               de: 'Meine Bankkonten',
             ),
-            onPressed: () {
-              Navigator.of(context).push<void>(
+            onPressed: () async {
+              await Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => BankAccountsScreen(uid: uid),
                 ),
               );
+
+              if (mounted) {
+                await _refresh(uid);
+              }
             },
             icon: const Icon(Icons.account_balance_outlined),
           ),

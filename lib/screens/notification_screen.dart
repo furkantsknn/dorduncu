@@ -6,6 +6,31 @@ import '../services/language_controller.dart';
 import '../services/notification_service.dart';
 import 'event_chat_screen.dart';
 import 'event_detail_screen.dart';
+import 'friend_requests_screen.dart';
+
+bool _hidesEventPaymentCopy(NotificationType type) {
+  return type == NotificationType.payment || type == NotificationType.refund;
+}
+
+String _visibleNotificationTitle(
+  AppNotification notification,
+  _NotificationText text,
+) {
+  if (_hidesEventPaymentCopy(notification.type)) {
+    return text.eventStatusUpdating;
+  }
+  return notification.title;
+}
+
+String _visibleNotificationBody(
+  AppNotification notification,
+  _NotificationText text,
+) {
+  if (_hidesEventPaymentCopy(notification.type)) {
+    return text.eventStatusUpdating;
+  }
+  return notification.body;
+}
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -179,8 +204,14 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       return;
     }
 
-    if (notification.type == NotificationType.message &&
-        notification.eventId.isNotEmpty) {
+    final String route = notification.route.trim().toLowerCase();
+
+    final bool opensEventChat =
+        route == 'event_chat' ||
+        route == 'eventchat' ||
+        notification.type == NotificationType.message;
+
+    if (opensEventChat && notification.eventId.isNotEmpty) {
       final String title = notification.eventTitle.isEmpty
           ? text.eventChat
           : notification.eventTitle;
@@ -196,7 +227,20 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       return;
     }
 
-    if (notification.eventId.isNotEmpty) {
+    if (notification.type == NotificationType.friendRequest) {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const FriendRequestsScreen()),
+      );
+      return;
+    }
+
+    final bool opensEventDetail =
+        route == 'event_detail' ||
+        route == 'eventdetail' ||
+        notification.eventId.isNotEmpty;
+
+    if (opensEventDetail && notification.eventId.isNotEmpty) {
       await _openEvent(notification.eventId);
       return;
     }
@@ -210,7 +254,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           await FirebaseFirestore.instance
               .collection('events')
               .doc(eventId)
-              .get();
+              .get(const GetOptions(source: Source.server));
 
       if (!mounted) {
         return;
@@ -256,7 +300,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        notification.title,
+                        _visibleNotificationTitle(notification, text),
                         style: Theme.of(sheetContext).textTheme.titleLarge
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
@@ -265,7 +309,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  notification.body,
+                  _visibleNotificationBody(notification, text),
                   style: Theme.of(sheetContext).textTheme.bodyLarge,
                 ),
                 if (notification.createdAt != null) ...<Widget>[
@@ -565,7 +609,7 @@ class _NotificationCard extends StatelessWidget {
                       children: <Widget>[
                         Expanded(
                           child: Text(
-                            notification.title,
+                            _visibleNotificationTitle(notification, text),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -590,7 +634,7 @@ class _NotificationCard extends StatelessWidget {
                     if (notification.body.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 5),
                       Text(
-                        notification.body,
+                        _visibleNotificationBody(notification, text),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -848,6 +892,12 @@ class _NotificationText {
   String get notifications =>
       v('Bildirimler', 'Notifications', 'Benachrichtigungen');
 
+  String get eventStatusUpdating => v(
+    'Etkinlik durumu güncelleniyor',
+    'Event status is updating',
+    'Veranstaltungsstatus wird aktualisiert',
+  );
+
   String get loginRequired => v(
     'Bildirimleri görmek için giriş yapmalısın.',
     'You must sign in to view your notifications.',
@@ -1009,7 +1059,7 @@ class _NotificationText {
       case 'message':
         return v('Mesaj', 'Message', 'Nachricht');
       case 'payment':
-        return v('Ödeme', 'Payment', 'Zahlung');
+        return v('Durum', 'Status', 'Status');
       case 'account':
         return v('Hesap', 'Account', 'Konto');
       default:
@@ -1061,10 +1111,12 @@ class _NotificationText {
         );
 
       case NotificationType.payment:
-        return v('Ödeme', 'Payment', 'Zahlung');
-
       case NotificationType.refund:
-        return v('İade', 'Refund', 'Rückerstattung');
+        return v(
+          'Etkinlik durumu güncelleniyor',
+          'Event status is updating',
+          'Veranstaltungsstatus wird aktualisiert',
+        );
 
       case NotificationType.verification:
         return v('Doğrulama', 'Verification', 'Verifizierung');

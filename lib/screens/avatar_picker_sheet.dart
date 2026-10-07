@@ -26,9 +26,9 @@ Future<String?> showAvatarPicker(BuildContext context, {String? selected}) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('3D avatarını seç', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+            Text(_avatarPickerText(context, tr: '3D avatarını seç', en: 'Choose your 3D avatar', de: 'Wähle deinen 3D-Avatar'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
-            const Text('Daha sonra profilinden değiştirebilirsin.'),
+            Text(_avatarPickerText(context, tr: 'Daha sonra profilinden değiştirebilirsin.', en: 'You can change it later from your profile.', de: 'Du kannst ihn später in deinem Profil ändern.')),
             const SizedBox(height: 18),
             GridView.builder(
               shrinkWrap: true,
@@ -55,3 +55,20 @@ Future<String?> showAvatarPicker(BuildContext context, {String? selected}) {
     ),
   );
 }
+
+String _avatarPickerText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+

@@ -1,492 +1,87 @@
-# KİŞİSEL VERİLERİN KORUNMASI KANUNU (KVKK) AYDINLATMA METNİ
+# KVKK Aydınlatma Metni
 
 **Sürüm:** 1.0.0
 
-**Yürürlük Tarihi:** 24.07.2026
+**Yürürlük:** 5 Ekim 2026
 
-**Son Güncelleme:** 24.07.2026
+Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında aydınlatma yükümlülüğünü yerine getirir. Gizlilik Politikası ayrı bir belgedir ve uygulamanın veri kullanımını ürün diliyle açıklar.
 
----
+# 1. Veri sorumlusu
 
-# 1. Giriş
+Dört. uygulamasının veri sorumlusu Furkan Taşkın’dır.
 
-Bu Kişisel Verilerin Korunması Kanunu ("KVKK") Aydınlatma Metni, Dördüncü mobil uygulaması ve ilişkili hizmetleri kullanılırken işlenen kişisel verilere ilişkin olarak 6698 sayılı Kişisel Verilerin Korunması Kanunu'nun 10. maddesi kapsamında kullanıcıların bilgilendirilmesi amacıyla hazırlanmıştır.
+KVKK başvuruları ve iletişim:
 
-Bu metin, kullanıcıların kişisel verilerinin hangi amaçlarla işlendiğini, hangi hukuki sebeplere dayanılarak toplandığını, kimlere aktarılabileceğini, ne kadar süreyle saklanacağını ve kullanıcıların sahip olduğu hakları açıklamaktadır.
+- iletisim@dortapp.com
+- destek@dortapp.com
+- https://dortapp.com
 
-Uygulamayı kullanmanız, bu metni okuma yükümlülüğünüzü ortadan kaldırmaz. Kanun gereği veri sorumlusu, kişisel verilerin işlenmesine ilişkin aydınlatma yükümlülüğünü yerine getirmekle yükümlüdür.
+# 2. İşleme amaçları
 
----
+Kişisel veriler şu amaçlarla işlenir:
 
-# 2. Veri Sorumlusunun Kimliği
+- hesap oluşturma ve telefon numarasıyla kimlik doğrulama
+- profil ve herkese açık profil bilgilerinin gösterilmesi
+- ücretsiz etkinlik oluşturma, başvuru ve katılım
+- etkinlik sohbeti ve destek talepleri
+- bildirim iletimi
+- konum ve buluşma noktası özelliklerinin çalışması
+- engelleme, şikayet ve güvenlik incelemesi
+- doğrulama belgelerinin incelenmesi
+- Google Play üzerinden Dört. Plus ve dijital rozet işlemlerinin doğrulanması
+- hesabın askıya alınması, kapatılması veya silinmesi
+- yasal yükümlülüklerin yerine getirilmesi ve güvenliğin sağlanması
 
-Bu uygulama kapsamında kişisel verileriniz aşağıdaki veri sorumlusu tarafından işlenmektedir.
+# 3. Hukuki sebepler
 
-**Veri Sorumlusu :**
+Veriler, Kanunun 5. maddesindeki şu sebeplere dayanarak işlenebilir:
 
-> Bu bölüm şirket kuruluş işlemleri tamamlandıktan sonra aşağıdaki bilgiler ile güncellenecektir.
+- bir sözleşmenin kurulması veya ifasıyla doğrudan ilgili olması
+- veri sorumlusunun hukuki yükümlülüğünü yerine getirmesi
+- bir hakkın tesisi, kullanılması veya korunması
+- ilgili kişinin temel hak ve özgürlüklerine zarar vermemek kaydıyla veri sorumlusunun meşru menfaati
 
-- Ticari Unvan
-- MERSİS Numarası
-- Vergi Numarası
-- Ticaret Sicil Numarası
-- KEP Adresi
-- Destek E-Postası
-- İletişim Adresi
+Cihaz konum izni, işletim sisteminin izin ekranı üzerinden ayrıca alınır. Bu izin, her veri işlemesinin açık rızaya dayandığı anlamına gelmez.
 
-Şirket bilgilerinin güncellenmesi halinde bu metnin yeni sürümü yayımlanacaktır.
+# 4. Veri kategorileri
 
----
+- kimlik ve profil: ad, kullanıcı bilgileri, profil fotoğrafı, seçilen oyunlar
+- iletişim: telefon numarası
+- konum: etkinlik ve buluşma noktası için paylaşılan veya izin verilen konum
+- kullanıcı içeriği: etkinlik, başvuru, mesaj ve destek kayıtları
+- işlem güvenliği: oturum, cihaz, giriş geçmişi, güvenlik ve denetim kayıtları
+- doğrulama: doğrulama talebi ve yüklenen belgeler
+- satın alma: Google Play işlem referansı, ürün kimliği, abonelik veya rozet hakkı. Kart bilgisi uygulama tarafından saklanmaz
 
-# 3. Kapsam
+# 5. Aktarım
 
-Bu Aydınlatma Metni;
+Veriler, hizmetin çalışması için şu taraflarla sınırlı olarak paylaşılabilir:
 
-- Dördüncü mobil uygulamasını,
-- web sitesi hizmetlerini,
-- kullanıcı destek süreçlerini,
-- etkinlik oluşturma hizmetlerini,
-- kullanıcı eşleştirme sistemlerini,
-- mesajlaşma hizmetlerini,
-- bildirim sistemlerini,
-- Plus abonelik hizmetlerini,
-- dijital ürün satın alımlarını,
-- belge doğrulama süreçlerini,
-- kullanıcı güvenlik sistemlerini
+- Google Firebase: kimlik doğrulama, veritabanı, dosya saklama, bildirim, uygulama kontrolü ve sunucu fonksiyonları
+- Google Play: dijital ürün ve abonelik satın alma ile doğrulama
+- harita ve adres arama hizmetleri: etkinlik konumu göstermek veya aramak için
+- yetkili kamu kurumları: yasal bir yükümlülük varsa
 
-kapsamaktadır.
+Kişisel veriler bağımsız reklam amacıyla satılmaz. Etkinlik ve sohbet içeriği, özelliğin gerektirdiği diğer kullanıcılara gösterilebilir.
 
----
+# 6. Saklama
 
-# 4. Tanımlar
+Hesap verileri, hesap açık olduğu sürece hizmeti sunmak için saklanır.
 
-Bu metinde geçen;
+Silme işlemi tamamlandığında hesap girişi, profil, herkese açık profil, profil fotoğrafları ve doğrulama belgeleri silinir. Giriş ve denetim kayıtlarındaki kimlik alanları anonimleştirilebilir. Telefon numarasının özeti, aynı numarayla yeniden kaydı engellemek için saklanabilir.
 
-**Uygulama**
+Başka kullanıcıların etkinlik ve mesaj kayıtları ile güvenlik, uyuşmazlık veya yasal yükümlülük için gerekli sınırlı kayıtlar silinmeyebilir.
 
-Dördüncü mobil uygulamasını,
+# 7. Haklar
 
-**Kullanıcı**
+Kanunun 11. maddesi kapsamında kişisel verilerin işlenip işlenmediğini öğrenme, bilgi talep etme, amacını ve aktarıldığı tarafları öğrenme, düzeltilmesini veya silinmesini isteme, otomatik analize itiraz etme ve zararın giderilmesini talep etme hakları kullanılabilir.
 
-Ücretsiz veya ücretli hesap oluşturan gerçek kişiyi,
+# 8. Başvuru
 
-**Kişisel Veri**
+Talepler şu kanallardan iletilir:
 
-Kimliği belirli veya belirlenebilir gerçek kişiye ilişkin her türlü bilgiyi,
+- iletisim@dortapp.com
+- destek@dortapp.com
+- https://dortapp.com
 
-**Özel Nitelikli Kişisel Veri**
-
-KVKK'nın 6. maddesinde belirtilen kişisel verileri,
-
-**İşleme**
-
-Kişisel veriler üzerinde gerçekleştirilen her türlü işlemi,
-
-**Kurul**
-
-Kişisel Verileri Koruma Kurulu'nu,
-
-**Kanun**
-
-6698 sayılı Kişisel Verilerin Korunması Kanunu'nu,
-
-ifade eder.
-
----
-
-# 5. İşlenen Kişisel Verilerin Genel İlkeleri
-
-Kişisel verileriniz;
-
-- Hukuka ve dürüstlük kurallarına uygun olarak,
-- Doğru ve gerektiğinde güncel olacak şekilde,
-- Belirli, açık ve meşru amaçlarla,
-- İşlendikleri amaçla bağlantılı, sınırlı ve ölçülü biçimde,
-- İlgili mevzuatta öngörülen veya işlendikleri amaç için gerekli olan süre kadar
-
-işlenmektedir.
-
----
-
-# 6. Kişisel Verilerin İşlenme Amaçları
-
-Kişisel verileriniz aşağıdaki amaçlarla işlenebilir.
-
-## Hesap Oluşturulması
-
-- Kullanıcı hesabının oluşturulması
-- Kimlik doğrulama
-- Telefon doğrulama
-- E-posta doğrulama
-- Hesap güvenliğinin sağlanması
-
----
-
-## Profil Hizmetleri
-
-- Profil oluşturulması
-- Profil bilgilerinin gösterilmesi
-- Profil fotoğrafının yayınlanması
-- İlgi alanlarının görüntülenmesi
-- Kullanıcı tercihlerinin saklanması
-
----
-
-## Etkinlik Hizmetleri
-
-- Etkinlik oluşturulması
-- Etkinlik düzenlenmesi
-- Katılımcı yönetimi
-- Davet sistemi
-- Etkinlik geçmişinin tutulması
-
----
-
-## Mesajlaşma Hizmetleri
-
-- Kullanıcılar arası mesajlaşma
-- Bildirim gönderimi
-- Mesaj geçmişinin saklanması
-- Spam ve kötüye kullanımın önlenmesi
-
----
-
-## Güvenlik Amaçları
-
-- Dolandırıcılığın önlenmesi
-- Hesap güvenliğinin sağlanması
-- Yetkisiz erişimlerin tespit edilmesi
-- Şikayetlerin incelenmesi
-- Moderasyon faaliyetleri
-- Topluluk kurallarının uygulanması
-
----
-
-## Hizmetin Sunulması
-
-- Kullanıcı deneyiminin geliştirilmesi
-- Teknik destek sağlanması
-- Hata tespiti
-- Performans analizleri
-- Sistem güvenliğinin sağlanması
-
----
-
-## Finansal İşlemler
-
-Uygulama içerisinde sunulan ücretli hizmetlerin yürütülmesi amacıyla;
-
-- Plus abonelik işlemleri
-- Dijital ürün satın alımları
-- Rozet satın alımları
-- Ödeme kayıtlarının doğrulanması
-- Fatura süreçleri
-- İptal ve iade işlemleri
-
-gerçekleştirilebilir.
-
-Ödeme kartı bilgileriniz uygulama tarafından saklanmaz. Ödeme işlemleri yetkili ödeme hizmet sağlayıcıları tarafından yürütülmektedir.
-
----
-# 7. İşlenen Kişisel Veri Kategorileri
-
-Uygulama kapsamında aşağıdaki kişisel veri kategorileri işlenebilir.
-
-| Veri Kategorisi | İşlenebilecek Veriler |
-|----------------|-----------------------|
-| Kimlik Bilgileri | Ad, soyad, kullanıcı adı |
-| İletişim Bilgileri | Telefon numarası, e-posta adresi |
-| Profil Bilgileri | Profil fotoğrafı, biyografi, ilgi alanları, cinsiyet, doğum tarihi, şehir |
-| Konum Bilgileri | Şehir bilgisi, kullanıcının izin vermesi halinde anlık veya yaklaşık konum bilgisi |
-| Etkinlik Bilgileri | Oluşturulan etkinlikler, katılım kayıtları, etkinlik tercihleri |
-| Mesajlaşma Verileri | Kullanıcılar arasında gönderilen mesajlar, medya içerikleri, mesaj zaman bilgileri |
-| Bildirim Verileri | Push bildirim tercihleri, bildirim geçmişi |
-| Cihaz Bilgileri | İşletim sistemi, uygulama sürümü, cihaz modeli, cihaz dili |
-| Ağ Bilgileri | IP adresi, bağlantı zamanı, oturum kayıtları |
-| Güvenlik Verileri | Giriş kayıtları, başarısız giriş denemeleri, güvenlik logları |
-| Şikayet Verileri | Kullanıcı şikayetleri, moderasyon kayıtları |
-| Engelleme Bilgileri | Engellenen kullanıcılar ve ilgili kayıtlar |
-| Doğrulama Verileri | Telefon doğrulama kayıtları, e-posta doğrulama bilgileri, ileride sunulabilecek kimlik doğrulama kayıtları |
-| Finansal Bilgiler | Satın alma kayıtları, abonelik bilgileri, ödeme işlem referansları |
-| Destek Talepleri | Destek talepleri ve kullanıcı ile yapılan yazışmalar |
-| Hukuki Kayıtlar | Kullanıcı onayları, sözleşme kabul kayıtları, KVKK onay geçmişi |
-
----
-
-# 8. Kişisel Verilerin Toplanma Yöntemi
-
-Kişisel verileriniz;
-
-- uygulamaya kayıt olmanız,
-- profil oluşturmanız,
-- etkinlik oluşturmanız,
-- etkinliklere katılmanız,
-- mesaj göndermeniz,
-- profil bilgilerinizi güncellemeniz,
-- cihazınızdan izin vermeniz,
-- destek talebi oluşturmanız,
-- uygulamayı kullanmanız,
-- güvenlik sistemlerinin çalışması,
-- ödeme işlemleri,
-- abonelik satın alımları
-
-gibi yöntemlerle elektronik ortamda otomatik veya kısmen otomatik yollarla toplanabilir.
-
----
-
-# 9. Kişisel Verilerin İşlenmesinin Hukuki Sebepleri
-
-Kişisel verileriniz;
-
-- 6698 sayılı Kanun'un 5/2-c maddesi kapsamında sözleşmenin kurulması veya ifası,
-- 5/2-ç maddesi kapsamında veri sorumlusunun hukuki yükümlülüklerinin yerine getirilmesi,
-- 5/2-e maddesi kapsamında bir hakkın tesisi, kullanılması veya korunması,
-- 5/2-f maddesi kapsamında veri sorumlusunun meşru menfaati,
-- gerekli hallerde açık rızanız
-
-hukuki sebeplerine dayanılarak işlenebilir.
-
-Özel nitelikli kişisel veriler yalnızca yürürlükteki mevzuata uygun hukuki sebeplerin bulunması veya açık rızanızın alınması halinde işlenir.
-
----
-
-# 10. Kişisel Verilerin İşlenme Amaçları
-
-Kişisel verileriniz aşağıdaki amaçlarla işlenebilir.
-
-## Hesap Yönetimi
-
-- hesap oluşturulması
-- kullanıcı kimliğinin doğrulanması
-- giriş işlemlerinin yürütülmesi
-- hesap güvenliğinin sağlanması
-
----
-
-## Profil Yönetimi
-
-- profil bilgilerinin gösterilmesi
-- profil fotoğrafının yayınlanması
-- kullanıcı tercihleri
-- ilgi alanlarının gösterilmesi
-
----
-
-## Etkinlik Hizmetleri
-
-- etkinlik oluşturma
-- etkinlik düzenleme
-- katılımcı yönetimi
-- davet işlemleri
-- etkinlik geçmişi
-
----
-
-## Mesajlaşma
-
-- kullanıcılar arası iletişimin sağlanması
-- medya paylaşımı
-- spam tespiti
-- kötüye kullanımın önlenmesi
-
----
-
-## Güvenlik
-
-- dolandırıcılık faaliyetlerinin önlenmesi
-- sahte hesapların tespiti
-- topluluk kurallarının uygulanması
-- şikayetlerin incelenmesi
-- moderasyon işlemleri
-- hesap güvenliği
-
----
-
-## Hizmet Kalitesinin Artırılması
-
-- hata tespiti
-- performans iyileştirmeleri
-- sistem güvenliği
-- teknik destek
-- kullanıcı deneyiminin geliştirilmesi
-
----
-
-## Finansal Hizmetler
-
-- Plus abonelik işlemleri
-- dijital ürün satın alımları
-- ödeme doğrulamaları
-- faturalandırma
-- iptal süreçleri
-- iade işlemleri
-
----
-
-# 11. Kişisel Verilerin Saklama Süresi
-
-Kişisel veriler;
-
-- ilgili mevzuatta öngörülen süre boyunca,
-- hizmet ilişkisinin devam ettiği süre boyunca,
-- hukuki yükümlülüklerin yerine getirilmesi amacıyla gerekli süre kadar,
-- uyuşmazlıkların çözümlenmesi için gerekli zamanaşımı süreleri boyunca
-
-saklanabilir.
-
-Saklama süresi sona eren kişisel veriler, yürürlükte bulunan mevzuata uygun olarak silinir, yok edilir veya anonim hale getirilir.
-
-# 12. Kişisel Verilerin Aktarılabileceği Taraflar
-
-Kişisel verileriniz, yalnızca ilgili mevzuatın izin verdiği ölçüde ve işleme amacıyla sınırlı olmak üzere aşağıdaki kişi ve kuruluşlarla paylaşılabilir.
-
-## Yetkili Kamu Kurum ve Kuruluşları
-
-Kanunlardan doğan yükümlülüklerin yerine getirilmesi amacıyla;
-
-- Mahkemeler
-- Cumhuriyet Savcılıkları
-- Kolluk kuvvetleri
-- Yetkili idari kurumlar
-- Düzenleyici ve denetleyici kamu kurumları
-
-ile paylaşılabilir.
-
----
-
-## Hizmet Sağlayıcılar
-
-Uygulamanın güvenli ve kesintisiz şekilde çalıştırılabilmesi amacıyla hizmet alınan teknoloji sağlayıcıları ile sınırlı ölçüde veri paylaşılabilir.
-
-Bunlar örnek olarak;
-
-- Kimlik doğrulama hizmetleri
-- Bulut altyapısı hizmetleri
-- Dosya depolama hizmetleri
-- Bildirim hizmetleri
-- Teknik destek hizmetleri
-- Güvenlik hizmetleri
-- Ödeme hizmet sağlayıcıları
-
-olabilir.
-
-Bu hizmet sağlayıcılar yalnızca kendilerine verilen hizmet kapsamında veri işleyebilir.
-
----
-
-## Firebase Hizmetleri
-
-Uygulama kapsamında aşağıdaki Firebase servisleri kullanılabilir.
-
-- Firebase Authentication
-- Cloud Firestore
-- Firebase Storage
-- Firebase Cloud Messaging (FCM)
-
-İlerleyen sürümlerde kullanılabilecek diğer servisler ayrıca güncellenecek aydınlatma metni ile duyurulur.
-
----
-
-# 13. Yurt Dışına Veri Aktarımı
-
-Kullanılan teknoloji altyapısının niteliği gereği bazı kişisel veriler, veri merkezleri yurt dışında bulunan hizmet sağlayıcılarının sistemlerinde işlenebilir veya depolanabilir.
-
-Bu durumda veri aktarımı;
-
-- yürürlükte bulunan kişisel verilerin korunmasına ilişkin mevzuata,
-- Kurul kararlarına,
-- gerekli teknik ve idari güvenlik tedbirlerine
-
-uygun olarak gerçekleştirilir.
-
-Yurt dışına veri aktarımının açık rızaya tabi olduğu durumlarda gerekli açık rıza ayrıca talep edilir.
-
----
-
-# 14. Kişisel Verilerin Güvenliği
-
-Kişisel verilerin korunması amacıyla uygun teknik ve idari tedbirler uygulanmaktadır.
-
-Bu kapsamda örnek olarak;
-
-- erişim yetkilendirmeleri,
-- kimlik doğrulama mekanizmaları,
-- güvenlik kayıtları,
-- şifreleme yöntemleri,
-- güvenlik testleri,
-- düzenli yazılım güncellemeleri,
-- log kayıtları,
-- yetkisiz erişim önleme sistemleri,
-- veri yedekleme süreçleri
-
-kullanılabilir.
-
-Hiçbir elektronik sistemin %100 güvenli olduğu garanti edilememekle birlikte, kişisel verilerin korunması için makul ve güncel güvenlik önlemleri uygulanmaktadır.
-
----
-
-# 15. Kullanıcının Hakları
-
-KVKK'nın 11. maddesi kapsamında kullanıcılar;
-
-- kişisel veri işlenip işlenmediğini öğrenme,
-- işlenmişse buna ilişkin bilgi talep etme,
-- işleme amacını öğrenme,
-- verilerin amacına uygun kullanılıp kullanılmadığını öğrenme,
-- yurt içinde veya yurt dışında aktarıldığı üçüncü kişileri öğrenme,
-- eksik veya yanlış işlenmiş verilerin düzeltilmesini isteme,
-- gerekli şartların oluşması halinde kişisel verilerin silinmesini veya yok edilmesini isteme,
-- yapılan düzeltme veya silme işlemlerinin üçüncü kişilere bildirilmesini isteme,
-- yalnızca otomatik sistemler ile analiz edilmesi sonucu aleyhe bir sonucun ortaya çıkmasına itiraz etme,
-- kanuna aykırı veri işlenmesi nedeniyle zarara uğraması halinde zararın giderilmesini talep etme
-
-haklarına sahiptir.
-
----
-
-# 16. Başvuru Yöntemi
-
-KVKK kapsamındaki taleplerinizi, yürürlükte bulunan mevzuatta belirtilen yöntemlerden biriyle veri sorumlusuna iletebilirsiniz.
-
-Şirket kuruluş işlemleri tamamlandıktan sonra;
-
-- destek e-posta adresi,
-- KEP adresi,
-- posta adresi,
-- başvuru formu bağlantısı
-
-bu bölümde yayımlanacaktır.
-
-Başvurular, mevzuatta öngörülen süreler içerisinde değerlendirilerek sonuçlandırılır.
-
----
-
-# 17. Güncellemeler
-
-Bu Aydınlatma Metni, mevzuat değişiklikleri, teknik gereklilikler veya hizmet kapsamındaki değişiklikler doğrultusunda güncellenebilir.
-
-Önemli değişiklikler olması halinde kullanıcılar uygulama içi bildirim, e-posta veya diğer uygun iletişim kanalları aracılığıyla bilgilendirilebilir.
-
-Yeni sürümün kullanıcı tarafından kabul edilmesi gereken durumlarda uygulama yeniden onay talep edebilir.
-
----
-
-# 18. İletişim
-
-Kişisel verilerinizin işlenmesine ilişkin sorularınız ve talepleriniz için bu bölümde yayımlanacak iletişim kanallarını kullanabilirsiniz.
-
-Şirket kuruluşu tamamlandıktan sonra aşağıdaki bilgiler güncellenecektir.
-
-- Veri Sorumlusu
-- Destek E-Postası
-- KEP Adresi
-- Posta Adresi
-- İnternet Sitesi
-
----
-
-# 19. Yürürlük
-
-Bu Aydınlatma Metni **24.07.2026** tarihinde yürürlüğe girmiştir.
-
-Belge Sürümü: **1.0.0**
+Başvuruda hesabın size ait olduğunu gösteren telefon numarası belirtilmelidir. Talepler mevzuattaki sürelerde değerlendirilir.

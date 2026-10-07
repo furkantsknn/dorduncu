@@ -3,6 +3,18 @@ import {
   FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
+import {
+  APPLICATION_LIFECYCLE_VERSION,
+  addressAccessStatus,
+  applicationPaymentStatus,
+  applicationStatus,
+  assertEventNotPast,
+  reservationStatus,
+} from "./eventLifecycle";
+import {
+  writeUserNotification,
+} from "../notifications/writeUserNotification";
+import {writeAuditLog} from "../audit/writeAuditLog";
 
 const REGION = "europe-west1";
 
@@ -26,7 +38,6 @@ export const cancelUnpaidEvent = onCall(
       "eventId",
       "Etkinlik kimliği gereklidir.",
     );
-
     const reason = readRequiredString(
       request.data,
       "reason",
@@ -34,109 +45,163 @@ export const cancelUnpaidEvent = onCall(
     );
 
     const firestore = getFirestore();
-
-    const eventReference = firestore
-      .collection("events")
-      .doc(eventId);
-
+    const eventReference = firestore.collection("events").doc(eventId);
     const paymentSessionReference = firestore
       .collection("paymentSessions")
       .doc(eventId);
 
-    await firestore.runTransaction(
-      async (transaction) => {
-        const eventSnapshot = await transaction.get(
-          eventReference,
+    let affectedUserIds: string[] = [];
+
+    await firestore.runTransaction(async (transaction) => {
+      const eventSnapshot = await transaction.get(eventReference);
+
+      if (!eventSnapshot.exists) {
+        throw new HttpsError("not-found", "Etkinlik bulunamadı.");
+      }
+
+      const eventData = eventSnapshot.data() ?? {};
+      const eventOrganizerId = String(
+        eventData.olusturanUid ?? "",
+      ).trim();
+
+      if (eventOrganizerId !== organizerId) {
+        throw new HttpsError(
+          "permission-denied",
+          "Bu etkinliği iptal etme yetkiniz bulunmuyor.",
         );
+      }
 
-        if (!eventSnapshot.exists) {
-          throw new HttpsError(
-            "not-found",
-            "Etkinlik bulunamadı.",
-          );
-        }
+      const eventStatus = normalizeStatus(
+        eventData.durum ?? eventData.status,
+      );
 
-        const eventData = eventSnapshot.data() ?? {};
-
-        const eventOrganizerId = String(
-          eventData.olusturanUid ?? "",
-        ).trim();
-
-        if (eventOrganizerId !== organizerId) {
-          throw new HttpsError(
-            "permission-denied",
-            "Bu etkinliği iptal etme yetkiniz bulunmuyor.",
-          );
-        }
-
-        const eventStatus = String(
-          eventData.durum ??
-          eventData.status ??
-          "",
-        )
-          .trim()
-          .toLowerCase();
-
-        if (isCancelledStatus(eventStatus)) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Etkinlik zaten iptal edilmiş.",
-          );
-        }
-
-        if (isCompletedStatus(eventStatus)) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Tamamlanmış etkinlik iptal edilemez.",
-          );
-        }
-
-        const paymentStatus = String(
-          eventData.paymentStatus ?? "notRequired",
-        )
-          .trim()
-          .toLowerCase();
-
-        if (isPaidStatus(paymentStatus)) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Ödeme alınmış etkinlik bu yöntemle iptal edilemez.",
-          );
-        }
-
-        transaction.update(
-          eventReference,
-          {
-            durum: "cancelled",
-            status: "cancelled",
-            paymentRequired: false,
-            paymentStatus: "cancelled",
-            cancellationReason: reason,
-            cancelledBy: organizerId,
-            cancelledAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
+      if (isCancelledStatus(eventStatus)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Etkinlik zaten iptal edilmiş.",
         );
+      }
+
+      if (isCompletedStatus(eventStatus)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Tamamlanmış etkinlik iptal edilemez.",
+        );
+      }
+
+      assertEventNotPast(eventData);
+
+      const paymentStatus = normalizeStatus(
+        eventData.paymentStatus ?? "not_required",
+      );
+
+      if (isPaidStatus(paymentStatus)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Ödeme alınmış etkinlik bu yöntemle iptal edilemez.",
+        );
+      }
+
+      affectedUserIds = [
+        ...new Set([
+          ...readStringList(eventData.selectedPlayerIds),
+          ...readStringList(eventData.katilanlar),
+          ...readStringList(eventData.basvuranOyuncuIds),
+        ]),
+      ].filter((userId) => userId && userId !== organizerId);
+
+      transaction.update(eventReference, {
+        lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+        durum: "cancelled",
+        status: "cancelled",
+        rosterStatus: "cancelled",
+        selectedPlayerIds: [],
+        katilanlar: [organizerId],
+        chatMemberUids: [organizerId],
+        paymentRequired: false,
+        paymentStatus: "cancelled",
+        paymentDueAt: FieldValue.delete(),
+        paymentWindowMinutes: FieldValue.delete(),
+        cancellationReason: reason,
+        cancelledBy: organizerId,
+        cancelledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      for (const userId of affectedUserIds) {
+        const applicationReference = eventReference
+          .collection("applications")
+          .doc(userId);
 
         transaction.set(
-          paymentSessionReference,
+          applicationReference,
           {
-            eventId,
-            organizerId,
-            status: "cancelled",
-            gatewayStatus: "not_started",
-            paymentRequired: false,
+            lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+            status: applicationStatus.cancelled,
+            paymentStatus: applicationPaymentStatus.notRequired,
+            addressAccessStatus: addressAccessStatus.locked,
+            reservationStatus: reservationStatus.released,
+            paymentDueAt: FieldValue.delete(),
+            reservationExpiresAt: FieldValue.delete(),
             cancellationReason: reason,
             cancelledBy: organizerId,
             cancelledAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           },
-          {
-            merge: true,
-          },
+          {merge: true},
         );
-      },
+      }
+
+      transaction.set(
+        paymentSessionReference,
+        {
+          lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+          eventId,
+          organizerId,
+          status: "cancelled",
+          gatewayStatus: "not_started",
+          paymentRequired: false,
+          paymentDueAt: FieldValue.delete(),
+          cancellationReason: reason,
+          cancelledBy: organizerId,
+          cancelledAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
+
+    await Promise.all(
+      affectedUserIds.map(
+        async (userId) => writeUserNotification(
+          firestore,
+          {
+            userId,
+            actorId: organizerId,
+            eventId,
+            type: "event_cancelled",
+            title: "Etkinlik iptal edildi",
+            message: `Katılacağın etkinlik iptal edildi. ${reason}`,
+            route: "event_detail",
+            data: {
+              eventId,
+              reason,
+            },
+          },
+        ),
+      ),
     );
+
+    await writeAuditLog({
+      action: "event_cancelled_unpaid",
+      performedBy: organizerId,
+      metadata: {
+        eventId,
+        reason,
+        affectedUserIds,
+        lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
+      },
+    });
 
     return {
       success: true,
@@ -146,26 +211,20 @@ export const cancelUnpaidEvent = onCall(
 );
 
 /**
- * İstekten zorunlu metin alanını okur.
+ * Reads a required string.
  *
- * @param {unknown} data İstek verisi.
- * @param {string} key Alan adı.
- * @param {string} errorMessage Hata mesajı.
- * @return {string} Temizlenmiş metin değeri.
+ * @param {unknown} data Callable payload.
+ * @param {string} key Field name.
+ * @param {string} errorMessage Validation message.
+ * @return {string} Normalized string.
  */
 function readRequiredString(
   data: unknown,
   key: string,
   errorMessage: string,
 ): string {
-  if (
-    data === null ||
-    typeof data !== "object"
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      errorMessage,
-    );
+  if (data === null || typeof data !== "object") {
+    throw new HttpsError("invalid-argument", errorMessage);
   }
 
   const value = String(
@@ -173,24 +232,29 @@ function readRequiredString(
   ).trim();
 
   if (!value) {
-    throw new HttpsError(
-      "invalid-argument",
-      errorMessage,
-    );
+    throw new HttpsError("invalid-argument", errorMessage);
   }
 
   return value;
 }
 
 /**
- * Ödeme tamamlanmış durumlarını kontrol eder.
+ * Normalizes status text.
  *
- * @param {string} value Ödeme durumu.
- * @return {boolean} Ödeme tamamlandıysa true.
+ * @param {unknown} value Raw status.
+ * @return {string} Normalized status.
  */
-function isPaidStatus(
-  value: string,
-): boolean {
+function normalizeStatus(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+/**
+ * Checks final paid states.
+ *
+ * @param {string} value Payment status.
+ * @return {boolean} True when paid.
+ */
+function isPaidStatus(value: string): boolean {
   return value === "escrowheld" ||
     value === "escrow_held" ||
     value === "paid" ||
@@ -198,29 +262,41 @@ function isPaidStatus(
 }
 
 /**
- * Etkinliğin iptal durumunda olup olmadığını kontrol eder.
+ * Checks cancelled status.
  *
- * @param {string} value Etkinlik durumu.
- * @return {boolean} İptal edilmişse true.
+ * @param {string} value Event status.
+ * @return {boolean} True when cancelled.
  */
-function isCancelledStatus(
-  value: string,
-): boolean {
+function isCancelledStatus(value: string): boolean {
   return value === "cancelled" ||
     value === "iptal" ||
     value === "iptal_edildi";
 }
 
 /**
- * Etkinliğin tamamlanmış durumda olup olmadığını kontrol eder.
+ * Checks completed status.
  *
- * @param {string} value Etkinlik durumu.
- * @return {boolean} Tamamlanmışsa true.
+ * @param {string} value Event status.
+ * @return {boolean} True when completed.
  */
-function isCompletedStatus(
-  value: string,
-): boolean {
+function isCompletedStatus(value: string): boolean {
   return value === "completed" ||
     value === "tamamlandi" ||
     value === "tamamlandı";
+}
+
+/**
+ * Reads a safe string list.
+ *
+ * @param {unknown} value Raw list.
+ * @return {string[]} String list.
+ */
+function readStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => String(item).trim())
+    .filter((item) => item.length > 0);
 }

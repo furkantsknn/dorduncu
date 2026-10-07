@@ -3,21 +3,16 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/event_model.dart';
-import '../models/user_model.dart';
-import '../utils/game_catalog.dart';
-import 'user_service.dart';
 
 class EventService {
   EventService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     FirebaseFunctions? functions,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(
-              region: 'europe-west1',
-            );
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -27,33 +22,49 @@ class EventService {
     return _firestore.collection('events');
   }
 
-  CollectionReference<Map<String, dynamic>> get _users {
-    return _firestore.collection('users');
-  }
-
   String get currentUserId {
     final user = _auth.currentUser;
 
     if (user == null) {
-      throw StateError(
-        'Etkinlik işlemi için kullanıcı girişi gereklidir.',
-      );
+      throw StateError('Etkinlik işlemi için kullanıcı girişi gereklidir.');
     }
 
     return user.uid;
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> getEvents() {
-    return FirebaseFirestore.instance
-        .collection('events')
+  static Stream<QuerySnapshot<Map<String, dynamic>>> watchListedEvents({
+    required String city,
+    bool nearbyNationwide = false,
+    int limit = 100,
+  }) {
+    final int safeLimit = limit < 1 ? 1 : limit;
+    final String trimmedCity = city.trim();
+    final Query<Map<String, dynamic>> events = FirebaseFirestore.instance
+        .collection('events');
+    final Timestamp now = Timestamp.fromDate(DateTime.now());
+
+    if (nearbyNationwide) {
+      return events
+          .where('durum', isEqualTo: 'aktif')
+          .where('tarih', isGreaterThan: now)
+          .orderBy('tarih')
+          .snapshots();
+    }
+
+    if (trimmedCity.isEmpty) {
+      return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+    }
+
+    return events
+        .where('sehir', isEqualTo: trimmedCity)
+        .where('durum', isEqualTo: 'aktif')
+        .where('tarih', isGreaterThan: now)
         .orderBy('tarih')
+        .limit(safeLimit)
         .snapshots();
   }
 
-  Stream<List<EventModel>> watchActiveEvents({
-    String? city,
-    int limit = 100,
-  }) {
+  Stream<List<EventModel>> watchActiveEvents({String? city, int limit = 100}) {
     Query<Map<String, dynamic>> query = _events
         .where('durum', isEqualTo: 'aktif')
         .orderBy('tarih')
@@ -70,12 +81,9 @@ class EventService {
     }
 
     return query.snapshots().map(
-          (snapshot) => snapshot.docs
+      (snapshot) => snapshot.docs
           .map(EventModel.fromDocument)
-          .where(
-            (event) =>
-            event.eventDate.isAfter(DateTime.now()),
-      )
+          .where((event) => event.eventDate.isAfter(DateTime.now()))
           .toList(),
     );
   }
@@ -92,13 +100,10 @@ class EventService {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-          .map(EventModel.fromDocument)
-          .where(
-            (event) =>
-            event.eventDate.isAfter(DateTime.now()),
-      )
-          .toList(),
-    );
+              .map(EventModel.fromDocument)
+              .where((event) => event.eventDate.isAfter(DateTime.now()))
+              .toList(),
+        );
   }
 
   Stream<List<EventModel>> watchCreatedEvents({
@@ -108,21 +113,11 @@ class EventService {
     final resolvedUserId = userId ?? currentUserId;
 
     return _events
-        .where(
-      'olusturanUid',
-      isEqualTo: resolvedUserId,
-    )
-        .orderBy(
-      'tarih',
-      descending: true,
-    )
+        .where('olusturanUid', isEqualTo: resolvedUserId)
+        .orderBy('tarih', descending: true)
         .limit(limit)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-          .map(EventModel.fromDocument)
-          .toList(),
-    );
+        .map((snapshot) => snapshot.docs.map(EventModel.fromDocument).toList());
   }
 
   Stream<List<EventModel>> watchJoinedEvents({
@@ -132,25 +127,16 @@ class EventService {
     final resolvedUserId = userId ?? currentUserId;
 
     return _events
-        .where(
-      'katilanlar',
-      arrayContains: resolvedUserId,
-    )
-        .orderBy(
-      'tarih',
-      descending: true,
-    )
+        .where('katilanlar', arrayContains: resolvedUserId)
+        .orderBy('tarih', descending: true)
         .limit(limit)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-          .map(EventModel.fromDocument)
-          .where(
-            (event) =>
-        event.creatorId != resolvedUserId,
-      )
-          .toList(),
-    );
+              .map(EventModel.fromDocument)
+              .where((event) => event.creatorId != resolvedUserId)
+              .toList(),
+        );
   }
 
   Stream<List<EventModel>> watchPlayerApplications({
@@ -160,51 +146,79 @@ class EventService {
     final resolvedPlayerId = playerId ?? currentUserId;
 
     return _events
-        .where(
-      'basvuranOyuncuIds',
-      arrayContains: resolvedPlayerId,
-    )
-        .orderBy(
-      'tarih',
-      descending: true,
-    )
+        .where('basvuranOyuncuIds', arrayContains: resolvedPlayerId)
+        .orderBy('tarih', descending: true)
         .limit(limit)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-          .map(EventModel.fromDocument)
-          .toList(),
-    );
+        .map((snapshot) => snapshot.docs.map(EventModel.fromDocument).toList());
   }
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> watchEvent(
-      String eventId,
-      ) {
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchEvent(String eventId) {
     return _events.doc(eventId).snapshots();
   }
 
-  Stream<EventModel?> watchEventModel(
-      String eventId,
-      ) {
-    return _events.doc(eventId).snapshots().map(
-          (snapshot) {
-        if (!snapshot.exists) {
-          return null;
-        }
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchApplication({
+    required String eventId,
+    String? playerId,
+  }) {
+    final String resolvedPlayerId = playerId ?? currentUserId;
 
-        return EventModel.fromDocument(snapshot);
-      },
-    );
+    return _events
+        .doc(eventId)
+        .collection('applications')
+        .doc(resolvedPlayerId)
+        .snapshots();
   }
 
-  Future<EventModel?> getEvent(
-      String eventId,
-      ) async {
+  Future<Map<String, dynamic>> getPrivateLocation({
+    required String eventId,
+  }) async {
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await _events
+          .doc(eventId)
+          .collection('private')
+          .doc('location')
+          .get(const GetOptions(source: Source.server));
+
+      if (!snapshot.exists) {
+        throw StateError('Etkinliğin özel konum bilgisi bulunamadı.');
+      }
+
+      return snapshot.data() ?? <String, dynamic>{};
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw StateError(
+          'Açık adres ve yol tarifi ödeme tamamlandıktan sonra açılır.',
+        );
+      }
+
+      final String message = error.message?.trim() ?? '';
+      if (message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('Özel konum bilgisi alınamadı.');
+    }
+  }
+
+  Stream<EventModel?> watchEventModel(String eventId) {
+    return _events.doc(eventId).snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      return EventModel.fromDocument(snapshot);
+    });
+  }
+
+  Future<EventModel?> getEvent(String eventId) async {
     if (eventId.trim().isEmpty) {
       return null;
     }
 
-    final snapshot = await _events.doc(eventId).get();
+    final snapshot = await _events
+        .doc(eventId)
+        .get(const GetOptions(source: Source.server));
 
     if (!snapshot.exists) {
       return null;
@@ -213,46 +227,38 @@ class EventService {
     return EventModel.fromDocument(snapshot);
   }
 
-   Future<String> createEvent(
-    EventModel event,
-  ) async {
-     final User? firebaseUser = _auth.currentUser;
+  Future<String> createEvent(EventModel event) async {
+    final User? firebaseUser = _auth.currentUser;
 
-     if (firebaseUser == null) {
-       throw StateError(
-         'Etkinlik oluşturmak için yeniden giriş yapmalısınız.',
-       );
-     }
+    if (firebaseUser == null) {
+      throw StateError('Etkinlik oluşturmak için yeniden giriş yapmalısınız.');
+    }
 
-     final String? idToken;
+    final String? idToken;
 
-     try {
-       idToken = await firebaseUser.getIdToken(true);
-     } on FirebaseAuthException catch (error) {
-       throw StateError(
-         error.message ??
-             'Oturum doğrulanamadı. Lütfen çıkış yapıp yeniden giriş yapın.',
-       );
-     }
+    try {
+      idToken = await firebaseUser.getIdToken(true);
+    } on FirebaseAuthException catch (error) {
+      throw StateError(
+        error.message ??
+            'Oturum doğrulanamadı. Lütfen çıkış yapıp yeniden giriş yapın.',
+      );
+    }
 
-     if (idToken == null || idToken.trim().isEmpty) {
-       throw StateError(
-         'Oturum doğrulama bilgisi alınamadı. Lütfen yeniden giriş yapın.',
-       );
-     }
+    if (idToken == null || idToken.trim().isEmpty) {
+      throw StateError(
+        'Oturum doğrulama bilgisi alınamadı. Lütfen yeniden giriş yapın.',
+      );
+    }
 
-     final String userId = firebaseUser.uid;
+    final String userId = firebaseUser.uid;
 
-     if (event.creatorId != userId) {
-       throw StateError(
-         'Etkinlik sahibi oturum açan kullanıcıyla eşleşmiyor.',
-       );
-     }
+    if (event.creatorId != userId) {
+      throw StateError('Etkinlik sahibi oturum açan kullanıcıyla eşleşmiyor.');
+    }
 
     if (event.playerCount < 1 || event.playerCount > 4) {
-      throw ArgumentError(
-        'Oyuncu sayısı 1 ile 4 arasında olmalıdır.',
-      );
+      throw ArgumentError('Oyuncu sayısı 1 ile 4 arasında olmalıdır.');
     }
 
     if (event.resolvedGameId.trim().isEmpty) {
@@ -262,22 +268,16 @@ class EventService {
     }
 
     if (!event.resolvedEndAt.isAfter(event.resolvedStartAt)) {
-      throw ArgumentError(
-        'Bitiş saati başlangıç saatinden sonra olmalıdır.',
-      );
+      throw ArgumentError('Bitiş saati başlangıç saatinden sonra olmalıdır.');
     }
 
     if (event.resolvedDurationMinutes < 60 ||
         event.resolvedDurationMinutes > 360) {
-      throw ArgumentError(
-        'Etkinlik süresi 1 ile 6 saat arasında olmalıdır.',
-      );
+      throw ArgumentError('Etkinlik süresi 1 ile 6 saat arasında olmalıdır.');
     }
 
     if (event.resolvedStartAt.isBefore(DateTime.now())) {
-      throw ArgumentError(
-        'Geçmiş tarihli etkinlik oluşturulamaz.',
-      );
+      throw ArgumentError('Geçmiş tarihli etkinlik oluşturulamaz.');
     }
 
     final String city = event.city.trim();
@@ -291,51 +291,39 @@ class EventService {
         district.isEmpty ||
         neighborhood.isEmpty ||
         address.isEmpty) {
-      throw ArgumentError(
-        'Etkinlik konum bilgileri eksik.',
-      );
+      throw ArgumentError('Etkinlik konum bilgileri eksik.');
     }
 
     if (latitude == 0 || longitude == 0) {
-      throw ArgumentError(
-        'Etkinlik konumu haritadan seçilmelidir.',
-      );
+      throw ArgumentError('Etkinlik konumu haritadan seçilmelidir.');
     }
 
     try {
-      final HttpsCallable callable =
-          _functions.httpsCallable('createEvent');
+      final HttpsCallable callable = _functions.httpsCallable('createEvent');
 
-      final HttpsCallableResult<dynamic> result =
-          await callable.call(
-        <String, dynamic>{
-          'gameId': event.resolvedGameId,
-          'playerCount': event.playerCount,
-          'memberPreference': event.memberPreference,
-          'description': event.description,
-          'city': city,
-          'district': district,
-          'neighborhood': neighborhood,
-          'address': address,
-          'latitude': latitude,
-          'longitude': longitude,
-          'startAt':
-              event.resolvedStartAt.millisecondsSinceEpoch,
-          'endAt':
-              event.resolvedEndAt.millisecondsSinceEpoch,
-        },
-      );
+      final HttpsCallableResult<dynamic> result = await callable
+          .call(<String, dynamic>{
+            'gameId': event.resolvedGameId,
+            'playerCount': event.playerCount,
+            'memberPreference': event.memberPreference,
+            'description': event.description,
+            'city': city,
+            'district': district,
+            'neighborhood': neighborhood,
+            'address': address,
+            'latitude': latitude,
+            'longitude': longitude,
+            'startAt': event.resolvedStartAt.millisecondsSinceEpoch,
+            'endAt': event.resolvedEndAt.millisecondsSinceEpoch,
+          });
 
       final dynamic responseData = result.data;
 
       if (responseData is! Map) {
-        throw StateError(
-          'Sunucudan geçersiz etkinlik yanıtı alındı.',
-        );
+        throw StateError('Sunucudan geçersiz etkinlik yanıtı alındı.');
       }
 
-      final String eventId =
-          responseData['eventId']?.toString().trim() ?? '';
+      final String eventId = responseData['eventId']?.toString().trim() ?? '';
 
       if (eventId.isEmpty) {
         throw StateError(
@@ -345,16 +333,13 @@ class EventService {
 
       return eventId;
     } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
+      final String message = error.message?.trim() ?? '';
 
       if (message.isNotEmpty) {
         throw StateError(message);
       }
 
-      throw StateError(
-        'Etkinlik oluşturulurken sunucu hatası oluştu.',
-      );
+      throw StateError('Etkinlik oluşturulurken sunucu hatası oluştu.');
     }
   }
 
@@ -372,394 +357,91 @@ class EventService {
     double? latitude,
     double? longitude,
   }) async {
-    final reference = _events.doc(eventId);
-    final snapshot = await reference.get();
-
-    if (!snapshot.exists) {
-      throw StateError('Etkinlik bulunamadı.');
-    }
-
-    final data = snapshot.data() ?? const <String, dynamic>{};
-
-    if (data['olusturanUid']?.toString() != currentUserId) {
-      throw StateError(
-        'Bu etkinliği düzenleme yetkiniz bulunmuyor.',
-      );
-    }
-
-    final status = data['durum']?.toString() ?? 'aktif';
-
-    if (!_isActiveStatus(status) &&
-        !_isPaymentPendingStatus(status)) {
-      throw StateError(
-        'Bu durumdaki etkinlik düzenlenemez.',
-      );
-    }
-
-    if (playerCount != null &&
-        (playerCount < 1 || playerCount > 4)) {
-      throw ArgumentError(
-        'Oyuncu sayısı 1 ile 4 arasında olmalıdır.',
-      );
-    }
-
-    if (eventDate != null &&
-        eventDate.isBefore(DateTime.now())) {
-      throw ArgumentError(
-        'Geçmiş tarih seçilemez.',
-      );
-    }
-
-    final Map<String, dynamic> publicUpdates = <String, dynamic>{
-      if (game != null) 'oyun': game.trim(),
-      if (playerCount != null) ...<String, dynamic>{
-        'oyuncuSayisi': playerCount,
-        'oyuncuSayisiMetni': '$playerCount Oyuncu',
-      },
-      if (memberPreference != null)
-        'uyeTercihi': memberPreference.trim(),
-      if (description != null)
-        'aciklama': description.trim(),
-      if (eventDate != null)
-        'tarih': Timestamp.fromDate(eventDate),
-      if (city != null) 'sehir': city.trim(),
-      if (district != null) 'ilce': district.trim(),
-      if (neighborhood != null ||
-          address != null ||
-          latitude != null ||
-          longitude != null)
-        'privateLocationAvailable': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    final bool updatesPrivateLocation =
-        city != null ||
-            district != null ||
-            neighborhood != null ||
-            address != null ||
-            latitude != null ||
-            longitude != null;
-
-    final WriteBatch batch = _firestore.batch();
-    batch.update(reference, publicUpdates);
-
-    if (updatesPrivateLocation) {
-      final DocumentReference<Map<String, dynamic>> locationReference =
-      reference.collection('private').doc('location');
-
-      batch.set(
-        locationReference,
-        <String, dynamic>{
-          if (city != null) 'sehir': city.trim(),
-          if (district != null) 'ilce': district.trim(),
-          if (neighborhood != null) 'semt': neighborhood.trim(),
-          if (address != null) 'adres': address.trim(),
-          'latitude': ?latitude,
-          'longitude': ?longitude,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-    }
-
-    await batch.commit();
-    final Map<String, dynamic> updatedEventData =
-        (await reference.get()).data() ?? <String, dynamic>{};
-
-    final List<String> participantIds = <String>{
-      ...List<String>.from(
-        updatedEventData['selectedPlayerIds'] ?? const <String>[],
-      ),
-      ...List<String>.from(
-        updatedEventData['katilanlar'] ?? const <String>[],
-      ),
-    }.where((String uid) {
-      return uid.trim().isNotEmpty && uid != currentUserId;
-    }).toList();
-
-    for (final String userId in participantIds) {
-      await _createNotification(
-        userId: userId,
-        type: 'eventUpdated',
-        title: 'Etkinlik Güncellendi',
-        message: 'Katılacağın etkinliğin bilgileri güncellendi.',
-        eventId: eventId,
-        actorId: currentUserId,
-      );
-    }
-  }
-
-  Future<void> applyToEvent({
-    required String eventId,
-    String note = '',
-  }) async {
-    final playerId = currentUserId;
-    final eventReference = _events.doc(eventId);
-    final playerReference = _users.doc(playerId);
-    final applicationReference = eventReference
-        .collection('applications')
-        .doc(playerId);
-
-    final eventBeforeTransaction =
-    await eventReference.get();
-
-    if (!eventBeforeTransaction.exists) {
-      throw StateError('Etkinlik bulunamadı.');
-    }
-
-
-    final allowed = await UserService.checkApplicationEligibility(
-      eventId: eventId,
-      userId: playerId,
-    );
-
-    if (!allowed) {
-      throw StateError(
-        'Bu etkinliğe başvurma koşullarını sağlamıyorsunuz.',
-      );
-    }
-
-    await _firestore.runTransaction(
-          (transaction) async {
-        final eventSnapshot =
-        await transaction.get(eventReference);
-        final playerSnapshot =
-        await transaction.get(playerReference);
-
-        if (!eventSnapshot.exists) {
-          throw StateError('Etkinlik bulunamadı.');
-        }
-
-        if (!playerSnapshot.exists) {
-          throw StateError(
-            'Oyuncu profili bulunamadı.',
-          );
-        }
-
-        final eventData =
-            eventSnapshot.data() ??
-                const <String, dynamic>{};
-
-        final playerData =
-            playerSnapshot.data() ??
-                const <String, dynamic>{};
-
-
-        final creatorId =
-            eventData['olusturanUid']?.toString() ?? '';
-
-        if (creatorId == playerId) {
-          throw StateError(
-            'Kendi etkinliğinize başvuramazsınız.',
-          );
-        }
-
-        final eventStatus =
-            eventData['durum']?.toString() ?? '';
-
-        if (!_isActiveStatus(eventStatus)) {
-          throw StateError(
-            'Etkinlik başvuru kabul etmiyor.',
-          );
-        }
-
-        final eventGameIdOrName =
-        _eventGameIdOrName(eventData);
-        final playerModel = UserModel.fromMap(
-          playerData,
-          documentId: playerId,
-        );
-        final playerSkill =
-        playerModel.skillForGame(eventGameIdOrName);
-
-        if (playerSkill == null) {
-          final eventGame =
-              GameCatalog.gameById(eventGameIdOrName) ??
-                  GameCatalog.gameByLegacyValue(
-                    eventGameIdOrName,
-                  );
-          final eventGameName =
-              eventGame?.name ?? eventGameIdOrName;
-
-          throw StateError(
-            'Başvurmadan önce $eventGameName oyununu profiline eklemelisin.',
-          );
-        }
-
-        final requiredPlayerCount =
-            (eventData['oyuncuSayisi'] as num?)
-                ?.toInt() ??
-                (eventData['playerCount'] as num?)
-                    ?.toInt() ??
-                1;
-        final currentSelectedPlayerIds =
-        List<String>.from(
-          eventData['selectedPlayerIds'] ??
-              const <String>[],
-        );
-
-        if (currentSelectedPlayerIds.length >=
-            requiredPlayerCount) {
-          throw StateError(
-            'Etkinlik için gerekli oyuncu sayısı tamamlandı.',
-          );
-        }
-
-        final hasPlayerBadge =
-            playerData['oyuncuRozeti'] == true;
-
-        if (!hasPlayerBadge) {
-          throw StateError(
-            'Başvuru yapabilmek için Oyuncu Rozeti gereklidir.',
-          );
-        }
-
-        final accountStatus =
-            playerData['hesapDurumu']?.toString() ??
-                'active';
-
-        if (accountStatus == 'blocked' ||
-            accountStatus == 'suspended') {
-          throw StateError(
-            'Hesabınız başvuru yapmaya uygun değil.',
-          );
-        }
-
-        final preference =
-            eventData['uyeTercihi']?.toString() ??
-                'Herkes';
-
-        final playerIsPlus =
-            playerData['plus'] == true;
-
-        if (preference == 'Plus Üye' &&
-            !playerIsPlus) {
-          throw StateError(
-            'Bu etkinlik yalnızca Plus oyuncu başvurularını kabul ediyor.',
-          );
-        }
-
-        if (preference == 'Normal Üye' &&
-            playerIsPlus) {
-          throw StateError(
-            'Organizatör bu etkinlik için Normal Üye tercih etti.',
-          );
-        }
-
-        final selectedPlayerIds =
-        List<String>.from(
-          eventData['selectedPlayerIds'] ??
-              const <String>[],
-        );
-
-        if (selectedPlayerIds.contains(playerId)) {
-          throw StateError(
-            'Bu etkinlik için zaten seçildiniz.',
-          );
-        }
-
-        final applicantIds =
-        List<String>.from(
-          eventData['basvuranOyuncuIds'] ??
-              const <String>[],
-        );
-
-        if (applicantIds.contains(playerId)) {
-          throw StateError(
-            'Bu etkinliğe daha önce başvurdunuz.',
-          );
-        }
-
-        transaction.set(
-          applicationReference,
-          <String, dynamic>{
-            'applicationId': playerId,
-            'eventId': eventId,
-            'playerId': playerId,
-            'playerProfileName':
-            playerData['profilAdi']?.toString() ??
-                '',
-            'playerProfilePhoto':
-            playerData['profilFotografi']
-                ?.toString() ??
-                '',
-            'playerPlus': playerIsPlus,
-            'playerVerified':
-            playerData['verified'] == true ||
-                playerData['verificationStatus'] ==
-                    'approved',
-            'gameId': playerSkill.gameId,
-            'gameName': playerSkill.gameName,
-            'categoryId': playerSkill.categoryId,
-            'categoryName': playerSkill.categoryName,
-            'skillLevel': playerSkill.level,
-            'skillLevelLabel': playerSkill.levelLabel,
-            'note': note.trim(),
-            'status': 'pending',
-            'createdAt':
-            FieldValue.serverTimestamp(),
-            'updatedAt':
-            FieldValue.serverTimestamp(),
-          },
-        );
-
-        transaction.update(
-          eventReference,
-          <String, dynamic>{
-            'basvuranOyuncuIds':
-            FieldValue.arrayUnion(
-              <String>[playerId],
-            ),
-            'basvuruSayisi':
-            FieldValue.increment(1),
-            'updatedAt':
-            FieldValue.serverTimestamp(),
-          },
-        );
-      },
-    );
-
-    await _createNotification(
-      userId: await _getEventCreatorId(eventId),
-      type: 'eventApplication',
-      title: 'Yeni oyuncu başvurusu',
-      message:
-      'Etkinliğinize yeni bir oyuncu başvurdu.',
-      eventId: eventId,
-      actorId: playerId,
-    );
-  }
-
-  Future<void> withdrawApplication({
-    required String eventId,
-  }) async {
     try {
-      final HttpsCallable callable =
-      _functions.httpsCallable('withdrawApplication');
+      final HttpsCallable callable = _functions.httpsCallable('updateEvent');
 
-      await callable.call(
-        <String, dynamic>{
-          'eventId': eventId,
-        },
-      );
+      await callable.call(<String, dynamic>{
+        'eventId': eventId,
+        'game': ?game?.trim(),
+        'playerCount': ?playerCount,
+        if (memberPreference != null)
+          'memberPreference': memberPreference.trim(),
+        if (description != null) 'description': description.trim(),
+        if (eventDate != null) 'eventDate': eventDate.millisecondsSinceEpoch,
+        'city': ?city?.trim(),
+        'district': ?district?.trim(),
+        if (neighborhood != null) 'neighborhood': neighborhood.trim(),
+        if (address != null) 'address': address.trim(),
+        'latitude': ?latitude,
+        'longitude': ?longitude,
+      });
     } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
+      final String message = error.message?.trim() ?? '';
 
       if (message.isNotEmpty) {
         throw StateError(message);
       }
 
-      throw StateError(
-        'Başvuru geri çekilirken sunucu hatası oluştu.',
-      );
+      throw StateError('Etkinlik güncellenirken sunucu hatası oluştu.');
     }
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-  watchApplications(
-      String eventId,
-      ) {
+  Future<void> applyToEvent({required String eventId, String note = ''}) async {
+    try {
+      final HttpsCallable callable = _functions.httpsCallable('applyToEvent');
+
+      await callable.call(<String, dynamic>{
+        'eventId': eventId,
+        'note': note.trim(),
+      });
+    } on FirebaseFunctionsException catch (error) {
+      final String message = error.message?.trim() ?? '';
+
+      if (message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('Etkinlik başvurusu yapılırken sunucu hatası oluştu.');
+    }
+  }
+
+  Future<void> leaveEvent({required String eventId}) async {
+    try {
+      final HttpsCallable callable = _functions.httpsCallable('leaveEvent');
+
+      await callable.call(<String, dynamic>{'eventId': eventId});
+    } on FirebaseFunctionsException catch (error) {
+      final String message = error.message?.trim() ?? '';
+
+      if (message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('Etkinlikten ayrılırken sunucu hatası oluştu.');
+    }
+  }
+
+  Future<void> withdrawApplication({required String eventId}) async {
+    try {
+      final HttpsCallable callable = _functions.httpsCallable(
+        'withdrawApplication',
+      );
+
+      await callable.call(<String, dynamic>{'eventId': eventId});
+    } on FirebaseFunctionsException catch (error) {
+      final String message = error.message?.trim() ?? '';
+
+      if (message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('Başvuru geri çekilirken sunucu hatası oluştu.');
+    }
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchApplications(
+    String eventId,
+  ) {
     return _events
         .doc(eventId)
         .collection('applications')
@@ -772,34 +454,22 @@ class EventService {
     required String playerId,
   }) async {
     try {
-      final HttpsCallable callable =
-      _functions.httpsCallable('acceptApplication');
+      final HttpsCallable callable = _functions.httpsCallable(
+        'acceptApplication',
+      );
 
-      await callable.call(
-        <String, dynamic>{
-          'eventId': eventId,
-          'playerId': playerId,
-        },
-      );
-      await _createNotification(
-        userId: playerId,
-        type: 'applicationAccepted',
-        title: 'Başvurun Kabul Edildi',
-        message: 'Etkinlik başvurun kabul edildi.',
-        eventId: eventId,
-        actorId: currentUserId,
-      );
+      await callable.call(<String, dynamic>{
+        'eventId': eventId,
+        'playerId': playerId,
+      });
     } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
+      final String message = error.message?.trim() ?? '';
 
       if (message.isNotEmpty) {
         throw StateError(message);
       }
 
-      throw StateError(
-        'Başvuru kabul edilirken sunucu hatası oluştu.',
-      );
+      throw StateError('Başvuru kabul edilirken sunucu hatası oluştu.');
     }
   }
 
@@ -809,66 +479,49 @@ class EventService {
     String reason = '',
   }) async {
     try {
-      final HttpsCallable callable =
-      _functions.httpsCallable('rejectApplication');
+      final HttpsCallable callable = _functions.httpsCallable(
+        'rejectApplication',
+      );
 
-      await callable.call(
-        <String, dynamic>{
-          'eventId': eventId,
-          'playerId': playerId,
-          'reason': reason,
-        },
-      );
-      await _createNotification(
-        userId: playerId,
-        type: 'applicationRejected',
-        title: 'Başvurun Reddedildi',
-        message: reason.isEmpty
-            ? 'Etkinlik başvurun reddedildi.'
-            : reason,
-        eventId: eventId,
-        actorId: currentUserId,
-      );
+      await callable.call(<String, dynamic>{
+        'eventId': eventId,
+        'playerId': playerId,
+        'reason': reason,
+      });
     } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
+      final String message = error.message?.trim() ?? '';
 
       if (message.isNotEmpty) {
         throw StateError(message);
       }
 
-      throw StateError(
-        'Başvuru reddedilirken sunucu hatası oluştu.',
-      );
+      throw StateError('Başvuru reddedilirken sunucu hatası oluştu.');
     }
   }
+
   Future<void> removeSelectedPlayer({
     required String eventId,
     required String playerId,
     String reason = '',
   }) async {
     try {
-      final HttpsCallable callable =
-      _functions.httpsCallable('removeSelectedPlayer');
-
-      await callable.call(
-        <String, dynamic>{
-          'eventId': eventId,
-          'playerId': playerId,
-          'reason': reason,
-        },
+      final HttpsCallable callable = _functions.httpsCallable(
+        'removeSelectedPlayer',
       );
+
+      await callable.call(<String, dynamic>{
+        'eventId': eventId,
+        'playerId': playerId,
+        'reason': reason,
+      });
     } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
+      final String message = error.message?.trim() ?? '';
 
       if (message.isNotEmpty) {
         throw StateError(message);
       }
 
-      throw StateError(
-        'Oyuncu kaldırılırken sunucu hatası oluştu.',
-      );
+      throw StateError('Oyuncu kaldırılırken sunucu hatası oluştu.');
     }
   }
 
@@ -877,185 +530,87 @@ class EventService {
     required String reason,
   }) async {
     try {
-      final HttpsCallable callable =
-      _functions.httpsCallable('cancelUnpaidEvent');
-
-      await callable.call(
-        <String, dynamic>{
-          'eventId': eventId,
-          'reason': reason,
-        },
+      final HttpsCallable callable = _functions.httpsCallable(
+        'cancelUnpaidEvent',
       );
-      final DocumentSnapshot<Map<String, dynamic>> eventSnapshot =
-      await _events.doc(eventId).get();
 
-      final Map<String, dynamic> eventData =
-          eventSnapshot.data() ?? <String, dynamic>{};
-
-      final List<String> participantIds = <String>{
-        ...List<String>.from(
-          eventData['selectedPlayerIds'] ?? const <String>[],
-        ),
-        ...List<String>.from(
-          eventData['katilanlar'] ?? const <String>[],
-        ),
-      }.where((String uid) {
-        return uid.trim().isNotEmpty && uid != currentUserId;
-      }).toList();
-
-      for (final String userId in participantIds) {
-        await _createNotification(
-          userId: userId,
-          type: 'eventCancelled',
-          title: 'Etkinlik İptal Edildi',
-          message: reason.trim().isEmpty
-              ? 'Katılacağın etkinlik iptal edildi.'
-              : 'Katılacağın etkinlik iptal edildi. $reason',
-          eventId: eventId,
-          actorId: currentUserId,
-        );
-      }
-    } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
-
-      if (message.isNotEmpty) {
-        throw StateError(message);
-      }
-
-      throw StateError(
-        'Etkinlik iptal edilirken sunucu hatası oluştu.',
-      );
-    }
-  }
-
-  Future<void> markEventCompleted({
-    required String eventId,
-  }) async {
-    try {
-      final HttpsCallable callable =
-      _functions.httpsCallable('markEventCompleted');
-
-      await callable.call(
-        <String, dynamic>{
-          'eventId': eventId,
-        },
-      );
-      final DocumentSnapshot<Map<String, dynamic>> eventSnapshot =
-      await _events.doc(eventId).get();
-
-      final Map<String, dynamic> eventData =
-          eventSnapshot.data() ?? <String, dynamic>{};
-
-      final List<String> participantIds = <String>{
-        ...List<String>.from(
-          eventData['selectedPlayerIds'] ?? const <String>[],
-        ),
-        ...List<String>.from(
-          eventData['katilanlar'] ?? const <String>[],
-        ),
-      }.where((String uid) {
-        return uid.trim().isNotEmpty && uid != currentUserId;
-      }).toList();
-
-      for (final String userId in participantIds) {
-        await _createNotification(
-          userId: userId,
-          type: 'system',
-          title: 'Etkinlik Tamamlandı',
-          message: 'Katıldığın etkinlik tamamlandı. Değerlendirme yapabilirsin.',
-          eventId: eventId,
-          actorId: currentUserId,
-        );
-      }
-    } on FirebaseFunctionsException catch (error) {
-      final String message =
-          error.message?.trim() ?? '';
-
-      if (message.isNotEmpty) {
-        throw StateError(message);
-      }
-
-      throw StateError(
-        'Etkinlik tamamlanırken sunucu hatası oluştu.',
-      );
-    }
-  }
-
-  Future<String> _getEventCreatorId(
-      String eventId,
-      ) async {
-    final snapshot = await _events.doc(eventId).get();
-
-    return snapshot.data()?['olusturanUid']
-        ?.toString() ??
-        '';
-  }
-
-  Future<void> _createNotification({
-    required String userId,
-    required String type,
-    required String title,
-    required String message,
-    required String eventId,
-    required String actorId,
-  }) async {
-    if (userId.trim().isEmpty) {
-      return;
-    }
-
-    final reference = _users
-        .doc(userId)
-        .collection('notifications')
-        .doc();
-
-    await reference.set(
-      <String, dynamic>{
-        'notificationId': reference.id,
-        'userId': userId,
-        'type': type,
-        'title': title,
-        'message': message,
+      await callable.call(<String, dynamic>{
         'eventId': eventId,
-        'actorId': actorId,
-        'isRead': false,
-        'read': false,
-        'okundu': false,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-    );
-  }
-  bool _isActiveStatus(String value) {
-    final normalized = value.trim().toLowerCase();
-    return normalized == 'aktif' || normalized == 'active';
-  }
+        'reason': reason,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      final String message = error.message?.trim() ?? '';
 
-  bool _isPaymentPendingStatus(String value) {
-    final normalized = value.trim().toLowerCase();
-    return normalized == 'odeme_bekliyor' ||
-        normalized == 'paymentpending' ||
-        normalized == 'payment_pending';
-  }
-
-  String _eventGameIdOrName(
-      Map<String, dynamic> eventData,
-      ) {
-    const keys = <String>[
-      'gameId',
-      'gameName',
-      'oyun',
-      'game',
-    ];
-
-    for (final key in keys) {
-      final value = eventData[key]?.toString().trim() ?? '';
-      if (value.isNotEmpty) {
-        return value;
+      if (message.isNotEmpty) {
+        throw StateError(message);
       }
+
+      throw StateError('Etkinlik iptal edilirken sunucu hatası oluştu.');
+    }
+  }
+
+  Future<Map<String, dynamic>> requestMaskedEventCall({
+    required String eventId,
+    required String targetUid,
+  }) async {
+    final String normalizedEventId = eventId.trim();
+    final String normalizedTargetUid = targetUid.trim();
+
+    if (normalizedEventId.isEmpty) {
+      throw ArgumentError('Etkinlik kimliği gereklidir.');
     }
 
-    return '';
+    if (normalizedTargetUid.isEmpty) {
+      throw ArgumentError('Aranacak kullanıcı kimliği gereklidir.');
+    }
+
+    if (normalizedTargetUid == currentUserId) {
+      throw StateError('Kullanıcı kendisini arayamaz.');
+    }
+
+    try {
+      final HttpsCallable callable = _functions.httpsCallable(
+        'requestMaskedEventCall',
+      );
+
+      final HttpsCallableResult<dynamic> result = await callable.call(
+        <String, dynamic>{
+          'eventId': normalizedEventId,
+          'targetUid': normalizedTargetUid,
+        },
+      );
+
+      if (result.data is! Map) {
+        throw StateError('Maskeli arama için geçersiz sunucu yanıtı alındı.');
+      }
+
+      return Map<String, dynamic>.from(result.data as Map);
+    } on FirebaseFunctionsException catch (error) {
+      final String message = error.message?.trim() ?? '';
+
+      if (message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('Maskeli arama başlatılamadı.');
+    }
   }
 
+  Future<void> markEventCompleted({required String eventId}) async {
+    try {
+      final HttpsCallable callable = _functions.httpsCallable(
+        'markEventCompleted',
+      );
+
+      await callable.call(<String, dynamic>{'eventId': eventId});
+    } on FirebaseFunctionsException catch (error) {
+      final String message = error.message?.trim() ?? '';
+
+      if (message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('Etkinlik tamamlanırken sunucu hatası oluştu.');
+    }
+  }
 }

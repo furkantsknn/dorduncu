@@ -13,7 +13,7 @@ import {firestore} from "../config/firebaseAdmin";
 export const refreshAccountStatus = onCall(
   {
     region: "europe-west1",
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     if (!request.auth) {

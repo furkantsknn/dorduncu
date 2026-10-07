@@ -1,6 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminMarketOrdersScreen extends StatefulWidget {
   const AdminMarketOrdersScreen({super.key});
 
@@ -201,11 +218,11 @@ class _AdminMarketOrdersScreenState
                     ),
                     _buildStatusFilter(
                       'completed',
-                      'Tamamlandı',
+                      _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen'),
                     ),
                     _buildStatusFilter(
                       'failed',
-                      'Başarısız',
+                      _locText(context, tr: 'Başarısız', en: 'Failed', de: 'Fehlgeschlagen'),
                     ),
                     _buildStatusFilter(
                       'refunded',
@@ -349,7 +366,7 @@ class _AdminMarketOrdersScreenState
         const SizedBox(width: 8),
         Expanded(
           child: _StatisticCard(
-            title: 'Tamamlandı',
+            title: _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen'),
             value: completedCount,
             icon:
             Icons.check_circle_outline,
@@ -367,7 +384,7 @@ class _AdminMarketOrdersScreenState
         const SizedBox(width: 8),
         Expanded(
           child: _StatisticCard(
-            title: 'Başarısız',
+            title: _locText(context, tr: 'Başarısız', en: 'Failed', de: 'Fehlgeschlagen'),
             value: failedCount,
             icon: Icons.error_outline,
           ),
@@ -493,7 +510,7 @@ class _OrderCard extends StatelessWidget {
                     children: <Widget>[
                       _InfoLabel(
                         text:
-                        _statusTitle(status),
+                        _statusTitle(context, status),
                         icon:
                         _statusIcon(status),
                       ),
@@ -560,16 +577,16 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  static String _statusTitle(String value) {
+  String _statusTitle(BuildContext context, String value) {
     switch (value) {
       case 'completed':
-        return 'Tamamlandı';
+        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
       case 'failed':
-        return 'Başarısız';
+        return _locText(context, tr: 'Başarısız', en: 'Failed', de: 'Fehlgeschlagen');
       case 'refunded':
         return 'İade edildi';
       case 'cancelled':
-        return 'İptal edildi';
+        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
       default:
         return 'Bekliyor';
     }
@@ -635,7 +652,7 @@ class _OrderCard extends StatelessWidget {
     return null;
   }
 
-  static String _formatDate(
+  String _formatDate(
       DateTime value,
       ) {
     final String day =

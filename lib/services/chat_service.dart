@@ -1,16 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import '../models/event_model.dart';
 
 class ChatService {
   ChatService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
-  })  : _firestore =
-      firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    FirebaseFunctions? functions,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final FirebaseFunctions _functions;
 
   static const String eventsCollection = 'events';
   static const String messagesCollection = 'messages';
@@ -29,9 +35,7 @@ class ChatService {
     return user;
   }
 
-  DocumentReference<Map<String, dynamic>> eventReference(
-      String eventId,
-      ) {
+  DocumentReference<Map<String, dynamic>> eventReference(String eventId) {
     final String normalizedEventId = eventId.trim();
 
     if (normalizedEventId.isEmpty) {
@@ -41,67 +45,45 @@ class ChatService {
       );
     }
 
-    return _firestore
-        .collection(eventsCollection)
-        .doc(normalizedEventId);
+    return _firestore.collection(eventsCollection).doc(normalizedEventId);
   }
 
-  CollectionReference<Map<String, dynamic>> messagesReference(
-      String eventId,
-      ) {
-    return eventReference(eventId)
-        .collection(messagesCollection);
+  CollectionReference<Map<String, dynamic>> messagesReference(String eventId) {
+    return eventReference(eventId).collection(messagesCollection);
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMessageDocuments(
-      String eventId, {
-        int limit = 100,
-      }) {
+    String eventId, {
+    int limit = 100,
+  }) {
     final int safeLimit = limit.clamp(1, 200);
 
-    return messagesReference(eventId)
-        .orderBy(
-      'createdAt',
-      descending: true,
-    )
-        .limit(safeLimit)
-        .snapshots();
+    return messagesReference(
+      eventId,
+    ).orderBy('createdAt', descending: true).limit(safeLimit).snapshots();
   }
 
-  Stream<List<ChatMessage>> watchMessages(
-      String eventId, {
-        int limit = 100,
-      }) {
-    return watchMessageDocuments(
-      eventId,
-      limit: limit,
-    ).map(
-          (
-          QuerySnapshot<Map<String, dynamic>>
-          snapshot,
-          ) {
-        return snapshot.docs
-            .map(ChatMessage.fromDocument)
-            .toList(growable: false);
-      },
-    );
+  Stream<List<ChatMessage>> watchMessages(String eventId, {int limit = 100}) {
+    return watchMessageDocuments(eventId, limit: limit).map((
+      QuerySnapshot<Map<String, dynamic>> snapshot,
+    ) {
+      return snapshot.docs
+          .map(ChatMessage.fromDocument)
+          .toList(growable: false);
+    });
   }
 
   Future<List<ChatMessage>> getMessages(
-      String eventId, {
-        int limit = 100,
-      }) async {
+    String eventId, {
+    int limit = 100,
+  }) async {
     final int safeLimit = limit.clamp(1, 200);
 
     try {
-      final QuerySnapshot<Map<String, dynamic>>
-      snapshot = await messagesReference(eventId)
-          .orderBy(
-        'createdAt',
-        descending: true,
-      )
-          .limit(safeLimit)
-          .get();
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await messagesReference(
+            eventId,
+          ).orderBy('createdAt', descending: true).limit(safeLimit).get();
 
       return snapshot.docs
           .map(ChatMessage.fromDocument)
@@ -109,122 +91,87 @@ class ChatService {
     } on FirebaseException catch (error) {
       throw ChatServiceException.fromFirebase(
         error,
-        fallback:
-        'Mesajlar yüklenemedi.',
+        fallback: 'Mesajlar yüklenemedi.',
       );
     }
   }
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchEventChat(
-      String eventId,
-      ) {
+    String eventId,
+  ) {
     return eventReference(eventId).snapshots();
   }
 
-  Stream<List<String>> watchTypingUserIds(
-      String eventId,
-      ) {
-    final String currentUserId =
-        _auth.currentUser?.uid ?? '';
+  Stream<List<String>> watchTypingUserIds(String eventId) {
+    final String currentUserId = _auth.currentUser?.uid ?? '';
 
-    return watchEventChat(eventId).map(
-          (
-          DocumentSnapshot<Map<String, dynamic>>
-          snapshot,
-          ) {
-        final Map<String, dynamic> data =
-            snapshot.data() ??
-                <String, dynamic>{};
+    return watchEventChat(eventId).map((
+      DocumentSnapshot<Map<String, dynamic>> snapshot,
+    ) {
+      final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
 
-        final Map<String, dynamic> typingUsers =
-        _mapValue(
-          data['typingUsers'],
-        );
+      final Map<String, dynamic> typingUsers = _mapValue(data['typingUsers']);
 
-        final Timestamp nowTimestamp =
-        Timestamp.now();
+      final Timestamp nowTimestamp = Timestamp.now();
 
-        final List<String> activeUserIds =
-        <String>[];
+      final List<String> activeUserIds = <String>[];
 
-        for (final MapEntry<String, dynamic> entry
-        in typingUsers.entries) {
-          if (entry.key == currentUserId) {
-            continue;
-          }
-
-          final DateTime? updatedAt =
-          _dateValue(entry.value);
-
-          if (updatedAt == null) {
-            continue;
-          }
-
-          final Duration difference =
-          nowTimestamp.toDate().difference(
-            updatedAt,
-          );
-
-          if (difference.inSeconds <= 8) {
-            activeUserIds.add(entry.key);
-          }
+      for (final MapEntry<String, dynamic> entry in typingUsers.entries) {
+        if (entry.key == currentUserId) {
+          continue;
         }
 
-        return activeUserIds;
-      },
-    );
+        final DateTime? updatedAt = _dateValue(entry.value);
+
+        if (updatedAt == null) {
+          continue;
+        }
+
+        final Duration difference = nowTimestamp.toDate().difference(updatedAt);
+
+        if (difference.inSeconds <= 8) {
+          activeUserIds.add(entry.key);
+        }
+      }
+
+      return activeUserIds;
+    });
   }
 
   Future<ChatSenderProfile> getCurrentSenderProfile() async {
     final User user = _requiredUser;
 
     try {
-      final DocumentSnapshot<Map<String, dynamic>>
-      snapshot = await _firestore
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
           .collection(usersCollection)
           .doc(user.uid)
           .get();
 
-      final Map<String, dynamic> data =
-          snapshot.data() ??
-              <String, dynamic>{};
+      final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
 
-      final String displayName = _firstText(
-        data,
-        <String>[
-          'displayName',
-          'profilAdi',
-          'name',
-          'adSoyad',
-        ],
-        fallback:
-        user.displayName?.trim() ?? '',
-      );
+      final String displayName = _firstText(data, <String>[
+        'displayName',
+        'profilAdi',
+        'name',
+        'adSoyad',
+      ], fallback: user.displayName?.trim() ?? '');
 
-      final String photoUrl = _firstText(
-        data,
-        <String>[
-          'photoUrl',
-          'profilFotografi',
-          'profilePhotoUrl',
-          'avatarUrl',
-        ],
-        fallback:
-        user.photoURL?.trim() ?? '',
-      );
+      final String photoUrl = _firstText(data, <String>[
+        'photoUrl',
+        'profilFotografi',
+        'profilePhotoUrl',
+        'avatarUrl',
+      ], fallback: user.photoURL?.trim() ?? '');
 
       return ChatSenderProfile(
         uid: user.uid,
-        displayName: displayName.isEmpty
-            ? 'Üye'
-            : displayName,
+        displayName: displayName.isEmpty ? 'Üye' : displayName,
         photoUrl: photoUrl,
       );
     } on FirebaseException catch (error) {
       throw ChatServiceException.fromFirebase(
         error,
-        fallback:
-        'Kullanıcı bilgileri alınamadı.',
+        fallback: 'Kullanıcı bilgileri alınamadı.',
       );
     }
   }
@@ -233,8 +180,17 @@ class ChatService {
     required String eventId,
     required String text,
   }) async {
-    final User user = _requiredUser;
+    _requiredUser;
+
+    final String normalizedEventId = eventId.trim();
     final String normalizedText = text.trim();
+
+    if (normalizedEventId.isEmpty) {
+      throw const ChatServiceException(
+        'Etkinlik kimliği boş olamaz.',
+        code: 'invalid-event-id',
+      );
+    }
 
     if (normalizedText.isEmpty) {
       throw const ChatServiceException(
@@ -250,98 +206,39 @@ class ChatService {
       );
     }
 
-    final ChatSenderProfile sender =
-    await getCurrentSenderProfile();
-
-    final DocumentReference<Map<String, dynamic>>
-    eventRef = eventReference(eventId);
-
-    final DocumentReference<Map<String, dynamic>>
-    messageRef =
-    messagesReference(eventId).doc();
-
     try {
-      await _firestore.runTransaction(
-            (Transaction transaction) async {
-          final DocumentSnapshot<Map<String, dynamic>>
-          eventSnapshot =
-          await transaction.get(eventRef);
+      final HttpsCallableResult<dynamic> result = await _functions
+          .httpsCallable('sendEventMessage')
+          .call<dynamic>(<String, dynamic>{
+            'eventId': normalizedEventId,
+            'text': normalizedText,
+          });
 
-          if (!eventSnapshot.exists) {
-            throw const ChatServiceException(
-              'Etkinlik bulunamadı.',
-              code: 'event-not-found',
-            );
-          }
+      final dynamic rawData = result.data;
 
-          final Map<String, dynamic> eventData =
-              eventSnapshot.data() ??
-                  <String, dynamic>{};
+      if (rawData is! Map) {
+        throw const ChatServiceException(
+          'Mesaj gönderimi tamamlanamadı.',
+          code: 'invalid-server-response',
+        );
+      }
 
-          if (!_canUseChat(
-            eventData,
-            user.uid,
-          )) {
-            throw const ChatServiceException(
-              'Bu etkinliğin sohbetine erişim iznin yok.',
-              code: 'chat-access-denied',
-            );
-          }
+      final String messageId = rawData['messageId']?.toString().trim() ?? '';
 
-          transaction.set(
-            messageRef,
-            <String, dynamic>{
-              'messageId': messageRef.id,
-              'eventId': eventId.trim(),
-              'type': ChatMessageType.text.name,
-              'text': normalizedText,
-              'senderUid': sender.uid,
-              'senderName': sender.displayName,
-              'senderPhotoUrl': sender.photoUrl,
-              'createdAt':
-              FieldValue.serverTimestamp(),
-              'updatedAt': null,
-              'edited': false,
-              'deleted': false,
-              'readBy': <String>[sender.uid],
-            },
-          );
+      if (messageId.isEmpty) {
+        throw const ChatServiceException(
+          'Mesaj gönderimi tamamlanamadı.',
+          code: 'invalid-server-response',
+        );
+      }
 
-          transaction.update(
-            eventRef,
-            <String, dynamic>{
-              'lastMessage': normalizedText,
-              'lastMessageType':
-              ChatMessageType.text.name,
-              'lastMessageAt':
-              FieldValue.serverTimestamp(),
-              'lastMessageSenderUid':
-              sender.uid,
-              'lastMessageSenderName':
-              sender.displayName,
-              'lastMessageSenderPhotoUrl':
-              sender.photoUrl,
-              'lastMessageReadBy':
-              <String>[sender.uid],
-              'chatMemberUids':
-              FieldValue.arrayUnion(
-                <String>[sender.uid],
-              ),
-              'typingUsers.${sender.uid}':
-              FieldValue.delete(),
-            },
-          );
-        },
-      );
-
-      return messageRef.id;
+      return messageId;
     } on ChatServiceException {
       rethrow;
-    } on FirebaseException catch (error) {
-      throw ChatServiceException.fromFirebase(
+    } on FirebaseFunctionsException catch (error) {
+      throw ChatServiceException.fromFunctions(
         error,
-        fallback:
-        'Mesaj gönderilemedi.',
+        fallback: 'Mesaj gönderilemedi.',
       );
     }
   }
@@ -351,11 +248,18 @@ class ChatService {
     required String messageId,
     required String newText,
   }) async {
-    final User user = _requiredUser;
-    final String normalizedMessageId =
-    messageId.trim();
-    final String normalizedText =
-    newText.trim();
+    _requiredUser;
+
+    final String normalizedEventId = eventId.trim();
+    final String normalizedMessageId = messageId.trim();
+    final String normalizedText = newText.trim();
+
+    if (normalizedEventId.isEmpty) {
+      throw const ChatServiceException(
+        'Etkinlik kimliği boş olamaz.',
+        code: 'invalid-event-id',
+      );
+    }
 
     if (normalizedMessageId.isEmpty) {
       throw const ChatServiceException(
@@ -378,104 +282,18 @@ class ChatService {
       );
     }
 
-    final DocumentReference<Map<String, dynamic>>
-    eventRef = eventReference(eventId);
-
-    final DocumentReference<Map<String, dynamic>>
-    messageRef = messagesReference(eventId)
-        .doc(normalizedMessageId);
-
     try {
-      await _firestore.runTransaction(
-            (Transaction transaction) async {
-          final DocumentSnapshot<Map<String, dynamic>>
-          messageSnapshot =
-          await transaction.get(messageRef);
-
-          if (!messageSnapshot.exists) {
-            throw const ChatServiceException(
-              'Mesaj bulunamadı.',
-              code: 'message-not-found',
-            );
-          }
-
-          final Map<String, dynamic> data =
-              messageSnapshot.data() ??
-                  <String, dynamic>{};
-
-          final String senderUid =
-          _textValue(data['senderUid']);
-
-          if (senderUid != user.uid) {
-            throw const ChatServiceException(
-              'Yalnızca kendi mesajını düzenleyebilirsin.',
-              code: 'edit-not-allowed',
-            );
-          }
-
-          if (data['deleted'] == true) {
-            throw const ChatServiceException(
-              'Silinmiş mesaj düzenlenemez.',
-              code: 'message-deleted',
-            );
-          }
-
-          transaction.update(
-            messageRef,
-            <String, dynamic>{
-              'text': normalizedText,
-              'updatedAt':
-              FieldValue.serverTimestamp(),
-              'edited': true,
-            },
-          );
-
-          final DocumentSnapshot<Map<String, dynamic>>
-          eventSnapshot =
-          await transaction.get(eventRef);
-
-          final Map<String, dynamic> eventData =
-              eventSnapshot.data() ??
-                  <String, dynamic>{};
-
-          final String lastMessageId =
-          _textValue(
-            eventData['lastMessageId'],
-          );
-
-          final bool isLastMessage =
-              lastMessageId ==
-                  normalizedMessageId ||
-                  _textValue(
-                    eventData[
-                    'lastMessageSenderUid'],
-                  ) ==
-                      user.uid &&
-                      _textValue(
-                        eventData['lastMessage'],
-                      ) ==
-                          _textValue(data['text']);
-
-          if (isLastMessage) {
-            transaction.update(
-              eventRef,
-              <String, dynamic>{
-                'lastMessage':
-                normalizedText,
-                'lastMessageId':
-                normalizedMessageId,
-              },
-            );
-          }
-        },
-      );
-    } on ChatServiceException {
-      rethrow;
-    } on FirebaseException catch (error) {
-      throw ChatServiceException.fromFirebase(
+      await _functions
+          .httpsCallable('editEventMessage')
+          .call<void>(<String, dynamic>{
+            'eventId': normalizedEventId,
+            'messageId': normalizedMessageId,
+            'text': normalizedText,
+          });
+    } on FirebaseFunctionsException catch (error) {
+      throw ChatServiceException.fromFunctions(
         error,
-        fallback:
-        'Mesaj düzenlenemedi.',
+        fallback: 'Mesaj düzenlenemedi.',
       );
     }
   }
@@ -484,9 +302,17 @@ class ChatService {
     required String eventId,
     required String messageId,
   }) async {
-    final User user = _requiredUser;
-    final String normalizedMessageId =
-    messageId.trim();
+    _requiredUser;
+
+    final String normalizedEventId = eventId.trim();
+    final String normalizedMessageId = messageId.trim();
+
+    if (normalizedEventId.isEmpty) {
+      throw const ChatServiceException(
+        'Etkinlik kimliği boş olamaz.',
+        code: 'invalid-event-id',
+      );
+    }
 
     if (normalizedMessageId.isEmpty) {
       throw const ChatServiceException(
@@ -495,180 +321,94 @@ class ChatService {
       );
     }
 
-    final DocumentReference<Map<String, dynamic>>
-    messageRef = messagesReference(eventId)
-        .doc(normalizedMessageId);
-
     try {
-      final DocumentSnapshot<Map<String, dynamic>>
-      snapshot = await messageRef.get();
-
-      if (!snapshot.exists) {
-        throw const ChatServiceException(
-          'Mesaj bulunamadı.',
-          code: 'message-not-found',
-        );
-      }
-
-      final Map<String, dynamic> data =
-          snapshot.data() ??
-              <String, dynamic>{};
-
-      if (_textValue(data['senderUid']) !=
-          user.uid) {
-        throw const ChatServiceException(
-          'Yalnızca kendi mesajını silebilirsin.',
-          code: 'delete-not-allowed',
-        );
-      }
-
-      await messageRef.update(
+      await _functions.httpsCallable('deleteEventMessage').call<void>(
         <String, dynamic>{
-          'text': '',
-          'deleted': true,
-          'deletedAt':
-          FieldValue.serverTimestamp(),
-          'updatedAt':
-          FieldValue.serverTimestamp(),
+          'eventId': normalizedEventId,
+          'messageId': normalizedMessageId,
         },
       );
-
-      await _refreshLastMessage(
-        eventId,
-        deletedMessageId:
-        normalizedMessageId,
-      );
-    } on ChatServiceException {
-      rethrow;
-    } on FirebaseException catch (error) {
-      throw ChatServiceException.fromFirebase(
+    } on FirebaseFunctionsException catch (error) {
+      throw ChatServiceException.fromFunctions(
         error,
-        fallback:
-        'Mesaj silinemedi.',
+        fallback: 'Mesaj silinemedi.',
       );
     }
   }
 
   Future<void> markMessagesAsRead({
     required String eventId,
-    List<
-        QueryDocumentSnapshot<
-            Map<String, dynamic>>>?
-    documents,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>? documents,
   }) async {
     final User user = _requiredUser;
 
     try {
-      final List<
-          QueryDocumentSnapshot<
-              Map<String, dynamic>>>
-      messageDocuments;
+      final List<QueryDocumentSnapshot<Map<String, dynamic>>> messageDocuments;
 
       if (documents != null) {
         messageDocuments = documents;
       } else {
-        final QuerySnapshot<Map<String, dynamic>>
-        snapshot =
-        await messagesReference(eventId)
-            .where(
-          'senderUid',
-          isNotEqualTo: user.uid,
-        )
-            .limit(100)
-            .get();
+        final QuerySnapshot<Map<String, dynamic>> snapshot =
+            await messagesReference(
+              eventId,
+            ).where('senderUid', isNotEqualTo: user.uid).limit(100).get();
 
         messageDocuments = snapshot.docs;
       }
 
-      final List<
-          QueryDocumentSnapshot<
-              Map<String, dynamic>>>
-      unreadDocuments =
-      messageDocuments.where(
-            (
-            QueryDocumentSnapshot<
-                Map<String, dynamic>>
-            document,
-            ) {
-          final Map<String, dynamic> data =
-          document.data();
+      final List<QueryDocumentSnapshot<Map<String, dynamic>>> unreadDocuments =
+          messageDocuments
+              .where((QueryDocumentSnapshot<Map<String, dynamic>> document) {
+                final Map<String, dynamic> data = document.data();
 
-          final String senderUid =
-          _textValue(data['senderUid']);
+                final String senderUid = _textValue(data['senderUid']);
 
-          final List<String> readBy =
-          _stringList(data['readBy']);
+                final List<String> readBy = _stringList(data['readBy']);
 
-          return senderUid.isNotEmpty &&
-              senderUid != user.uid &&
-              !readBy.contains(user.uid);
-        },
-      ).toList(growable: false);
+                return senderUid.isNotEmpty &&
+                    senderUid != user.uid &&
+                    !readBy.contains(user.uid);
+              })
+              .toList(growable: false);
 
-      final DocumentReference<Map<String, dynamic>>
-      eventRef = eventReference(eventId);
+      final DocumentReference<Map<String, dynamic>> eventRef = eventReference(
+        eventId,
+      );
 
       if (unreadDocuments.isEmpty) {
-        await eventRef.update(
-          <String, dynamic>{
-            'lastMessageReadBy':
-            FieldValue.arrayUnion(
-              <String>[user.uid],
-            ),
-          },
-        );
+        await eventRef.update(<String, dynamic>{
+          'lastMessageReadBy': FieldValue.arrayUnion(<String>[user.uid]),
+        });
 
         return;
       }
 
       const int batchLimit = 450;
 
-      for (int start = 0;
-      start < unreadDocuments.length;
-      start += batchLimit) {
-        final int end =
-        (start + batchLimit) >
-            unreadDocuments.length
+      for (int start = 0; start < unreadDocuments.length; start += batchLimit) {
+        final int end = (start + batchLimit) > unreadDocuments.length
             ? unreadDocuments.length
             : start + batchLimit;
 
-        final WriteBatch batch =
-        _firestore.batch();
+        final WriteBatch batch = _firestore.batch();
 
-        for (final QueryDocumentSnapshot<
-            Map<String, dynamic>>
-        document
-        in unreadDocuments.sublist(
-          start,
-          end,
-        )) {
-          batch.update(
-            document.reference,
-            <String, dynamic>{
-              'readBy': FieldValue.arrayUnion(
-                <String>[user.uid],
-              ),
-            },
-          );
+        for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+            in unreadDocuments.sublist(start, end)) {
+          batch.update(document.reference, <String, dynamic>{
+            'readBy': FieldValue.arrayUnion(<String>[user.uid]),
+          });
         }
 
-        batch.update(
-          eventRef,
-          <String, dynamic>{
-            'lastMessageReadBy':
-            FieldValue.arrayUnion(
-              <String>[user.uid],
-            ),
-          },
-        );
+        batch.update(eventRef, <String, dynamic>{
+          'lastMessageReadBy': FieldValue.arrayUnion(<String>[user.uid]),
+        });
 
         await batch.commit();
       }
     } on FirebaseException catch (error) {
       throw ChatServiceException.fromFirebase(
         error,
-        fallback:
-        'Okundu bilgisi güncellenemedi.',
+        fallback: 'Okundu bilgisi güncellenemedi.',
       );
     }
   }
@@ -678,39 +418,31 @@ class ChatService {
     required bool isTyping,
   }) async {
     final User user = _requiredUser;
-    final DocumentReference<Map<String, dynamic>>
-    eventRef = eventReference(eventId);
+    final DocumentReference<Map<String, dynamic>> eventRef = eventReference(
+      eventId,
+    );
 
     try {
       if (isTyping) {
-        await eventRef.update(
-          <String, dynamic>{
-            'typingUsers.${user.uid}':
-            FieldValue.serverTimestamp(),
-          },
-        );
+        await eventRef.update(<String, dynamic>{
+          'typingUsers.${user.uid}': FieldValue.serverTimestamp(),
+        });
       } else {
-        await eventRef.update(
-          <String, dynamic>{
-            'typingUsers.${user.uid}':
-            FieldValue.delete(),
-          },
-        );
+        await eventRef.update(<String, dynamic>{
+          'typingUsers.${user.uid}': FieldValue.delete(),
+        });
       }
     } on FirebaseException catch (error) {
       if (error.code == 'permission-denied') {
         throw ChatServiceException.fromFirebase(
           error,
-          fallback:
-          'Yazıyor bilgisi güncellenemedi.',
+          fallback: 'Yazıyor bilgisi güncellenemedi.',
         );
       }
     }
   }
 
-  Future<void> clearTyping({
-    required String eventId,
-  }) async {
+  Future<void> clearTyping({required String eventId}) async {
     final User? user = _auth.currentUser;
 
     if (user == null) {
@@ -718,20 +450,15 @@ class ChatService {
     }
 
     try {
-      await eventReference(eventId).update(
-        <String, dynamic>{
-          'typingUsers.${user.uid}':
-          FieldValue.delete(),
-        },
-      );
+      await eventReference(eventId).update(<String, dynamic>{
+        'typingUsers.${user.uid}': FieldValue.delete(),
+      });
     } catch (_) {
       // Yazıyor bilgisinin temizlenememesi sohbeti durdurmaz.
     }
   }
 
-  Future<bool> canCurrentUserAccessChat(
-      String eventId,
-      ) async {
+  Future<bool> canCurrentUserAccessChat(String eventId) async {
     final User? user = _auth.currentUser;
 
     if (user == null) {
@@ -739,173 +466,191 @@ class ChatService {
     }
 
     try {
-      final DocumentSnapshot<Map<String, dynamic>>
-      snapshot =
-      await eventReference(eventId).get();
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await eventReference(eventId).get();
 
       if (!snapshot.exists) {
         return false;
       }
 
-      return _canUseChat(
-        snapshot.data() ??
-            <String, dynamic>{},
-        user.uid,
-      );
-    } catch (_) {
-      return false;
-    }
-  }
+      final Map<String, dynamic> eventData =
+          snapshot.data() ?? <String, dynamic>{};
+      Map<String, dynamic>? application;
+      var applicationResolved = false;
 
-  Future<void> ensureCurrentUserIsChatMember(
-      String eventId,
-      ) async {
-    final User user = _requiredUser;
+      if (requiresCanonicalApplication(eventData, user.uid)) {
+        final DocumentSnapshot<Map<String, dynamic>> applicationSnapshot =
+            await eventReference(
+              eventId,
+            ).collection('applications').doc(user.uid).get();
+        application = applicationSnapshot.data();
+        applicationResolved = true;
+      }
 
-    try {
-      await eventReference(eventId).update(
-        <String, dynamic>{
-          'chatMemberUids':
-          FieldValue.arrayUnion(
-            <String>[user.uid],
-          ),
-        },
+      return messageReadAllowed(
+        event: eventData,
+        uid: user.uid,
+        application: application,
+        applicationResolved: applicationResolved,
       );
     } on FirebaseException catch (error) {
-      throw ChatServiceException.fromFirebase(
-        error,
-        fallback:
-        'Sohbet üyeliği güncellenemedi.',
-      );
-    }
-  }
-
-  Future<void> _refreshLastMessage(
-      String eventId, {
-        required String deletedMessageId,
-      }) async {
-    final DocumentReference<Map<String, dynamic>>
-    eventRef = eventReference(eventId);
-
-    final QuerySnapshot<Map<String, dynamic>>
-    snapshot = await messagesReference(eventId)
-        .orderBy(
-      'createdAt',
-      descending: true,
-    )
-        .limit(20)
-        .get();
-
-    ChatMessage? latestMessage;
-
-    for (final QueryDocumentSnapshot<
-        Map<String, dynamic>>
-    document in snapshot.docs) {
-      final ChatMessage message =
-      ChatMessage.fromDocument(document);
-
-      if (message.id != deletedMessageId &&
-          !message.deleted) {
-        latestMessage = message;
-        break;
+      if (error.code == 'permission-denied') {
+        return false;
       }
+
+      rethrow;
     }
-
-    if (latestMessage == null) {
-      await eventRef.update(
-        <String, dynamic>{
-          'lastMessage': '',
-          'lastMessageId':
-          FieldValue.delete(),
-          'lastMessageType':
-          FieldValue.delete(),
-          'lastMessageAt':
-          FieldValue.delete(),
-          'lastMessageSenderUid':
-          FieldValue.delete(),
-          'lastMessageSenderName':
-          FieldValue.delete(),
-          'lastMessageSenderPhotoUrl':
-          FieldValue.delete(),
-          'lastMessageReadBy':
-          <String>[],
-        },
-      );
-
-      return;
-    }
-
-    await eventRef.update(
-      <String, dynamic>{
-        'lastMessage':
-        latestMessage.previewText,
-        'lastMessageId':
-        latestMessage.id,
-        'lastMessageType':
-        latestMessage.type.name,
-        'lastMessageAt':
-        latestMessage.createdAt == null
-            ? FieldValue.serverTimestamp()
-            : Timestamp.fromDate(
-          latestMessage.createdAt!,
-        ),
-        'lastMessageSenderUid':
-        latestMessage.senderUid,
-        'lastMessageSenderName':
-        latestMessage.senderName,
-        'lastMessageSenderPhotoUrl':
-        latestMessage.senderPhotoUrl,
-        'lastMessageReadBy':
-        latestMessage.readBy,
-      },
-    );
   }
 
-  static bool _canUseChat(
-      Map<String, dynamic> eventData,
-      String userId,
-      ) {
-    final String creatorId = _firstText(
-      eventData,
-      <String>[
-        'creatorUid',
-        'olusturanUid',
-        'ownerUid',
-        'hostUid',
-      ],
-    );
+  /// Mirrors `isChatMember` in firestore.rules.
+  ///
+  /// Event payment must be one of the exact paid statuses. Lifecycle v2
+  /// players also need a selected slot and an unlocked, paid application.
+  /// Owners do not. Missing lifecycle version follows the legacy branch.
+  static bool messageReadAllowed({
+    required Map<String, dynamic> event,
+    required String uid,
+    Map<String, dynamic>? application,
+    bool applicationResolved = false,
+  }) {
+    if (EventModel.mapIsFreeAccess(event)) {
+      if (_isRulesEventOwner(event, uid)) {
+        return true;
+      }
 
-    final List<String> participantIds =
-    <String>{
-      ..._stringList(
-        eventData['participantUids'],
-      ),
-      ..._stringList(
-        eventData['katilanlar'],
-      ),
-      ..._stringList(
-        eventData['acceptedUserUids'],
-      ),
-      ..._stringList(
-        eventData['chatMemberUids'],
-      ),
-      ..._stringList(
-        eventData['memberUids'],
-      ),
-    }.toList();
+      return _isRulesSelectedPlayer(event, uid) &&
+          applicationResolved &&
+          _hasFreeMembershipAccess(application);
+    }
 
-    return creatorId == userId ||
-        participantIds.contains(userId);
+    if (!_hasRulesPaidEventPayment(event)) {
+      return false;
+    }
+
+    if (_isRulesEventOwner(event, uid)) {
+      return true;
+    }
+
+    if (_isRulesLifecycleV2(event)) {
+      return _isRulesSelectedPlayer(event, uid) &&
+          applicationResolved &&
+          _hasRulesCanonicalAddressAccess(application);
+    }
+
+    return _isRulesSelectedPlayer(event, uid) ||
+        _rulesListContains(event['chatMemberUids'], uid);
+  }
+
+  static bool requiresCanonicalApplication(
+    Map<String, dynamic> event,
+    String uid,
+  ) {
+    if (EventModel.mapIsFreeAccess(event)) {
+      return !_isRulesEventOwner(event, uid);
+    }
+
+    return _hasRulesPaidEventPayment(event) &&
+        !_isRulesEventOwner(event, uid) &&
+        _isRulesLifecycleV2(event);
+  }
+
+  static String applicationCacheKey(
+    String eventId,
+    Map<String, dynamic> event,
+  ) {
+    return '$eventId|${event['paymentStatus']}';
+  }
+
+  static bool _hasRulesPaidEventPayment(Map<String, dynamic> event) {
+    final Object? status = event['paymentStatus'];
+
+    return status == 'paid' ||
+        status == 'completed' ||
+        status == 'success' ||
+        status == 'succeeded' ||
+        status == 'escrowheld' ||
+        status == 'escrow_held';
+  }
+
+  static bool _isRulesEventOwner(Map<String, dynamic> event, String uid) {
+    return event['olusturanUid'] == uid;
+  }
+
+  static bool _isRulesLifecycleV2(Map<String, dynamic> event) {
+    final Object? version = event['lifecycleVersion'];
+    return version == 2;
+  }
+
+  static bool _isRulesSelectedPlayer(Map<String, dynamic> event, String uid) {
+    return _rulesListContains(event['selectedPlayerIds'], uid);
+  }
+
+  static bool _hasFreeMembershipAccess(Map<String, dynamic>? application) {
+    if (application == null) {
+      return false;
+    }
+
+    final String status =
+        application['status']?.toString().trim().toLowerCase() ?? '';
+    final String paymentStatus =
+        application['paymentStatus']?.toString().trim().toLowerCase() ?? '';
+    const Set<String> blocked = <String>{
+      'pending',
+      'rejected',
+      'withdrawn',
+      'removed',
+      'left',
+      'cancelled',
+      'refund_pending',
+      'refunded',
+    };
+
+    return application['addressAccessStatus'] == 'unlocked' &&
+        paymentStatus == 'not_required' &&
+        !blocked.contains(status);
+  }
+
+  static bool _hasRulesCanonicalAddressAccess(
+    Map<String, dynamic>? application,
+  ) {
+    if (application == null) {
+      return false;
+    }
+
+    final Object? paymentStatus = application['paymentStatus'];
+
+    return application['addressAccessStatus'] == 'unlocked' &&
+        (paymentStatus == 'paid' || paymentStatus == 'completed');
+  }
+
+  static bool _rulesListContains(Object? value, String uid) {
+    if (value is! List) {
+      return false;
+    }
+
+    return value.contains(uid);
+  }
+
+  Future<void> ensureCurrentUserIsChatMember(String eventId) async {
+    _requiredUser;
+
+    final bool canAccess = await canCurrentUserAccessChat(eventId);
+
+    if (!canAccess) {
+      throw const ChatServiceException(
+        'Bu etkinliğin sohbetine erişim iznin yok.',
+        code: 'chat-access-denied',
+      );
+    }
   }
 
   static String _firstText(
-      Map<String, dynamic> data,
-      List<String> keys, {
-        String fallback = '',
-      }) {
+    Map<String, dynamic> data,
+    List<String> keys, {
+    String fallback = '',
+  }) {
     for (final String key in keys) {
-      final String value =
-      _textValue(data[key]);
+      final String value = _textValue(data[key]);
 
       if (value.isNotEmpty) {
         return value;
@@ -915,15 +660,12 @@ class ChatService {
     return fallback.trim();
   }
 
-  static String _textValue(
-      Object? value,
-      ) {
+  static String _textValue(Object? value) {
     if (value == null) {
       return '';
     }
 
-    final String text =
-    value.toString().trim();
+    final String text = value.toString().trim();
 
     if (text.toLowerCase() == 'null') {
       return '';
@@ -932,49 +674,33 @@ class ChatService {
     return text;
   }
 
-  static List<String> _stringList(
-      Object? value,
-      ) {
+  static List<String> _stringList(Object? value) {
     if (value is! Iterable) {
       return <String>[];
     }
 
     return value
         .map(_textValue)
-        .where(
-          (String item) => item.isNotEmpty,
-    )
+        .where((String item) => item.isNotEmpty)
         .toSet()
         .toList(growable: false);
   }
 
-  static Map<String, dynamic> _mapValue(
-      Object? value,
-      ) {
+  static Map<String, dynamic> _mapValue(Object? value) {
     if (value is Map<String, dynamic>) {
       return value;
     }
 
     if (value is Map) {
-      return value.map(
-            (
-            Object? key,
-            Object? item,
-            ) {
-          return MapEntry<String, dynamic>(
-            key.toString(),
-            item,
-          );
-        },
-      );
+      return value.map((Object? key, Object? item) {
+        return MapEntry<String, dynamic>(key.toString(), item);
+      });
     }
 
     return <String, dynamic>{};
   }
 
-  static DateTime? _dateValue(
-      Object? value,
-      ) {
+  static DateTime? _dateValue(Object? value) {
     if (value is Timestamp) {
       return value.toDate();
     }
@@ -988,9 +714,7 @@ class ChatService {
     }
 
     if (value is int) {
-      return DateTime.fromMillisecondsSinceEpoch(
-        value,
-      );
+      return DateTime.fromMillisecondsSinceEpoch(value);
     }
 
     return null;
@@ -1026,19 +750,12 @@ class ChatMessage {
   final bool deleted;
   final List<String> readBy;
 
-  bool isMine(
-      String currentUserId,
-      ) {
+  bool isMine(String currentUserId) {
     return senderUid == currentUserId;
   }
 
-  bool isReadByAnotherUser(
-      String currentUserId,
-      ) {
-    return readBy.any(
-          (String userId) =>
-      userId != currentUserId,
-    );
+  bool isReadByAnotherUser(String currentUserId) {
+    return readBy.any((String userId) => userId != currentUserId);
   }
 
   String get previewText {
@@ -1050,33 +767,24 @@ class ChatMessage {
       case ChatMessageType.image:
         return 'Fotoğraf';
       case ChatMessageType.system:
-        return text.isEmpty
-            ? 'Sistem mesajı'
-            : text;
+        return text.isEmpty ? 'Sistem mesajı' : text;
       case ChatMessageType.text:
         return text;
     }
   }
 
   factory ChatMessage.fromDocument(
-      QueryDocumentSnapshot<
-          Map<String, dynamic>>
-      document,
-      ) {
-    return ChatMessage.fromMap(
-      id: document.id,
-      data: document.data(),
-    );
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    return ChatMessage.fromMap(id: document.id, data: document.data());
   }
 
   factory ChatMessage.fromSnapshot(
-      DocumentSnapshot<Map<String, dynamic>>
-      document,
-      ) {
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     return ChatMessage.fromMap(
       id: document.id,
-      data: document.data() ??
-          <String, dynamic>{},
+      data: document.data() ?? <String, dynamic>{},
     );
   }
 
@@ -1084,89 +792,43 @@ class ChatMessage {
     required String id,
     required Map<String, dynamic> data,
   }) {
-    final String typeText =
-    ChatService._textValue(
-      data['type'],
-    );
+    final String typeText = ChatService._textValue(data['type']);
 
     return ChatMessage(
-      id: ChatService._firstText(
-        data,
-        <String>[
-          'messageId',
-          'id',
-        ],
-        fallback: id,
+      id: ChatService._firstText(data, <String>[
+        'messageId',
+        'id',
+      ], fallback: id),
+      eventId: ChatService._firstText(data, <String>['eventId', 'etkinlikId']),
+      type: ChatMessageType.values.firstWhere(
+        (ChatMessageType type) => type.name == typeText,
+        orElse: () => ChatMessageType.text,
       ),
-      eventId: ChatService._firstText(
-        data,
-        <String>[
-          'eventId',
-          'etkinlikId',
-        ],
+      text: ChatService._firstText(data, <String>['text', 'message', 'mesaj']),
+      senderUid: ChatService._firstText(data, <String>[
+        'senderUid',
+        'gonderenUid',
+        'userId',
+      ]),
+      senderName: ChatService._firstText(data, <String>[
+        'senderName',
+        'gonderenAdi',
+        'displayName',
+      ], fallback: 'Üye'),
+      senderPhotoUrl: ChatService._firstText(data, <String>[
+        'senderPhotoUrl',
+        'gonderenFotoUrl',
+        'photoUrl',
+      ]),
+      createdAt: ChatService._dateValue(
+        data['createdAt'] ?? data['olusturulmaZamani'],
       ),
-      type: ChatMessageType.values
-          .firstWhere(
-            (
-            ChatMessageType type,
-            ) =>
-        type.name == typeText,
-        orElse: () =>
-        ChatMessageType.text,
-      ),
-      text: ChatService._firstText(
-        data,
-        <String>[
-          'text',
-          'message',
-          'mesaj',
-        ],
-      ),
-      senderUid:
-      ChatService._firstText(
-        data,
-        <String>[
-          'senderUid',
-          'gonderenUid',
-          'userId',
-        ],
-      ),
-      senderName:
-      ChatService._firstText(
-        data,
-        <String>[
-          'senderName',
-          'gonderenAdi',
-          'displayName',
-        ],
-        fallback: 'Üye',
-      ),
-      senderPhotoUrl:
-      ChatService._firstText(
-        data,
-        <String>[
-          'senderPhotoUrl',
-          'gonderenFotoUrl',
-          'photoUrl',
-        ],
-      ),
-      createdAt:
-      ChatService._dateValue(
-        data['createdAt'] ??
-            data['olusturulmaZamani'],
-      ),
-      updatedAt:
-      ChatService._dateValue(
-        data['updatedAt'] ??
-            data['guncellenmeZamani'],
+      updatedAt: ChatService._dateValue(
+        data['updatedAt'] ?? data['guncellenmeZamani'],
       ),
       edited: data['edited'] == true,
       deleted: data['deleted'] == true,
-      readBy:
-      ChatService._stringList(
-        data['readBy'] ??
-            data['okuyanlar'],
-      ),
+      readBy: ChatService._stringList(data['readBy'] ?? data['okuyanlar']),
     );
   }
 }
@@ -1183,25 +845,30 @@ class ChatSenderProfile {
   final String photoUrl;
 }
 
-enum ChatMessageType {
-  text,
-  image,
-  system,
-}
+enum ChatMessageType { text, image, system }
 
 class ChatServiceException implements Exception {
-  const ChatServiceException(
-      this.message, {
-        this.code = 'chat-error',
-      });
+  const ChatServiceException(this.message, {this.code = 'chat-error'});
 
   final String message;
   final String code;
 
+  factory ChatServiceException.fromFunctions(
+    FirebaseFunctionsException error, {
+    required String fallback,
+  }) {
+    final String message = error.message?.trim() ?? '';
+
+    return ChatServiceException(
+      message.isNotEmpty ? message : fallback,
+      code: error.code,
+    );
+  }
+
   factory ChatServiceException.fromFirebase(
-      FirebaseException error, {
-        required String fallback,
-      }) {
+    FirebaseException error, {
+    required String fallback,
+  }) {
     switch (error.code) {
       case 'permission-denied':
         return const ChatServiceException(

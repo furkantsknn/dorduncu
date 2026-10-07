@@ -3,29 +3,39 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/player_service.dart';
 import '../utils/game_catalog.dart';
+import '../widgets/game_badge_emblem.dart';
+import '../widgets/game_visuals.dart';
 import 'public_profile_screen.dart';
 
-class FindPlayerScreen extends StatefulWidget {
-  const FindPlayerScreen({
-    super.key,
-  });
-
-  @override
-  State<FindPlayerScreen> createState() =>
-      _FindPlayerScreenState();
+String _findPlayerText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
 }
 
-class _FindPlayerScreenState
-    extends State<FindPlayerScreen> {
-  final PlayerService _playerService =
-  PlayerService();
-  final TextEditingController _cityController =
-  TextEditingController();
+class FindPlayerScreen extends StatefulWidget {
+  const FindPlayerScreen({super.key});
 
-  String _selectedCategoryId =
-      GameCatalog.categories.first.id;
-  String _selectedGameId =
-      GameCatalog.categories.first.games.first.id;
+  @override
+  State<FindPlayerScreen> createState() => _FindPlayerScreenState();
+}
+
+class _FindPlayerScreenState extends State<FindPlayerScreen> {
+  final PlayerService _playerService = PlayerService();
+  final TextEditingController _cityController = TextEditingController();
+
+  String _selectedCategoryId = GameCatalog.categories.first.id;
+  String _selectedGameId = GameCatalog.categories.first.games.first.id;
 
   int? _minimumSkillLevel;
   bool _onlyVerified = false;
@@ -38,16 +48,12 @@ class _FindPlayerScreenState
   }
 
   GameCategoryDefinition get _selectedCategory {
-    return GameCatalog.categoryById(
-      _selectedCategoryId,
-    ) ??
+    return GameCatalog.categoryById(_selectedCategoryId) ??
         GameCatalog.categories.first;
   }
 
   GameDefinition get _selectedGame {
-    return GameCatalog.gameById(
-      _selectedGameId,
-    ) ??
+    return GameCatalog.gameById(_selectedGameId) ??
         _selectedCategory.games.first;
   }
 
@@ -63,18 +69,16 @@ class _FindPlayerScreenState
     );
   }
 
-  void _selectCategory(
-      String? categoryId,
-      ) {
+  void _selectCategory(String? categoryId) {
     if (categoryId == null) {
       return;
     }
 
-    final GameCategoryDefinition? category =
-    GameCatalog.categoryById(categoryId);
+    final GameCategoryDefinition? category = GameCatalog.categoryById(
+      categoryId,
+    );
 
-    if (category == null ||
-        category.games.isEmpty) {
+    if (category == null || category.games.isEmpty) {
       return;
     }
 
@@ -84,9 +88,7 @@ class _FindPlayerScreenState
     });
   }
 
-  void _selectGame(
-      String? gameId,
-      ) {
+  void _selectGame(String? gameId) {
     if (gameId == null) {
       return;
     }
@@ -104,59 +106,47 @@ class _FindPlayerScreenState
     });
   }
 
-  void _openPublicProfile(
-      UserModel player,
-      ) {
+  void _openPublicProfile(UserModel player) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PublicProfileScreen(
-          userId: player.uid,
-          initialUser: player,
-        ),
+        builder: (_) =>
+            PublicProfileScreen(userId: player.uid, initialUser: player),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors =
-        Theme.of(context).colorScheme;
+    final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: colors.surface,
       appBar: AppBar(
         title: const Text(
           'Oyuncu Bul',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
         centerTitle: true,
       ),
       body: Column(
         children: <Widget>[
           _SearchHeader(
-            selectedCategoryId:
-            _selectedCategoryId,
+            selectedCategoryId: _selectedCategoryId,
             selectedGameId: _selectedGameId,
-            selectedCategory:
-            _selectedCategory,
+            selectedCategory: _selectedCategory,
             selectedGame: _selectedGame,
             cityController: _cityController,
-            minimumSkillLevel:
-            _minimumSkillLevel,
+            minimumSkillLevel: _minimumSkillLevel,
             onlyVerified: _onlyVerified,
             filterExpanded: _filterExpanded,
-            onCategoryChanged:
-            _selectCategory,
+            onCategoryChanged: _selectCategory,
             onGameChanged: _selectGame,
             onCitySubmitted: (_) {
               setState(() {});
             },
             onToggleFilters: () {
               setState(() {
-                _filterExpanded =
-                !_filterExpanded;
+                _filterExpanded = !_filterExpanded;
               });
             },
             onSkillChanged: (int? level) {
@@ -174,103 +164,73 @@ class _FindPlayerScreenState
           Expanded(
             child: StreamBuilder<List<UserModel>>(
               stream: _playersStream(),
-              builder: (
-                  BuildContext context,
-                  AsyncSnapshot<List<UserModel>>
-                  snapshot,
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<UserModel>> snapshot,
                   ) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting &&
-                    !snapshot.hasData) {
-                  return const Center(
-                    child:
-                    CircularProgressIndicator(),
-                  );
-                }
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                if (snapshot.hasError) {
-                  return _PlayersError(
-                    onRetry: () {
-                      setState(() {});
-                    },
-                  );
-                }
+                    if (snapshot.hasError) {
+                      return _PlayersError(
+                        onRetry: () {
+                          setState(() {});
+                        },
+                      );
+                    }
 
-                final List<UserModel> players =
-                    snapshot.data ??
-                        <UserModel>[];
+                    final List<UserModel> players =
+                        snapshot.data ?? <UserModel>[];
 
-                if (players.isEmpty) {
-                  return _PlayersEmpty(
-                    selectedGame: _selectedGame,
-                    hasFilters:
-                    _minimumSkillLevel != null ||
-                        _onlyVerified ||
-                        _cityController.text
-                            .trim()
-                            .isNotEmpty,
-                    onClearFilters: _clearFilters,
-                  );
-                }
+                    if (players.isEmpty) {
+                      return _PlayersEmpty(
+                        selectedGame: _selectedGame,
+                        hasFilters:
+                            _minimumSkillLevel != null ||
+                            _onlyVerified ||
+                            _cityController.text.trim().isNotEmpty,
+                        onClearFilters: _clearFilters,
+                      );
+                    }
 
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {});
-                    await Future<void>.delayed(
-                      const Duration(
-                        milliseconds: 350,
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        setState(() {});
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 350),
+                        );
+                      },
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+                        itemCount: players.length + 1,
+                        separatorBuilder: (BuildContext context, int index) {
+                          return const SizedBox(height: 11);
+                        },
+                        itemBuilder: (BuildContext context, int index) {
+                          if (index == 0) {
+                            return _ResultSummary(
+                              playerCount: players.length,
+                              game: _selectedGame,
+                            );
+                          }
+
+                          final UserModel player = players[index - 1];
+
+                          return _PlayerCard(
+                            player: player,
+                            selectedGame: _selectedGame,
+                            onOpenProfile: () {
+                              _openPublicProfile(player);
+                            },
+                          );
+                        },
                       ),
                     );
                   },
-                  child: ListView.separated(
-                    physics:
-                    const AlwaysScrollableScrollPhysics(),
-                    padding:
-                    const EdgeInsets.fromLTRB(
-                      16,
-                      14,
-                      16,
-                      28,
-                    ),
-                    itemCount: players.length + 1,
-                    separatorBuilder: (
-                        BuildContext context,
-                        int index,
-                        ) {
-                      return const SizedBox(
-                        height: 11,
-                      );
-                    },
-                    itemBuilder: (
-                        BuildContext context,
-                        int index,
-                        ) {
-                      if (index == 0) {
-                        return _ResultSummary(
-                          playerCount:
-                          players.length,
-                          game:
-                          _selectedGame,
-                        );
-                      }
-
-                      final UserModel player =
-                      players[index - 1];
-
-                      return _PlayerCard(
-                        player: player,
-                        selectedGame:
-                        _selectedGame,
-                        onOpenProfile: () {
-                          _openPublicProfile(
-                            player,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                );
-              },
             ),
           ),
         ],
@@ -300,16 +260,14 @@ class _SearchHeader extends StatelessWidget {
 
   final String selectedCategoryId;
   final String selectedGameId;
-  final GameCategoryDefinition
-  selectedCategory;
+  final GameCategoryDefinition selectedCategory;
   final GameDefinition selectedGame;
   final TextEditingController cityController;
   final int? minimumSkillLevel;
   final bool onlyVerified;
   final bool filterExpanded;
 
-  final ValueChanged<String?>
-  onCategoryChanged;
+  final ValueChanged<String?> onCategoryChanged;
   final ValueChanged<String?> onGameChanged;
   final ValueChanged<String> onCitySubmitted;
   final VoidCallback onToggleFilters;
@@ -319,92 +277,58 @@ class _SearchHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors =
-        Theme.of(context).colorScheme;
+    final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Material(
       color: colors.surface,
       elevation: 1,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          10,
-          16,
-          14,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
         child: Column(
           children: <Widget>[
             Row(
               children: <Widget>[
                 Expanded(
-                  child:
-                  DropdownButtonFormField<String>(
-                    initialValue:
-                    selectedCategoryId,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: selectedCategoryId,
                     isExpanded: true,
-                    decoration:
-                    const InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Kategori',
-                      prefixIcon: Icon(
-                        Icons.category_outlined,
-                      ),
+                      prefixIcon: Icon(Icons.category_outlined),
                     ),
-                    items: GameCatalog.categories
-                        .map(
-                          (
-                          GameCategoryDefinition
-                          category,
-                          ) {
-                        return DropdownMenuItem<
-                            String>(
-                          value: category.id,
-                          child: Text(
-                            '${category.emoji} ${category.name}',
-                            overflow:
-                            TextOverflow
-                                .ellipsis,
-                          ),
-                        );
-                      },
-                    )
-                        .toList(),
-                    onChanged:
-                    onCategoryChanged,
+                    items: GameCatalog.categories.map((
+                      GameCategoryDefinition category,
+                    ) {
+                      return DropdownMenuItem<String>(
+                        value: category.id,
+                        child: Text(
+                          '${category.emoji} ${category.name}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: onCategoryChanged,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child:
-                  DropdownButtonFormField<String>(
-                    key: ValueKey<String>(
-                      selectedCategoryId,
-                    ),
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey<String>(selectedCategoryId),
                     initialValue: selectedGameId,
                     isExpanded: true,
-                    decoration:
-                    const InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Oyun / spor',
-                      prefixIcon: Icon(
-                        Icons
-                            .sports_esports_outlined,
-                      ),
+                      prefixIcon: Icon(Icons.sports_esports_outlined),
                     ),
-                    items: selectedCategory.games
-                        .map(
-                          (GameDefinition game) {
-                        return DropdownMenuItem<
-                            String>(
-                          value: game.id,
-                          child: Text(
-                            game.displayName,
-                            overflow:
-                            TextOverflow
-                                .ellipsis,
-                          ),
-                        );
-                      },
-                    )
-                        .toList(),
+                    items: selectedCategory.games.map((GameDefinition game) {
+                      return DropdownMenuItem<String>(
+                        value: game.id,
+                        child: Text(
+                          game.displayName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
                     onChanged: onGameChanged,
                   ),
                 ),
@@ -416,60 +340,57 @@ class _SearchHeader extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     controller: cityController,
-                    textInputAction:
-                    TextInputAction.search,
-                    decoration:
-                    const InputDecoration(
-                      labelText:
-                      'Şehir (isteğe bağlı)',
-                      prefixIcon: Icon(
-                        Icons.location_city_outlined,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      labelText: _findPlayerText(
+                        context,
+                        tr: 'Şehir (isteğe bağlı)',
+                        en: 'City (optional)',
+                        de: 'Stadt (optional)',
                       ),
-                      hintText: 'Örn. İstanbul',
+                      prefixIcon: Icon(Icons.location_city_outlined),
+                      hintText: _findPlayerText(
+                        context,
+                        tr: 'Örn. İstanbul',
+                        en: 'E.g. Istanbul',
+                        de: 'Z. B. Istanbul',
+                      ),
                     ),
-                    onSubmitted:
-                    onCitySubmitted,
+                    onSubmitted: onCitySubmitted,
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filledTonal(
-                  tooltip:
-                  'Gelişmiş filtreler',
+                  tooltip: _findPlayerText(
+                    context,
+                    tr: 'Gelişmiş filtreler',
+                    en: 'Advanced filters',
+                    de: 'Erweiterte Filter',
+                  ),
                   onPressed: onToggleFilters,
                   icon: Icon(
                     filterExpanded
-                        ? Icons
-                        .filter_list_off_rounded
-                        : Icons
-                        .filter_list_rounded,
+                        ? Icons.filter_list_off_rounded
+                        : Icons.filter_list_rounded,
                   ),
                 ),
               ],
             ),
             AnimatedCrossFade(
-              duration: const Duration(
-                milliseconds: 220,
-              ),
+              duration: const Duration(milliseconds: 220),
               crossFadeState: filterExpanded
                   ? CrossFadeState.showSecond
                   : CrossFadeState.showFirst,
-              firstChild:
-              const SizedBox.shrink(),
+              firstChild: const SizedBox.shrink(),
               secondChild: Padding(
-                padding:
-                const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.only(top: 12),
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       'Minimum seviye',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.w800,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 7),
@@ -478,68 +399,61 @@ class _SearchHeader extends StatelessWidget {
                       runSpacing: 7,
                       children: <Widget>[
                         ChoiceChip(
-                          label:
-                          const Text('Tümü'),
-                          selected:
-                          minimumSkillLevel ==
-                              null,
+                          label: Text(
+                            _findPlayerText(
+                              context,
+                              tr: 'Tümü',
+                              en: 'All',
+                              de: 'Alle',
+                            ),
+                          ),
+                          selected: minimumSkillLevel == null,
                           onSelected: (_) {
                             onSkillChanged(null);
                           },
                         ),
-                        ...GameCatalog.skillLevels.map(
-                              (
-                              SkillLevelDefinition
-                              level,
-                              ) {
-                            return ChoiceChip(
-                              label: Text(
-                                '${level.label} · %${level.value}',
-                              ),
-                              selected:
-                              minimumSkillLevel ==
-                                  level.value,
-                              onSelected: (_) {
-                                onSkillChanged(
-                                  level.value,
-                                );
-                              },
-                            );
-                          },
-                        ),
+                        ...GameCatalog.skillLevels.map((
+                          SkillLevelDefinition level,
+                        ) {
+                          return ChoiceChip(
+                            label: Text('${level.label} · %${level.value}'),
+                            selected: minimumSkillLevel == level.value,
+                            onSelected: (_) {
+                              onSkillChanged(level.value);
+                            },
+                          );
+                        }),
                       ],
                     ),
                     const SizedBox(height: 8),
                     SwitchListTile.adaptive(
-                      contentPadding:
-                      EdgeInsets.zero,
-                      title: const Text(
-                        'Yalnızca doğrulanmış oyuncular',
-                        style: TextStyle(
-                          fontWeight:
-                          FontWeight.w700,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        _findPlayerText(
+                          context,
+                          tr: 'Yalnızca doğrulanmış oyuncular',
+                          en: 'Verified players only',
+                          de: 'Nur verifizierte Spieler',
                         ),
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      subtitle: const Text(
-                        'Doğrulama işlemi tamamlanan profilleri gösterir.',
+                      subtitle: Text(
+                        _findPlayerText(
+                          context,
+                          tr: 'Doğrulama işlemi tamamlanan profilleri gösterir.',
+                          en: 'Shows profiles that completed verification.',
+                          de: 'Zeigt Profile mit abgeschlossener Verifizierung.',
+                        ),
                       ),
                       value: onlyVerified,
-                      onChanged:
-                      onVerifiedChanged,
+                      onChanged: onVerifiedChanged,
                     ),
                     Align(
-                      alignment:
-                      Alignment.centerRight,
+                      alignment: Alignment.centerRight,
                       child: TextButton.icon(
-                        onPressed:
-                        onClearFilters,
-                        icon: const Icon(
-                          Icons
-                              .restart_alt_rounded,
-                        ),
-                        label: const Text(
-                          'Filtreleri temizle',
-                        ),
+                        onPressed: onClearFilters,
+                        icon: const Icon(Icons.restart_alt_rounded),
+                        label: const Text('Filtreleri temizle'),
                       ),
                     ),
                   ],
@@ -554,10 +468,7 @@ class _SearchHeader extends StatelessWidget {
 }
 
 class _ResultSummary extends StatelessWidget {
-  const _ResultSummary({
-    required this.playerCount,
-    required this.game,
-  });
+  const _ResultSummary({required this.playerCount, required this.game});
 
   final int playerCount;
   final GameDefinition game;
@@ -571,44 +482,33 @@ class _ResultSummary extends StatelessWidget {
           height: 44,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .secondaryContainer,
-            borderRadius:
-            BorderRadius.circular(14),
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Text(
-            game.emoji,
-            style: const TextStyle(
-              fontSize: 22,
-            ),
+          child: GameBadgeEmblem(
+            emoji: GameVisuals.emoji(game.id),
+            imageUrl: '',
+            gameName: game.name,
+            size: 36,
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
                 '${game.name} oyuncuları',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(
-                  fontWeight:
-                  FontWeight.w900,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               Text(
                 '$playerCount uygun oyuncu bulundu',
                 style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
-                  fontWeight:
-                  FontWeight.w600,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -632,8 +532,7 @@ class _PlayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final UserGameSkill? skill =
-    player.skillForGame(selectedGame.id);
+    final UserGameSkill? skill = player.skillForGame(selectedGame.id);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -650,8 +549,7 @@ class _PlayerCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Row(
                           children: <Widget>[
@@ -659,43 +557,25 @@ class _PlayerCard extends StatelessWidget {
                               child: Text(
                                 player.displayName,
                                 maxLines: 1,
-                                overflow:
-                                TextOverflow
-                                    .ellipsis,
-                                style: Theme.of(
-                                  context,
-                                )
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                  fontWeight:
-                                  FontWeight
-                                      .w900,
-                                ),
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w900),
                               ),
                             ),
                             if (player.verified) ...[
-                              const SizedBox(
-                                width: 5,
-                              ),
+                              const SizedBox(width: 5),
                               const Icon(
-                                Icons
-                                    .verified_rounded,
+                                Icons.verified_rounded,
                                 size: 18,
-                                color:
-                                Color(0xff2563EB),
+                                color: Color(0xff2563EB),
                               ),
                             ],
                             if (player.plus) ...[
-                              const SizedBox(
-                                width: 5,
-                              ),
+                              const SizedBox(width: 5),
                               const Icon(
-                                Icons
-                                    .workspace_premium_rounded,
+                                Icons.workspace_premium_rounded,
                                 size: 18,
-                                color:
-                                Color(0xffFF9800),
+                                color: Color(0xffFF9800),
                               ),
                             ],
                           ],
@@ -706,51 +586,37 @@ class _PlayerCard extends StatelessWidget {
                             const Icon(
                               Icons.star_rounded,
                               size: 17,
-                              color:
-                              Color(0xffFF9800),
+                              color: Color(0xffFF9800),
                             ),
                             const SizedBox(width: 3),
                             Text(
                               player.puan > 0
-                                  ? player.puan
-                                  .toStringAsFixed(
-                                1,
-                              )
+                                  ? player.puan.toStringAsFixed(1)
                                   : 'Yeni',
-                              style:
-                              const TextStyle(
-                                fontWeight:
-                                FontWeight.w800,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(width: 10),
                             Icon(
-                              Icons
-                                  .emoji_events_outlined,
+                              Icons.emoji_events_outlined,
                               size: 16,
                               color: Theme.of(
                                 context,
-                              )
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
                                 '${player.completedEventCount} tamamlanan etkinlik',
                                 maxLines: 1,
-                                overflow:
-                                TextOverflow
-                                    .ellipsis,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: Theme.of(
                                     context,
-                                  )
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontSize: 12,
-                                  fontWeight:
-                                  FontWeight.w600,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -766,49 +632,42 @@ class _PlayerCard extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: _InfoPill(
-                      icon: Icons
-                          .location_on_outlined,
-                      text: player
-                          .resolvedCity
-                          .isEmpty
+                      icon: Icons.location_on_outlined,
+                      text: player.resolvedCity.isEmpty
                           ? 'Konum eklenmedi'
                           : player.resolvedCity,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _SkillPill(
-                    skill: skill,
-                  ),
+                  _SkillPill(skill: skill),
                 ],
               ),
               if (skill != null) ...[
                 const SizedBox(height: 11),
                 ClipRRect(
-                  borderRadius:
-                  BorderRadius.circular(99),
-                  child:
-                  LinearProgressIndicator(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
                     value: skill.progress,
                     minHeight: 8,
-                    backgroundColor:
-                    Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                   ),
                 ),
               ],
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
-                child:
-                FilledButton.tonalIcon(
+                child: FilledButton.tonalIcon(
                   onPressed: onOpenProfile,
-                  icon: const Icon(
-                    Icons
-                        .account_circle_outlined,
-                  ),
-                  label: const Text(
-                    'Herkese açık profili gör',
+                  icon: const Icon(Icons.account_circle_outlined),
+                  label: Text(
+                    _findPlayerText(
+                      context,
+                      tr: 'Herkese açık profili gör',
+                      en: 'View public profile',
+                      de: 'Öffentliches Profil ansehen',
+                    ),
                   ),
                 ),
               ),
@@ -821,34 +680,24 @@ class _PlayerCard extends StatelessWidget {
 }
 
 class _PlayerAvatar extends StatelessWidget {
-  const _PlayerAvatar({
-    required this.player,
-  });
+  const _PlayerAvatar({required this.player});
 
   final UserModel player;
 
   @override
   Widget build(BuildContext context) {
-    final String photoUrl =
-    player.profilFotografi.trim();
+    final String photoUrl = player.profilFotografi.trim();
 
     return CircleAvatar(
       radius: 29,
-      backgroundColor:
-      Theme.of(context).colorScheme.primary,
-      foregroundImage: photoUrl.isEmpty
-          ? null
-          : NetworkImage(photoUrl),
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundImage: photoUrl.isEmpty ? null : NetworkImage(photoUrl),
       child: Text(
         player.displayName.trim().isEmpty
             ? '?'
-            : player.displayName
-            .trim()[0]
-            .toUpperCase(),
+            : player.displayName.trim()[0].toUpperCase(),
         style: TextStyle(
-          color: Theme.of(context)
-              .colorScheme
-              .onPrimary,
+          color: Theme.of(context).colorScheme.onPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w900,
         ),
@@ -858,10 +707,7 @@ class _PlayerAvatar extends StatelessWidget {
 }
 
 class _InfoPill extends StatelessWidget {
-  const _InfoPill({
-    required this.icon,
-    required this.text,
-  });
+  const _InfoPill({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -869,14 +715,9 @@ class _InfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -884,9 +725,7 @@ class _InfoPill extends StatelessWidget {
           Icon(
             icon,
             size: 17,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 5),
           Expanded(
@@ -895,9 +734,7 @@ class _InfoPill extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -910,9 +747,7 @@ class _InfoPill extends StatelessWidget {
 }
 
 class _SkillPill extends StatelessWidget {
-  const _SkillPill({
-    required this.skill,
-  });
+  const _SkillPill({required this.skill});
 
   final UserGameSkill? skill;
 
@@ -920,13 +755,16 @@ class _SkillPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final int level = skill?.level ?? 30;
     final String label =
-        skill?.levelLabel ?? 'Başlangıç';
+        skill?.levelLabel ??
+        _findPlayerText(
+          context,
+          tr: 'Başlangıç',
+          en: 'Beginner',
+          de: 'Anfänger',
+        );
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: _background(level),
         borderRadius: BorderRadius.circular(12),
@@ -982,32 +820,33 @@ class _PlayersEmpty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(
-              selectedGame.emoji,
-              style:
-              const TextStyle(fontSize: 56),
-            ),
+            Text(selectedGame.emoji, style: const TextStyle(fontSize: 56)),
             const SizedBox(height: 12),
             Text(
               '${selectedGame.name} için oyuncu bulunamadı',
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
               hasFilters
-                  ? 'Seçtiğin filtrelere uygun, Oyuncu Rozeti bulunan bir profil yok.'
-                  : 'Bu oyun için Oyuncu Rozeti bulunan bir profil henüz yok.',
+                  ? _findPlayerText(
+                      context,
+                      tr: 'Seçtiğin filtrelere uygun, Oyuncu Rozeti bulunan bir profil yok.',
+                      en: 'No player-badge profile matches your selected filters.',
+                      de: 'Kein Profil mit Spielerabzeichen entspricht deinen Filtern.',
+                    )
+                  : _findPlayerText(
+                      context,
+                      tr: 'Bu oyun için Oyuncu Rozeti bulunan bir profil henüz yok.',
+                      en: 'There are no player-badge profiles for this game yet.',
+                      de: 'Für dieses Spiel gibt es noch keine Profile mit Spielerabzeichen.',
+                    ),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
             ),
@@ -1015,12 +854,8 @@ class _PlayersEmpty extends StatelessWidget {
               const SizedBox(height: 14),
               OutlinedButton.icon(
                 onPressed: onClearFilters,
-                icon: const Icon(
-                  Icons.restart_alt_rounded,
-                ),
-                label: const Text(
-                  'Filtreleri temizle',
-                ),
+                icon: const Icon(Icons.restart_alt_rounded),
+                label: const Text('Filtreleri temizle'),
               ),
             ],
           ],
@@ -1031,9 +866,7 @@ class _PlayersEmpty extends StatelessWidget {
 }
 
 class _PlayersError extends StatelessWidget {
-  const _PlayersError({
-    required this.onRetry,
-  });
+  const _PlayersError({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -1045,26 +878,23 @@ class _PlayersError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 54,
-            ),
+            const Icon(Icons.error_outline_rounded, size: 54),
             const SizedBox(height: 12),
-            const Text(
-              'Oyuncular yüklenirken bir hata oluştu.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
+            Text(
+              _findPlayerText(
+                context,
+                tr: 'Oyuncular yüklenirken bir hata oluştu.',
+                en: 'An error occurred while loading players.',
+                de: 'Beim Laden der Spieler ist ein Fehler aufgetreten.',
               ),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label:
-              const Text('Tekrar dene'),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Tekrar dene'),
             ),
           ],
         ),

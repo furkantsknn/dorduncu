@@ -1,8 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'admin_market_orders_screen.dart';
+
+String _adminMarketText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 
 class AdminMarketScreen extends StatefulWidget {
   const AdminMarketScreen({super.key});
@@ -42,28 +58,22 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
         region: 'europe-west1',
       ).httpsCallable('seedBadgeProducts');
 
-      final HttpsCallableResult<dynamic> result =
-      await callable.call();
+      final HttpsCallableResult<dynamic> result = await callable.call();
 
       if (!mounted) {
         return;
       }
 
       final dynamic rawCount =
-      (result.data as Map<Object?, Object?>?)?[
-      'createdOrUpdatedCount'
-      ];
+          (result.data as Map<Object?, Object?>?)?['createdOrUpdatedCount'];
 
-      final int count =
-      rawCount is num ? rawCount.toInt() : 0;
+      final int count = rawCount is num ? rawCount.toInt() : 0;
 
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              '$count oyun rozeti oluşturuldu veya güncellendi.',
-            ),
+            content: Text('$count oyun rozeti oluşturuldu veya güncellendi.'),
           ),
         );
     } on FirebaseFunctionsException catch (error) {
@@ -75,10 +85,7 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              error.message ??
-                  'Rozet ürünleri oluşturulamadı.',
-            ),
+            content: Text(error.message ?? 'Rozet ürünleri oluşturulamadı.'),
           ),
         );
     } catch (error) {
@@ -89,11 +96,7 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'Rozet ürünleri oluşturulamadı: $error',
-            ),
-          ),
+          SnackBar(content: Text('Rozet ürünleri oluşturulamadı: $error')),
         );
     } finally {
       if (mounted) {
@@ -124,29 +127,24 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Market Yönetimi',
+        title: Text(
+          _adminMarketText(context, tr: 'Market Yönetimi', en: 'Market Management', de: 'Marktverwaltung'),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Oyun rozetlerini oluştur',
-            onPressed:
-            _seedingBadges ? null : _seedBadgeProducts,
+            tooltip: _adminMarketText(context, tr: 'Oyun rozetlerini oluştur', en: 'Create game badges', de: 'Spielabzeichen erstellen'),
+            onPressed: _seedingBadges ? null : _seedBadgeProducts,
             icon: _seedingBadges
                 ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
-            )
-                : const Icon(
-              Icons.auto_awesome_outlined,
-            ),
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome_outlined),
           ),
           IconButton(
-            tooltip: 'Siparişler',
+            tooltip: _adminMarketText(context, tr: 'Siparişler', en: 'Orders', de: 'Bestellungen'),
             onPressed: () {
               Navigator.push<void>(
                 context,
@@ -160,7 +158,7 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
             icon: const Icon(Icons.receipt_long_outlined),
           ),
           IconButton(
-            tooltip: 'Yeni ürün',
+            tooltip: _adminMarketText(context, tr: 'Yeni ürün', en: 'New product', de: 'Neues Produkt'),
             onPressed: _openProductEditor,
             icon: const Icon(Icons.add_business_outlined),
           ),
@@ -170,186 +168,177 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
         stream: _productsCollection
             .orderBy('createdAt', descending: true)
             .snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Market ürünleri yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> allProducts =
-              snapshot.data!.docs;
-
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-          visibleProducts = allProducts.where((document) {
-            final Map<String, dynamic> data = document.data();
-
-            final bool active = data['active'] == true;
-            final String productType =
-                data['productType']?.toString().trim() ?? '';
-
-            switch (_selectedFilter) {
-              case 'active':
-                if (!active) {
-                  return false;
-                }
-              case 'inactive':
-                if (active) {
-                  return false;
-                }
-              case 'plus':
-                if (productType != 'plus') {
-                  return false;
-                }
-              case 'badge':
-                if (productType != 'badge') {
-                  return false;
-                }
-              case 'digital':
-                if (productType != 'digital') {
-                  return false;
-                }
-              case 'all':
-                break;
-            }
-
-            if (_searchText.isEmpty) {
-              return true;
-            }
-
-            final String query = _searchText.toLowerCase();
-
-            final String title =
-                data['title']?.toString().toLowerCase() ?? '';
-
-            final String description =
-                data['description']?.toString().toLowerCase() ?? '';
-
-            final String code =
-                data['code']?.toString().toLowerCase() ?? '';
-
-            return title.contains(query) ||
-                description.contains(query) ||
-                code.contains(query) ||
-                document.id.toLowerCase().contains(query);
-          }).toList();
-
-          return Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                child: _buildStatistics(allProducts),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (String value) {
-                    setState(() {
-                      _searchText = value.trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Ürün adı, kod veya açıklama ara',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchText.isEmpty
-                        ? null
-                        : IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-
-                        setState(() {
-                          _searchText = '';
-                        });
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 48,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  children: <Widget>[
-                    _buildFilter('all', 'Tümü'),
-                    _buildFilter('active', 'Aktif'),
-                    _buildFilter('inactive', 'Pasif'),
-                    _buildFilter('plus', 'Plus'),
-                    _buildFilter('badge', 'Rozet'),
-                    _buildFilter('digital', 'Dijital'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: visibleProducts.isEmpty
-                    ? const Center(
+              if (snapshot.hasError) {
+                return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: Text(
-                      'Bu filtreye uygun market ürünü bulunamadı.',
+                      'Market ürünleri yüklenirken bir hata oluştu.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              allProducts = snapshot.data!.docs;
+
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              visibleProducts = allProducts.where((document) {
+                final Map<String, dynamic> data = document.data();
+
+                final bool active = data['active'] == true;
+                final String productType =
+                    data['productType']?.toString().trim() ?? '';
+
+                switch (_selectedFilter) {
+                  case 'active':
+                    if (!active) {
+                      return false;
+                    }
+                  case 'inactive':
+                    if (active) {
+                      return false;
+                    }
+                  case 'plus':
+                    if (productType != 'plus') {
+                      return false;
+                    }
+                  case 'badge':
+                    if (productType != 'badge') {
+                      return false;
+                    }
+                  case 'digital':
+                    if (productType != 'digital') {
+                      return false;
+                    }
+                  case 'all':
+                    break;
+                }
+
+                if (_searchText.isEmpty) {
+                  return true;
+                }
+
+                final String query = _searchText.toLowerCase();
+
+                final String title =
+                    data['title']?.toString().toLowerCase() ?? '';
+
+                final String description =
+                    data['description']?.toString().toLowerCase() ?? '';
+
+                final String code =
+                    data['code']?.toString().toLowerCase() ?? '';
+
+                return title.contains(query) ||
+                    description.contains(query) ||
+                    code.contains(query) ||
+                    document.id.toLowerCase().contains(query);
+              }).toList();
+
+              return Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                    child: _buildStatistics(allProducts),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (String value) {
+                        setState(() {
+                          _searchText = value.trim();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Ürün adı, kod veya açıklama ara',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchText.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  _searchController.clear();
+
+                                  setState(() {
+                                    _searchText = '';
+                                  });
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
-                )
-                    : ListView.separated(
-                  padding:
-                  const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                  itemCount: visibleProducts.length,
-                  separatorBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    return const SizedBox(height: 10);
-                  },
-                  itemBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    final QueryDocumentSnapshot<Map<String, dynamic>>
-                    document = visibleProducts[index];
+                  SizedBox(
+                    height: 48,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      children: <Widget>[
+                        _buildFilter('all', _adminMarketText(context, tr: 'Tümü', en: 'All', de: 'Alle')),
+                        _buildFilter('active', 'Aktif'),
+                        _buildFilter('inactive', 'Pasif'),
+                        _buildFilter('plus', 'Plus'),
+                        _buildFilter('badge', 'Rozet'),
+                        _buildFilter('digital', 'Dijital'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: visibleProducts.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Bu filtreye uygun market ürünü bulunamadı.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                            itemCount: visibleProducts.length,
+                            separatorBuilder:
+                                (BuildContext context, int index) {
+                                  return const SizedBox(height: 10);
+                                },
+                            itemBuilder: (BuildContext context, int index) {
+                              final QueryDocumentSnapshot<Map<String, dynamic>>
+                              document = visibleProducts[index];
 
-                    return _buildProductCard(document);
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                              return _buildProductCard(document);
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
       ),
     );
   }
 
   Widget _buildStatistics(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> products,
-      ) {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> products,
+  ) {
     int activeCount = 0;
     int plusCount = 0;
     int badgeCount = 0;
 
     for (final QueryDocumentSnapshot<Map<String, dynamic>> document
-    in products) {
+        in products) {
       final Map<String, dynamic> data = document.data();
 
       if (data['active'] == true) {
@@ -419,12 +408,11 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
   }
 
   Widget _buildProductCard(
-      QueryDocumentSnapshot<Map<String, dynamic>> document,
-      ) {
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     final Map<String, dynamic> data = document.data();
 
-    final String title =
-        data['title']?.toString().trim() ?? 'İsimsiz ürün';
+    final String title = data['title']?.toString().trim() ?? 'İsimsiz ürün';
 
     final String productType =
         data['productType']?.toString().trim() ?? 'digital';
@@ -435,11 +423,9 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
     final bool allowWalletPayment = data['allowWalletPayment'] == true;
     final bool allowPointPayment = data['allowPointPayment'] == true;
 
-    final int priceKurus =
-        (data['priceKurus'] as num?)?.toInt() ?? 0;
+    final int priceKurus = (data['priceKurus'] as num?)?.toInt() ?? 0;
 
-    final double pointPrice =
-        (data['pointPrice'] as num?)?.toDouble() ?? 0;
+    final double pointPrice = (data['pointPrice'] as num?)?.toDouble() ?? 0;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -452,10 +438,7 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              CircleAvatar(
-                radius: 27,
-                child: Icon(_productIcon(productType)),
-              ),
+              CircleAvatar(radius: 27, child: Icon(_productIcon(productType))),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
@@ -572,11 +555,9 @@ class _AdminMarketProductEditorScreenState
     extends State<_AdminMarketProductEditorScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
-  final TextEditingController _descriptionController =
-  TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _pointPriceController =
-  TextEditingController();
+  final TextEditingController _pointPriceController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
 
   String _productType = 'digital';
@@ -601,23 +582,18 @@ class _AdminMarketProductEditorScreenState
 
     _titleController.text = data['title']?.toString() ?? '';
     _codeController.text = data['code']?.toString() ?? '';
-    _descriptionController.text =
-        data['description']?.toString() ?? '';
+    _descriptionController.text = data['description']?.toString() ?? '';
 
-    _priceController.text =
-        (((data['priceKurus'] as num?)?.toInt() ?? 0) / 100)
-            .toStringAsFixed(2);
+    _priceController.text = (((data['priceKurus'] as num?)?.toInt() ?? 0) / 100)
+        .toStringAsFixed(2);
 
-    _pointPriceController.text =
-        ((data['pointPrice'] as num?)?.toDouble() ?? 0)
-            .toString();
+    _pointPriceController.text = ((data['pointPrice'] as num?)?.toDouble() ?? 0)
+        .toString();
 
-    _durationController.text =
-        ((data['durationDays'] as num?)?.toInt() ?? 0)
-            .toString();
+    _durationController.text = ((data['durationDays'] as num?)?.toInt() ?? 0)
+        .toString();
 
-    _productType =
-        data['productType']?.toString() ?? 'digital';
+    _productType = data['productType']?.toString() ?? 'digital';
 
     _active = data['active'] == true;
     _allowTlPayment = data['allowTlPayment'] == true;
@@ -645,18 +621,16 @@ class _AdminMarketProductEditorScreenState
     final String code = _codeController.text.trim().toLowerCase();
     final String description = _descriptionController.text.trim();
 
-    final double price = double.tryParse(
-      _priceController.text.trim().replaceAll(',', '.'),
-    ) ??
+    final double price =
+        double.tryParse(_priceController.text.trim().replaceAll(',', '.')) ?? 0;
+
+    final double pointPrice =
+        double.tryParse(
+          _pointPriceController.text.trim().replaceAll(',', '.'),
+        ) ??
         0;
 
-    final double pointPrice = double.tryParse(
-      _pointPriceController.text.trim().replaceAll(',', '.'),
-    ) ??
-        0;
-
-    final int durationDays =
-        int.tryParse(_durationController.text.trim()) ?? 0;
+    final int durationDays = int.tryParse(_durationController.text.trim()) ?? 0;
 
     if (title.length < 2) {
       _showMessage('Ürün adını yaz.');
@@ -668,9 +642,7 @@ class _AdminMarketProductEditorScreenState
       return;
     }
 
-    if (!_allowTlPayment &&
-        !_allowWalletPayment &&
-        !_allowPointPayment) {
+    if (!_allowTlPayment && !_allowWalletPayment && !_allowPointPayment) {
       _showMessage('En az bir ödeme yöntemi seç.');
       return;
     }
@@ -685,54 +657,37 @@ class _AdminMarketProductEditorScreenState
       return;
     }
 
-    final String adminId =
-        FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    if (adminId.isEmpty) {
-      _showMessage('Admin oturumu bulunamadı.');
-      return;
-    }
-
     setState(() {
       _saving = true;
     });
 
     try {
-      final DocumentReference<Map<String, dynamic>> reference =
-      widget.productId == null
-          ? FirebaseFirestore.instance
-          .collection('marketProducts')
-          .doc()
-          : FirebaseFirestore.instance
-          .collection('marketProducts')
-          .doc(widget.productId);
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminSaveMarketProduct');
 
-      await reference.set(
-        <String, dynamic>{
-          'title': title,
-          'code': code,
-          'description': description,
-          'productType': _productType,
-          'active': _active,
-          'allowTlPayment': _allowTlPayment,
-          'allowWalletPayment': _allowWalletPayment,
-          'allowPointPayment': _allowPointPayment,
-          'priceKurus': (price * 100).round(),
-          'pointPrice': pointPrice,
-          'durationDays': durationDays,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': adminId,
-          if (!_isEditing) 'createdAt': FieldValue.serverTimestamp(),
-          if (!_isEditing) 'createdBy': adminId,
-        },
-        SetOptions(merge: true),
-      );
+      await callable.call(<String, dynamic>{
+        if (widget.productId != null) 'productId': widget.productId,
+        'title': title,
+        'code': code,
+        'description': description,
+        'productType': _productType,
+        'active': _active,
+        'allowTlPayment': _allowTlPayment,
+        'allowWalletPayment': _allowWalletPayment,
+        'allowPointPayment': _allowPointPayment,
+        'priceKurus': (price * 100).round(),
+        'pointPrice': pointPrice,
+        'durationDays': durationDays,
+      });
 
       if (!mounted) {
         return;
       }
 
       Navigator.of(context).pop();
+    } on FirebaseFunctionsException catch (error) {
+      _showMessage(error.message ?? 'Ürün kaydedilemedi.');
     } catch (error) {
       _showMessage('Ürün kaydedilemedi: $error');
     } finally {
@@ -753,16 +708,14 @@ class _AdminMarketProductEditorScreenState
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Ürünü Sil'),
-          content: const Text(
-            'Bu market ürünü kalıcı olarak silinecek.',
-          ),
+          title: Text(_adminMarketText(context, tr: 'Ürünü Sil', en: 'Delete Product', de: 'Produkt löschen')),
+          content: Text('Bu market ürünü kalıcı olarak silinecek.'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(_adminMarketText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
             ),
             FilledButton(
               onPressed: () {
@@ -784,16 +737,19 @@ class _AdminMarketProductEditorScreenState
     });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('marketProducts')
-          .doc(widget.productId)
-          .delete();
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminDeleteMarketProduct');
+
+      await callable.call(<String, dynamic>{'productId': widget.productId});
 
       if (!mounted) {
         return;
       }
 
       Navigator.of(context).pop();
+    } on FirebaseFunctionsException catch (error) {
+      _showMessage(error.message ?? 'Ürün silinemedi.');
     } catch (error) {
       _showMessage('Ürün silinemedi: $error');
     } finally {
@@ -812,9 +768,7 @@ class _AdminMarketProductEditorScreenState
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -822,7 +776,7 @@ class _AdminMarketProductEditorScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Market Ürününü Düzenle' : 'Market Ürünü Ekle',
+          _isEditing ? _adminMarketText(context, tr: 'Market Ürününü Düzenle', en: 'Edit Market Product', de: 'Marktprodukt bearbeiten') : _adminMarketText(context, tr: 'Market Ürünü Ekle', en: 'Add Market Product', de: 'Marktprodukt hinzufügen'),
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: <Widget>[
@@ -845,8 +799,8 @@ class _AdminMarketProductEditorScreenState
                 children: <Widget>[
                   DropdownButtonFormField<String>(
                     initialValue: _productType,
-                    decoration: const InputDecoration(
-                      labelText: 'Ürün türü',
+                    decoration: InputDecoration(
+                      labelText: _adminMarketText(context, tr: 'Ürün türü', en: 'Product type', de: 'Produkttyp'),
                       border: OutlineInputBorder(),
                     ),
                     items: const <DropdownMenuItem<String>>[
@@ -866,21 +820,21 @@ class _AdminMarketProductEditorScreenState
                     onChanged: _saving
                         ? null
                         : (String? value) {
-                      if (value == null) {
-                        return;
-                      }
+                            if (value == null) {
+                              return;
+                            }
 
-                      setState(() {
-                        _productType = value;
-                      });
-                    },
+                            setState(() {
+                              _productType = value;
+                            });
+                          },
                   ),
                   const SizedBox(height: 14),
                   TextField(
                     controller: _titleController,
                     enabled: !_saving,
-                    decoration: const InputDecoration(
-                      labelText: 'Ürün adı',
+                    decoration: InputDecoration(
+                      labelText: _adminMarketText(context, tr: 'Ürün adı', en: 'Product name', de: 'Produktname'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -888,8 +842,8 @@ class _AdminMarketProductEditorScreenState
                   TextField(
                     controller: _codeController,
                     enabled: !_saving,
-                    decoration: const InputDecoration(
-                      labelText: 'Ürün kodu',
+                    decoration: InputDecoration(
+                      labelText: _adminMarketText(context, tr: 'Ürün kodu', en: 'Product code', de: 'Produktcode'),
                       hintText: 'Örnek: plus_monthly',
                       border: OutlineInputBorder(),
                     ),
@@ -900,23 +854,23 @@ class _AdminMarketProductEditorScreenState
                     enabled: !_saving,
                     minLines: 3,
                     maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'Açıklama',
+                    decoration: InputDecoration(
+                      labelText: _adminMarketText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'),
                       border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 14),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Ürün aktif'),
+                    title: Text(_adminMarketText(context, tr: 'Ürün aktif', en: 'Product active', de: 'Produkt aktiv')),
                     value: _active,
                     onChanged: _saving
                         ? null
                         : (bool value) {
-                      setState(() {
-                        _active = value;
-                      });
-                    },
+                            setState(() {
+                              _active = value;
+                            });
+                          },
                   ),
                   const Divider(height: 26),
                   SwitchListTile(
@@ -926,10 +880,10 @@ class _AdminMarketProductEditorScreenState
                     onChanged: _saving
                         ? null
                         : (bool value) {
-                      setState(() {
-                        _allowTlPayment = value;
-                      });
-                    },
+                            setState(() {
+                              _allowTlPayment = value;
+                            });
+                          },
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -938,10 +892,10 @@ class _AdminMarketProductEditorScreenState
                     onChanged: _saving
                         ? null
                         : (bool value) {
-                      setState(() {
-                        _allowWalletPayment = value;
-                      });
-                    },
+                            setState(() {
+                              _allowWalletPayment = value;
+                            });
+                          },
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -950,17 +904,16 @@ class _AdminMarketProductEditorScreenState
                     onChanged: _saving
                         ? null
                         : (bool value) {
-                      setState(() {
-                        _allowPointPayment = value;
-                      });
-                    },
+                            setState(() {
+                              _allowPointPayment = value;
+                            });
+                          },
                   ),
                   const SizedBox(height: 14),
                   TextField(
                     controller: _priceController,
                     enabled: !_saving,
-                    keyboardType:
-                    const TextInputType.numberWithOptions(
+                    keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
                     decoration: const InputDecoration(
@@ -973,8 +926,7 @@ class _AdminMarketProductEditorScreenState
                   TextField(
                     controller: _pointPriceController,
                     enabled: !_saving,
-                    keyboardType:
-                    const TextInputType.numberWithOptions(
+                    keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
                     decoration: const InputDecoration(
@@ -988,7 +940,7 @@ class _AdminMarketProductEditorScreenState
                     controller: _durationController,
                     enabled: !_saving,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Süre',
                       hintText: 'Kalıcı ürün için 0',
                       suffixText: 'gün',
@@ -1002,21 +954,15 @@ class _AdminMarketProductEditorScreenState
                       onPressed: _saving ? null : _save,
                       icon: _saving
                           ? const SizedBox(
-                        width: 19,
-                        height: 19,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Icon(Icons.save_outlined),
                       label: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          _saving
-                              ? 'Kaydediliyor...'
-                              : 'Ürünü Kaydet',
+                          _saving ? 'Kaydediliyor...' : _adminMarketText(context, tr: 'Ürünü Kaydet', en: 'Save Product', de: 'Produkt speichern'),
                         ),
                       ),
                     ),
@@ -1047,20 +993,14 @@ class _StatisticCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 7,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
         child: Column(
           children: <Widget>[
             Icon(icon),
             const SizedBox(height: 5),
             Text(
               '$count',
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             Text(
               title,
@@ -1075,10 +1015,7 @@ class _StatisticCard extends StatelessWidget {
 }
 
 class _InfoLabel extends StatelessWidget {
-  const _InfoLabel({
-    required this.text,
-    required this.icon,
-  });
+  const _InfoLabel({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -1086,10 +1023,7 @@ class _InfoLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
@@ -1101,10 +1035,7 @@ class _InfoLabel extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
         ],
       ),

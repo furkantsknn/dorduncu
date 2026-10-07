@@ -3,15 +3,17 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../admin/admin_panel_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_controller.dart';
+import '../services/notification_push_service.dart';
 import '../services/session_service.dart';
 import '../services/theme_controller.dart';
 import 'change_phone_screen.dart';
 import 'legal_document_screen.dart';
 import 'login_screen.dart';
 import 'support_center_screen.dart';
+import '../widgets/app_admin_menu_entry.dart';
+import 'blocked_users_screen.dart';
 
 String _settingsText(
   BuildContext context, {
@@ -43,13 +45,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     debugPrint("SETTINGS SCREEN OPENED");
     _load();
   }
+
   bool messages = true;
   bool events = true;
   bool applications = true;
   bool campaigns = false;
+  bool quietHoursEnabled = false;
   bool loading = true;
   bool deletionBusy = false;
-  bool isAdmin = false;
 
   Future<void> _load() async {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -64,7 +67,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     try {
       final DocumentSnapshot<Map<String, dynamic>> document =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .get(const GetOptions(source: Source.server));
 
       final Map<String, dynamic> userData =
           document.data() ?? <String, dynamic>{};
@@ -77,26 +83,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return;
       }
 
-      final IdTokenResult tokenResult =
-      await user!.getIdTokenResult(true);
-
-      final Map<String, dynamic> claims =
-          tokenResult.claims ?? <String, dynamic>{};
-
-      final String role =
-          claims['role']?.toString().toLowerCase() ?? '';
-
-      final bool adminFromClaims =
-          claims['admin'] == true ||
-              role == 'admin' ||
-              role == 'super_admin' ||
-              role == 'moderator';
       setState(() {
         messages = preferences['mesajlar'] ?? true;
         events = preferences['etkinlikler'] ?? true;
         applications = preferences['basvurular'] ?? true;
         campaigns = preferences['kampanyalar'] ?? false;
-        isAdmin = adminFromClaims;
+        quietHoursEnabled = preferences['sessizSaatlerAktif'] ?? false;
         loading = false;
       });
     } catch (_) {
@@ -115,15 +107,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     await FirebaseFirestore.instance.collection('users').doc(uid).set(
       <String, dynamic>{
-        'bildirimAyarlari': <String, bool>{
+        'bildirimAyarlari': <String, dynamic>{
           'mesajlar': messages,
           'etkinlikler': events,
           'basvurular': applications,
           'kampanyalar': campaigns,
+          'sessizSaatlerAktif': quietHoursEnabled,
+          'sessizBaslangic': '22:00',
+          'sessizBitis': '08:00',
+          'timezone': 'Europe/Istanbul',
         },
       },
       SetOptions(merge: true),
     );
+
+    if (messages || events || applications || campaigns) {
+      await NotificationPushService.ensurePermissionAndRegister();
+    }
   }
 
   Future<void> _requestAccountDeletion() async {
@@ -157,12 +157,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               de: 'Antrag auf Kontolöschung',
             ),
           ),
-          content: Text(
-            _settingsText(
-              dialogContext,
-              tr: 'Hesabın hemen silinmez. Silme talebin kaydedilir ve işlem tamamlanana kadar hesabını kullanamazsın.',
-              en: 'Your account will not be deleted immediately. Your request will be recorded, and you will not be able to use your account until the process is completed.',
-              de: 'Dein Konto wird nicht sofort gelöscht. Der Antrag wird gespeichert und du kannst dein Konto bis zum Abschluss nicht verwenden.',
+          content: SingleChildScrollView(
+            child: Text(
+              _settingsText(
+                dialogContext,
+                tr: 'Hesabın bu onayla hemen silinmez. Talep kaydedilir, oturumun kapanır ve işlem bitene kadar hesabı kullanamazsın.\n\nİşlem tamamlandığında hesap girişin, profilin, herkese açık profilin, profil fotoğrafların ve doğrulama belgelerinin silinir.\n\nBaşka kullanıcıların etkinlik ve mesaj kayıtları ile güvenlik, uyuşmazlık veya yasal ya da finansal yükümlülük için gerekli sınırlı kayıtlar tutulabilir. Telefon numaranın özeti, aynı numarayla yeniden kaydı engellemek için saklanabilir.\n\nUygulamaya giremiyorsan kayıtlı telefon numaranla destek@dortapp.com adresine “Dört. Hesap Silme Talebi” konulu e-posta gönderebilirsin. E-posta tek başına silmeyi tamamlamaz.',
+                en: 'Your account is not deleted by this confirmation alone. The request is recorded, you are signed out, and you cannot use the account until processing finishes.\n\nWhen processing completes, your login, profile, public profile, profile photos and verification documents are deleted.\n\nOther users’ event and message records, and limited records needed for security, a dispute, or a legal or financial duty, may be kept. A digest of your phone number may be kept to block registering again with the same number.\n\nIf you cannot open the app, email destek@dortapp.com with your registered phone number and the subject “Dört. Account Deletion Request”. The email alone does not finish deletion.',
+                de: 'Dein Konto wird durch diese Bestätigung nicht sofort gelöscht. Der Antrag wird gespeichert, du wirst abgemeldet und kannst das Konto bis zum Abschluss nicht nutzen.\n\nNach Abschluss werden Anmeldung, Profil, öffentliches Profil, Profilfotos und Verifizierungsdokumente gelöscht.\n\nVeranstaltungs- und Nachrichtendaten anderer Nutzer sowie begrenzte Aufzeichnungen für Sicherheit, einen Streitfall oder eine rechtliche oder finanzielle Pflicht können bleiben. Eine Zusammenfassung deiner Telefonnummer kann eine erneute Registrierung mit derselben Nummer verhindern.\n\nWenn du die App nicht öffnen kannst, schreibe mit deiner registrierten Telefonnummer an destek@dortapp.com. Betreff: „Dört. Kontolöschung“. Die E-Mail allein schließt die Löschung nicht ab.',
+              ),
             ),
           ),
           actions: <Widget>[
@@ -251,10 +253,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      final HttpsCallable callable =
-          FirebaseFunctions.instanceFor(
-            region: 'europe-west1',
-          ).httpsCallable('requestAccountDeletion');
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('requestAccountDeletion');
 
       await callable.call();
 
@@ -336,6 +337,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
         children: <Widget>[
+          AppAdminMenuEntry(
+            builder: (BuildContext context, VoidCallback openAdminPanel) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.admin_panel_settings_outlined),
+                    title: Text(AppAdminMenuEntry.label(context)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: openAdminPanel,
+                  ),
+                ),
+              );
+            },
+          ),
           _title(
             _settingsText(
               context,
@@ -411,10 +427,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+                SwitchListTile(
+                  value: quietHoursEnabled,
+                  onChanged: (bool value) {
+                    setState(() => quietHoursEnabled = value);
+                    _save();
+                  },
+                  secondary: const Icon(Icons.bedtime_outlined),
+                  title: Text(
+                    _settingsText(
+                      context,
+                      tr: 'Sessiz saatler',
+                      en: 'Quiet hours',
+                      de: 'Ruhezeiten',
+                    ),
+                  ),
+                  subtitle: Text(
+                    _settingsText(
+                      context,
+                      tr: '22:00 - 08:00 arasında push bildirimi bekletilir.',
+                      en: 'Push notifications wait between 22:00 and 08:00.',
+                      de: 'Push-Benachrichtigungen warten von 22:00 bis 08:00.',
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
           _title(l10n.language),
           ValueListenableBuilder<AppLanguage>(
             valueListenable: LanguageController.language,
@@ -453,7 +493,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 },
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
           _title(l10n.theme),
           Card(
             child: ValueListenableBuilder<AppThemePreference>(
@@ -496,7 +536,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
 
           _title(
             _settingsText(context, tr: 'Destek', en: 'Support', de: 'Support'),
@@ -532,46 +572,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ),
-
-          if (isAdmin) ...<Widget>[
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.admin_panel_settings_outlined,
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.block_outlined),
+              title: Text(
+                _settingsText(
+                  context,
+                  tr: 'Engellenen kullanıcılar',
+                  en: 'Blocked users',
+                  de: 'Blockierte Benutzer',
                 ),
-                title: Text(
-                  _settingsText(
-                    context,
-                    tr: 'Yönetim Paneli',
-                    en: 'Admin Panel',
-                    de: 'Administrationsbereich',
-                  ),
-                ),
-                subtitle: Text(
-                  _settingsText(
-                    context,
-                    tr: 'Kullanıcıları, etkinlikleri ve sistemi yönet.',
-                    en: 'Manage users, events and system operations.',
-                    de: 'Benutzer, Veranstaltungen und System verwalten.',
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.push<void>(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (BuildContext context) {
-                        return const AdminPanelScreen();
-                      },
-                    ),
-                  );
-                },
               ),
+              subtitle: Text(
+                _settingsText(
+                  context,
+                  tr: 'Engellediğin kullanıcıları görüntüle ve yönet.',
+                  en: 'View and manage users you have blocked.',
+                  de: 'Blockierte Benutzer anzeigen und verwalten.',
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const BlockedUsersScreen(),
+                  ),
+                );
+              },
             ),
-          ],
+          ),
 
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
 
           _title(
             _settingsText(
@@ -585,30 +618,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: <Widget>[
                 ListTile(
-                  leading: const Icon(Icons.description_outlined),
-                  title: Text(
-                    _settingsText(
-                      context,
-                      tr: 'Kullanım Koşulları',
-                      en: 'Terms of Service',
-                      de: 'Nutzungsbedingungen',
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _document('terms_of_service'),
-                ),
-                ListTile(
                   leading: const Icon(Icons.privacy_tip_outlined),
                   title: Text(
                     _settingsText(
                       context,
                       tr: 'Gizlilik Politikası',
                       en: 'Privacy Policy',
-                      de: 'Datenschutzrichtlinie',
+                      de: 'Datenschutzerklärung',
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _document('kvkk_notice'),
+                  onTap: () => _document('privacy_policy'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(
+                    _settingsText(
+                      context,
+                      tr: 'Kullanım Koşulları',
+                      en: 'Terms of Use',
+                      de: 'Nutzungsbedingungen',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _document('terms_of_use'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.groups_outlined),
@@ -616,17 +649,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _settingsText(
                       context,
                       tr: 'Topluluk Kuralları',
-                      en: 'Community Guidelines',
-                      de: 'Community-Richtlinien',
+                      en: 'Community Rules',
+                      de: 'Community-Regeln',
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _document('terms_of_service'),
+                  onTap: () => _document('community_rules'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.article_outlined),
+                  title: Text(
+                    _settingsText(
+                      context,
+                      tr: 'KVKK Aydınlatma Metni',
+                      en: 'KVKK Privacy Notice',
+                      de: 'KVKK-Hinweis',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _document('kvkk_notice'),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
           _title(
             _settingsText(context, tr: 'Hesap', en: 'Account', de: 'Konto'),
           ),
@@ -663,7 +709,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           );
 
                           if (mounted) {
-                            setState(() {});
+                            await _load();
                           }
                         },
                 ),
@@ -694,9 +740,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     _settingsText(
                       context,
-                      tr: 'Talep sonrası oturumun kapanır ve hesabın incelemeye alınır.',
-                      en: 'You will be signed out and your account will be reviewed.',
-                      de: 'Du wirst abgemeldet und dein Konto wird überprüft.',
+                      tr: 'Talep sonrası oturumun kapanır. Uygulamaya giremiyorsan destek@dortapp.com adresine yazabilirsin.',
+                      en: 'You will be signed out after the request. If you cannot open the app, write to destek@dortapp.com.',
+                      de: 'Nach dem Antrag wirst du abgemeldet. Wenn du die App nicht öffnen kannst, schreibe an destek@dortapp.com.',
                     ),
                   ),
                   onTap: deletionBusy ? null : _requestAccountDeletion,
@@ -744,7 +790,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title,
         style: Theme.of(
           context,
-        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
       ),
     );
   }

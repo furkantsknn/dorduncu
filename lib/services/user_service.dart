@@ -18,10 +18,7 @@ enum AuthDestinationType {
 }
 
 class AuthDestination {
-  const AuthDestination({
-    required this.type,
-    this.profileName = '',
-  });
+  const AuthDestination({required this.type, this.profileName = ''});
 
   final AuthDestinationType type;
   final String profileName;
@@ -75,9 +72,7 @@ class UserService {
         .get();
 
     if (!doc.exists || doc.data() == null) {
-      return const AuthDestination(
-        type: AuthDestinationType.createProfile,
-      );
+      return const AuthDestination(type: AuthDestinationType.createProfile);
     }
 
     final data = doc.data()!;
@@ -86,14 +81,11 @@ class UserService {
     final status = rawStatus.isEmpty ? 'active' : rawStatus;
     if (status == 'suspended') {
       final Timestamp? suspensionEndsAt =
-      data['suspensionEndsAt'] as Timestamp?;
+          data['suspensionEndsAt'] as Timestamp?;
 
       if (suspensionEndsAt != null &&
-          DateTime.now().isAfter(
-            suspensionEndsAt.toDate(),
-          )) {
-        final HttpsCallable callable =
-        FirebaseFunctions.instanceFor(
+          DateTime.now().isAfter(suspensionEndsAt.toDate())) {
+        final HttpsCallable callable = FirebaseFunctions.instanceFor(
           region: 'europe-west1',
         ).httpsCallable('refreshAccountStatus');
 
@@ -101,9 +93,7 @@ class UserService {
 
         return AuthDestination(
           type: AuthDestinationType.home,
-          profileName: profileName.isNotEmpty
-              ? profileName
-              : 'Oyuncu',
+          profileName: profileName.isNotEmpty ? profileName : 'Oyuncu',
         );
       }
     }
@@ -111,44 +101,31 @@ class UserService {
     if (status == 'active') {
       final String remoteSessionId =
           data['activeSessionId']?.toString().trim() ?? '';
-      final String localSessionId =
-      await SessionService.getCurrentSessionId();
+      final String localSessionId = await SessionService.getCurrentSessionId();
 
       if (remoteSessionId.isNotEmpty &&
           localSessionId.isNotEmpty &&
           remoteSessionId != localSessionId) {
-        return const AuthDestination(
-          type: AuthDestinationType.sessionExpired,
-        );
+        return const AuthDestination(type: AuthDestinationType.sessionExpired);
       }
     }
 
     switch (status) {
       case 'pendingProfile':
-        return const AuthDestination(
-          type: AuthDestinationType.createProfile,
-        );
+        return const AuthDestination(type: AuthDestinationType.createProfile);
       case 'suspended':
-        return const AuthDestination(
-          type: AuthDestinationType.suspended,
-        );
+        return const AuthDestination(type: AuthDestinationType.suspended);
       case 'blocked':
       case 'banned':
-        return const AuthDestination(
-          type: AuthDestinationType.banned,
-        );
+        return const AuthDestination(type: AuthDestinationType.banned);
       case 'deletionRequested':
         return const AuthDestination(
           type: AuthDestinationType.deletionRequested,
         );
       case 'disabled':
-        return const AuthDestination(
-          type: AuthDestinationType.suspended,
-        );
+        return const AuthDestination(type: AuthDestinationType.suspended);
       case 'deleted':
-        return const AuthDestination(
-          type: AuthDestinationType.deleted,
-        );
+        return const AuthDestination(type: AuthDestinationType.deleted);
       case 'active':
       default:
         return AuthDestination(
@@ -158,43 +135,15 @@ class UserService {
     }
   }
 
-
   static Future<void> registerSuccessfulLogin(User user) async {
-    final FirebaseFirestore firestore = FirebaseFirestore.instance;
     final SessionInfo session = await SessionService.createNewSession();
-    final DocumentReference<Map<String, dynamic>> userReference =
-    firestore.collection('users').doc(user.uid);
-    final DocumentSnapshot<Map<String, dynamic>> userDocument =
-    await userReference.get();
-
-    if (userDocument.exists && userDocument.data() != null) {
-      final Map<String, dynamic> data = userDocument.data()!;
-      final String rawStatus =
-          data['accountStatus']?.toString().trim() ?? '';
-      final String status = rawStatus.isEmpty ? 'active' : rawStatus;
-
-      final Map<String, dynamic> updateData = <String, dynamic>{
-        'lastLoginAt': FieldValue.serverTimestamp(),
-        'lastLoginPlatform': session.platform,
-        'lastLoginAppVersion': session.appVersion,
-        'lastDeviceId': session.deviceId,
-        'guncellemeTarihi': FieldValue.serverTimestamp(),
-      };
-
-      if (status == 'active' || status == 'pendingProfile') {
-        updateData['activeSessionId'] = session.sessionId;
-      }
-
-      await userReference.update(updateData);
-    }
 
     try {
       await SessionService.saveSessionMetadata(session);
     } catch (_) {}
 
     try {
-      final HttpsCallable callable =
-      FirebaseFunctions.instanceFor(
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('recordLoginHistory');
 
@@ -254,9 +203,8 @@ class UserService {
       'profilAdi': data['profilAdi']?.toString() ?? '',
       'telefon': data['telefon']?.toString() ?? '',
       'sehir': data['sehir']?.toString() ?? '',
-      'aktifSehir': data['aktifSehir']?.toString() ??
-          data['sehir']?.toString() ??
-          '',
+      'aktifSehir':
+          data['aktifSehir']?.toString() ?? data['sehir']?.toString() ?? '',
       'ilce': data['ilce']?.toString() ?? '',
       'profilFotografi': data['profilFotografi']?.toString() ?? '',
       'avatarUrl': data['avatarUrl']?.toString() ?? '',
@@ -265,26 +213,26 @@ class UserService {
       'longitude': (data['longitude'] as num?)?.toDouble() ?? 0.0,
       'puan': (data['puan'] as num?)?.toDouble() ?? 0.0,
       'plus': data['plus'] == true || data['isPlus'] == true,
-      'plusPlan': data['plusPlan']?.toString() ??
+      'plusPlan':
+          data['plusPlan']?.toString() ??
           data['subscriptionPlan']?.toString() ??
           '',
-      'plusExpiresAt':
-      data['plusExpiresAt'] ?? data['subscriptionExpiresAt'],
+      'plusExpiresAt': data['plusExpiresAt'] ?? data['subscriptionExpiresAt'],
       'verified': data['verified'] == true,
       'verificationStatus': data['verificationStatus']?.toString() ?? '',
       'oyuncuRozeti': data['oyuncuRozeti'] == true,
       'accountStatus': data['accountStatus']?.toString() ?? 'active',
-      'favoriEtkinlikler':
-      List<String>.from(data['favoriEtkinlikler'] ?? const []),
+      'favoriEtkinlikler': List<String>.from(
+        data['favoriEtkinlikler'] ?? const [],
+      ),
       'oyunlar': List<String>.from(data['oyunlar'] ?? const []),
       'gameIds': List<String>.from(data['gameIds'] ?? const []),
       'gameSkills': Map<String, dynamic>.from(
-
         data['gameSkills'] ?? const <String, dynamic>{},
       ),
       'badges': List<String>.from(data['badges'] ?? const []),
       'completedEventCount':
-      (data['completedEventCount'] as num?)?.toInt() ?? 0,
+          (data['completedEventCount'] as num?)?.toInt() ?? 0,
       'ratingCount': (data['ratingCount'] as num?)?.toInt() ?? 0,
       'olusturmaTarihi': data['olusturmaTarihi'],
     };
@@ -329,11 +277,11 @@ class UserService {
         .doc(uid)
         .snapshots()
         .map((snapshot) {
-      if (!snapshot.exists) {
-        return null;
-      }
-      return snapshot.data();
-    });
+          if (!snapshot.exists) {
+            return null;
+          }
+          return snapshot.data();
+        });
   }
 
   static Future<bool> checkApplicationEligibility({

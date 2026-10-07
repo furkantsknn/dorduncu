@@ -1,6 +1,22 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 
 class AdminEventStatusScreen extends StatefulWidget {
   const AdminEventStatusScreen({
@@ -13,23 +29,14 @@ class AdminEventStatusScreen extends StatefulWidget {
   final String currentStatus;
 
   @override
-  State<AdminEventStatusScreen> createState() =>
-      _AdminEventStatusScreenState();
+  State<AdminEventStatusScreen> createState() => _AdminEventStatusScreenState();
 }
 
-class _AdminEventStatusScreenState
-    extends State<AdminEventStatusScreen> {
-  final TextEditingController _reasonController =
-  TextEditingController();
+class _AdminEventStatusScreenState extends State<AdminEventStatusScreen> {
+  final TextEditingController _reasonController = TextEditingController();
 
   late String _selectedStatus;
   bool _saving = false;
-
-  DocumentReference<Map<String, dynamic>> get _eventReference {
-    return FirebaseFirestore.instance
-        .collection('events')
-        .doc(widget.eventId);
-  }
 
   @override
   void initState() {
@@ -55,29 +62,21 @@ class _AdminEventStatusScreenState
       return;
     }
 
-    final String adminId =
-        FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    if (adminId.isEmpty) {
-      _showMessage('Admin oturumu bulunamadı.');
-      return;
-    }
-
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Etkinlik Durumunu Güncelle'),
+          title: Text('Etkinlik Durumunu Güncelle'),
           content: Text(
             'Yeni durum: ${_statusTitle(_selectedStatus)}'
-                '${reason.isEmpty ? '' : '\n\nAçıklama: $reason'}',
+            '${reason.isEmpty ? '' : '\n\nAçıklama: $reason'}',
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
             ),
             FilledButton(
               onPressed: () {
@@ -99,27 +98,25 @@ class _AdminEventStatusScreenState
     });
 
     try {
-      await _eventReference.update(
-        <String, dynamic>{
-          'status': _selectedStatus,
-          'durum': _selectedStatus,
-          'adminStatusReason': reason,
-          'adminStatusUpdatedAt':
-          FieldValue.serverTimestamp(),
-          'adminStatusUpdatedBy': adminId,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      );
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminUpdateEventStatus');
+
+      await callable.call(<String, dynamic>{
+        'eventId': widget.eventId,
+        'status': _selectedStatus,
+        'reason': reason,
+      });
 
       if (!mounted) {
         return;
       }
 
       Navigator.of(context).pop(true);
+    } on FirebaseFunctionsException catch (error) {
+      _showMessage(error.message ?? 'Etkinlik durumu güncellenemedi.');
     } catch (error) {
-      _showMessage(
-        'Etkinlik durumu güncellenemedi: $error',
-      );
+      _showMessage('Etkinlik durumu güncellenemedi: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -136,11 +133,7 @@ class _AdminEventStatusScreenState
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   static String _normalizeStatus(String value) {
@@ -167,13 +160,13 @@ class _AdminEventStatusScreenState
     }
   }
 
-  static String _statusTitle(String value) {
+  String _statusTitle(String value) {
     switch (value) {
       case 'completed':
-        return 'Tamamlandı';
+        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
 
       case 'cancelled':
-        return 'İptal edildi';
+        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
 
       case 'hidden':
         return 'Gizli';
@@ -205,33 +198,22 @@ class _AdminEventStatusScreenState
       appBar: AppBar(
         title: const Text(
           'Etkinlik Durumu',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          32,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: <Widget>[
           Card(
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Text(
                     'Yeni durum',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 14),
                   RadioGroup<String>(
@@ -255,9 +237,7 @@ class _AdminEventStatusScreenState
                         ])
                           RadioListTile<String>(
                             value: status,
-                            secondary: Icon(
-                              _statusIcon(status),
-                            ),
+                            secondary: Icon(_statusIcon(status)),
                             title: Text(
                               _statusTitle(status),
                               style: const TextStyle(
@@ -274,10 +254,9 @@ class _AdminEventStatusScreenState
                     enabled: !_saving,
                     minLines: 3,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'İşlem açıklaması',
-                      hintText:
-                      'Örnek: Kural ihlali nedeniyle gizlendi',
+                    decoration: InputDecoration(
+                      labelText: _locText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
+                      hintText: 'Örnek: Kural ihlali nedeniyle gizlendi',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -288,21 +267,13 @@ class _AdminEventStatusScreenState
                       onPressed: _saving ? null : _save,
                       icon: _saving
                           ? const SizedBox(
-                        width: 19,
-                        height: 19,
-                        child:
-                        CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : const Icon(
-                        Icons.save_outlined,
-                      ),
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
                       label: Padding(
-                        padding:
-                        const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
                           _saving
                               ? 'Kaydediliyor...'

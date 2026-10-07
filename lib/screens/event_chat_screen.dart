@@ -7,6 +7,22 @@ import '../services/chat_service.dart';
 import '../utils/support_categories.dart';
 import 'create_support_request_screen.dart';
 
+String _eventChatText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
 class EventChatScreen extends StatefulWidget {
   const EventChatScreen({
     super.key,
@@ -32,6 +48,9 @@ class _EventChatScreenState extends State<EventChatScreen> {
   bool _sending = false;
   bool _markingRead = false;
   bool _isTyping = false;
+  bool _accessReady = false;
+  bool _accessAllowed = false;
+  bool _accessCheckFailed = false;
   String? _lastReadMessageId;
 
   String get _currentUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -43,7 +62,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
     _messageController.addListener(_handleTypingChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _chatService.ensureCurrentUserIsChatMember(widget.eventId);
+      _resolveMessageAccess();
     });
   }
 
@@ -58,6 +77,43 @@ class _EventChatScreenState extends State<EventChatScreen> {
     unawaited(_chatService.clearTyping(eventId: widget.eventId));
 
     super.dispose();
+  }
+
+  Future<void> _resolveMessageAccess() async {
+    try {
+      final bool allowed = await _chatService.canCurrentUserAccessChat(
+        widget.eventId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _accessReady = true;
+        _accessAllowed = allowed;
+        _accessCheckFailed = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _accessReady = true;
+        _accessAllowed = false;
+        _accessCheckFailed = true;
+      });
+    }
+  }
+
+  String _chatClosedMessage(BuildContext context) {
+    return _eventChatText(
+      context,
+      tr: 'Sohbet ödeme tamamlandıktan sonra açılır.',
+      en: 'Chat unlocks after payment is completed.',
+      de: 'Der Chat wird nach Abschluss der Zahlung freigeschaltet.',
+    );
   }
 
   void _handleTypingChanged() {
@@ -113,7 +169,15 @@ class _EventChatScreenState extends State<EventChatScreen> {
     } on ChatServiceException catch (error) {
       _showMessage(error.message);
     } catch (_) {
-      _showMessage('Mesaj gönderilemedi.');
+      if (!mounted) return;
+      _showMessage(
+        _eventChatText(
+          context,
+          tr: 'Mesaj gönderilemedi.',
+          en: 'Message could not be sent.',
+          de: 'Nachricht konnte nicht gesendet werden.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -192,7 +256,14 @@ class _EventChatScreenState extends State<EventChatScreen> {
               if (isMine) ...<Widget>[
                 ListTile(
                   leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Mesajı düzenle'),
+                  title: Text(
+                    _eventChatText(
+                      context,
+                      tr: 'Mesajı düzenle',
+                      en: 'Edit message',
+                      de: 'Nachricht bearbeiten',
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showEditDialog(message);
@@ -200,7 +271,14 @@ class _EventChatScreenState extends State<EventChatScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.delete_outline_rounded),
-                  title: const Text('Mesajı sil'),
+                  title: Text(
+                    _eventChatText(
+                      context,
+                      tr: 'Mesajı sil',
+                      en: 'Delete message',
+                      de: 'Nachricht löschen',
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _confirmDelete(message);
@@ -209,7 +287,14 @@ class _EventChatScreenState extends State<EventChatScreen> {
               ] else
                 ListTile(
                   leading: const Icon(Icons.flag_outlined),
-                  title: const Text('Mesajı Şikâyet Et'),
+                  title: Text(
+                    _eventChatText(
+                      context,
+                      tr: 'Mesajı Şikâyet Et',
+                      en: 'Report Message',
+                      de: 'Nachricht melden',
+                    ),
+                  ),
                   onTap: () async {
                     Navigator.pop(sheetContext);
 
@@ -218,13 +303,23 @@ class _EventChatScreenState extends State<EventChatScreen> {
                       MaterialPageRoute<bool>(
                         builder: (_) => CreateSupportRequestScreen(
                           category: SupportCategory.messageReport,
+                          relatedEventId: widget.eventId,
                           relatedMessageId: message.id,
                         ),
                       ),
                     );
 
+                    if (!mounted) return;
+
                     if (created == true) {
-                      _showMessage('Mesaj şikâyetin incelemeye gönderildi.');
+                      _showMessage(
+                        _eventChatText(
+                          context,
+                          tr: 'Mesaj şikâyetin incelemeye gönderildi.',
+                          en: 'Your message report was sent for review.',
+                          de: 'Deine Meldung wurde zur Prüfung gesendet.',
+                        ),
+                      );
                     }
                   },
                 ),
@@ -245,7 +340,14 @@ class _EventChatScreenState extends State<EventChatScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Mesajı düzenle'),
+          title: Text(
+            _eventChatText(
+              context,
+              tr: 'Mesajı düzenle',
+              en: 'Edit message',
+              de: 'Nachricht bearbeiten',
+            ),
+          ),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -253,14 +355,21 @@ class _EventChatScreenState extends State<EventChatScreen> {
             maxLines: 6,
             maxLength: 2000,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(hintText: 'Mesaj'),
+            decoration: InputDecoration(hintText: 'Mesaj'),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext);
               },
-              child: const Text('Vazgeç'),
+              child: Text(
+                _eventChatText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -294,7 +403,15 @@ class _EventChatScreenState extends State<EventChatScreen> {
     } on ChatServiceException catch (error) {
       _showMessage(error.message);
     } catch (_) {
-      _showMessage('Mesaj düzenlenemedi.');
+      if (!mounted) return;
+      _showMessage(
+        _eventChatText(
+          context,
+          tr: 'Mesaj düzenlenemedi.',
+          en: 'Message could not be edited.',
+          de: 'Nachricht konnte nicht bearbeitet werden.',
+        ),
+      );
     }
   }
 
@@ -303,14 +420,28 @@ class _EventChatScreenState extends State<EventChatScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Mesaj silinsin mi?'),
-          content: const Text('Bu mesaj sohbetten kaldırılacak.'),
+          title: Text('Mesaj silinsin mi?'),
+          content: Text(
+            _eventChatText(
+              context,
+              tr: 'Bu mesaj sohbetten kaldırılacak.',
+              en: 'This message will be removed from the chat.',
+              de: 'Diese Nachricht wird aus dem Chat entfernt.',
+            ),
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(
+                _eventChatText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -385,7 +516,12 @@ class _EventChatScreenState extends State<EventChatScreen> {
 
                     return Text(
                       typingCount == 1
-                          ? 'Bir kişi yazıyor...'
+                          ? _eventChatText(
+                              context,
+                              tr: 'Bir kişi yazıyor...',
+                              en: 'Someone is typing...',
+                              de: 'Jemand schreibt...',
+                            )
                           : '$typingCount kişi yazıyor...',
                       style: const TextStyle(
                         fontSize: 11,
@@ -399,6 +535,19 @@ class _EventChatScreenState extends State<EventChatScreen> {
       ),
       body: currentUser == null
           ? const _SignedOutChatState()
+          : !_accessReady
+          ? const Center(child: CircularProgressIndicator())
+          : !_accessAllowed
+          ? _ChatErrorState(
+              message: _accessCheckFailed
+                  ? _eventChatText(
+                      context,
+                      tr: 'Mesajlar yüklenemedi.',
+                      en: 'Messages could not be loaded.',
+                      de: 'Nachrichten konnten nicht geladen werden.',
+                    )
+                  : _chatClosedMessage(context),
+            )
           : Column(
               children: <Widget>[
                 Expanded(
@@ -415,11 +564,21 @@ class _EventChatScreenState extends State<EventChatScreen> {
                           if (snapshot.hasError) {
                             final Object error =
                                 snapshot.error ?? 'Bilinmeyen hata';
+                            final bool denied =
+                                error is FirebaseException &&
+                                error.code == 'permission-denied';
 
                             return _ChatErrorState(
-                              message: error is ChatServiceException
+                              message: denied
+                                  ? _chatClosedMessage(context)
+                                  : error is ChatServiceException
                                   ? error.message
-                                  : 'Mesajlar yüklenemedi.',
+                                  : _eventChatText(
+                                      context,
+                                      tr: 'Mesajlar yüklenemedi.',
+                                      en: 'Messages could not be loaded.',
+                                      de: 'Nachrichten konnten nicht geladen werden.',
+                                    ),
                             );
                           }
 
@@ -565,7 +724,7 @@ class _MessageComposer extends StatelessWidget {
                       },
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.newline,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Mesaj yaz...',
                     prefixIcon: Icon(Icons.chat_bubble_outline_rounded),
                     contentPadding: EdgeInsets.symmetric(
@@ -580,7 +739,12 @@ class _MessageComposer extends StatelessWidget {
                 width: 48,
                 height: 48,
                 child: IconButton.filled(
-                  tooltip: 'Gönder',
+                  tooltip: _eventChatText(
+                    context,
+                    tr: 'Gönder',
+                    en: 'Send',
+                    de: 'Senden',
+                  ),
                   onPressed: sending ? null : onSend,
                   icon: sending
                       ? const SizedBox(
@@ -689,7 +853,12 @@ class _MessageBubble extends StatelessWidget {
                 children: <Widget>[
                   if (message.edited && !message.deleted) ...[
                     Text(
-                      'düzenlendi',
+                      _eventChatText(
+                        context,
+                        tr: 'düzenlendi',
+                        en: 'edited',
+                        de: 'bearbeitet',
+                      ),
                       style: TextStyle(
                         color: foregroundColor.withValues(alpha: 0.60),
                         fontSize: 9,
@@ -774,7 +943,7 @@ class _DateSeparator extends StatelessWidget {
           borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
-          _formatDate(date),
+          _formatDate(context, date),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 11,
@@ -785,7 +954,7 @@ class _DateSeparator extends StatelessWidget {
     );
   }
 
-  static String _formatDate(DateTime value) {
+  String _formatDate(BuildContext context, DateTime value) {
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
     final DateTime messageDay = DateTime(value.year, value.month, value.day);
@@ -793,11 +962,11 @@ class _DateSeparator extends StatelessWidget {
     final int difference = today.difference(messageDay).inDays;
 
     if (difference == 0) {
-      return 'Bugün';
+      return _eventChatText(context, tr: 'Bugün', en: 'Today', de: 'Heute');
     }
 
     if (difference == 1) {
-      return 'Dün';
+      return _eventChatText(context, tr: 'Dün', en: 'Yesterday', de: 'Gestern');
     }
 
     const List<String> months = <String>[
@@ -850,14 +1019,24 @@ class _EmptyChatState extends StatelessWidget {
             ),
             const SizedBox(height: 17),
             Text(
-              'İlk mesajı sen gönder',
+              _eventChatText(
+                context,
+                tr: 'İlk mesajı sen gönder',
+                en: 'Send the first message',
+                de: 'Sende die erste Nachricht',
+              ),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 7),
             Text(
-              'Etkinlik detaylarını konuşmak ve diğer oyuncularla iletişim kurmak için mesaj yazabilirsin.',
+              _eventChatText(
+                context,
+                tr: 'Etkinlik detaylarını konuşmak ve diğer oyuncularla iletişim kurmak için mesaj yazabilirsin.',
+                en: 'Write a message to discuss event details and communicate with other players.',
+                de: 'Schreibe eine Nachricht, um Veranstaltungsdetails zu besprechen und mit anderen Spielern zu kommunizieren.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -903,11 +1082,16 @@ class _SignedOutChatState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
         padding: EdgeInsets.all(28),
         child: Text(
-          'Sohbeti kullanmak için giriş yapmalısın.',
+          _eventChatText(
+            context,
+            tr: 'Sohbeti kullanmak için giriş yapmalısın.',
+            en: 'You must sign in to use chat.',
+            de: 'Du musst dich anmelden, um den Chat zu nutzen.',
+          ),
           textAlign: TextAlign.center,
           style: TextStyle(fontWeight: FontWeight.w800),
         ),

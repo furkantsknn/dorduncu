@@ -3,6 +3,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+String _adminRolesText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminRolesScreen extends StatefulWidget {
   const AdminRolesScreen({super.key});
 
@@ -25,149 +42,140 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Admin ve Yetki Yönetimi',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+        title: Text(
+          _adminRolesText(context, tr: 'Admin ve Yetki Yönetimi', en: 'Admin and Role Management', de: 'Admin- und Rollenverwaltung'),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Kullanıcılar yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Kullanıcılar yüklenirken bir hata oluştu.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> users =
-          snapshot.data!.docs.where((document) {
-            final Map<String, dynamic> data = document.data();
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>> users =
+                  snapshot.data!.docs.where((document) {
+                    final Map<String, dynamic> data = document.data();
 
-            if (_searchText.isEmpty) {
-              return true;
-            }
+                    if (_searchText.isEmpty) {
+                      return true;
+                    }
 
-            final String query = _searchText.toLowerCase();
+                    final String query = _searchText.toLowerCase();
 
-            final String profileName =
-                data['profilAdi']?.toString().toLowerCase() ?? '';
+                    final String profileName =
+                        data['profilAdi']?.toString().toLowerCase() ?? '';
 
-            final String name =
-                data['ad']?.toString().toLowerCase() ?? '';
+                    final String name =
+                        data['ad']?.toString().toLowerCase() ?? '';
 
-            final String surname =
-                data['soyad']?.toString().toLowerCase() ?? '';
+                    final String surname =
+                        data['soyad']?.toString().toLowerCase() ?? '';
 
-            final String phone =
-                data['telefon']?.toString().toLowerCase() ??
-                    data['phoneNumber']?.toString().toLowerCase() ??
-                    '';
+                    final String phone =
+                        data['telefon']?.toString().toLowerCase() ??
+                        data['phoneNumber']?.toString().toLowerCase() ??
+                        '';
 
-            return profileName.contains(query) ||
-                name.contains(query) ||
-                surname.contains(query) ||
-                '$name $surname'.contains(query) ||
-                phone.contains(query) ||
-                document.id.toLowerCase().contains(query);
-          }).toList();
+                    return profileName.contains(query) ||
+                        name.contains(query) ||
+                        surname.contains(query) ||
+                        '$name $surname'.contains(query) ||
+                        phone.contains(query) ||
+                        document.id.toLowerCase().contains(query);
+                  }).toList();
 
-          users.sort((a, b) {
-            final bool aAdmin = _isAdmin(a.data());
-            final bool bAdmin = _isAdmin(b.data());
+              users.sort((a, b) {
+                final bool aAdmin = _isAdmin(a.data());
+                final bool bAdmin = _isAdmin(b.data());
 
-            if (aAdmin != bAdmin) {
-              return aAdmin ? -1 : 1;
-            }
+                if (aAdmin != bAdmin) {
+                  return aAdmin ? -1 : 1;
+                }
 
-            final String aName = _displayName(a.data()).toLowerCase();
-            final String bName = _displayName(b.data()).toLowerCase();
+                final String aName = _displayName(a.data()).toLowerCase();
+                final String bName = _displayName(b.data()).toLowerCase();
 
-            return aName.compareTo(bName);
-          });
+                return aName.compareTo(bName);
+              });
 
-          return Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (String value) {
-                    setState(() {
-                      _searchText = value.trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Kullanıcı, telefon veya kullanıcı kimliği ara',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchText.isEmpty
-                        ? null
-                        : IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-
+              return Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (String value) {
                         setState(() {
-                          _searchText = '';
+                          _searchText = value.trim();
                         });
                       },
-                      icon: const Icon(Icons.close),
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: users.isEmpty
-                    ? const Center(
-                  child: Text(
-                    'Kullanıcı bulunamadı.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )
-                    : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  itemCount: users.length,
-                  separatorBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    return const SizedBox(height: 10);
-                  },
-                  itemBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    final QueryDocumentSnapshot<Map<String, dynamic>>
-                    document = users[index];
+                      decoration: InputDecoration(
+                        hintText:
+                            'Kullanıcı, telefon veya kullanıcı kimliği ara',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchText.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  _searchController.clear();
 
-                    return _UserRoleCard(
-                      userId: document.id,
-                      data: document.data(),
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                                  setState(() {
+                                    _searchText = '';
+                                  });
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: users.isEmpty
+                        ? Center(
+                            child: Text(
+                              _adminRolesText(context, tr: 'Kullanıcı bulunamadı.', en: 'User not found.', de: 'Nutzer nicht gefunden.'),
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                            itemCount: users.length,
+                            separatorBuilder:
+                                (BuildContext context, int index) {
+                                  return const SizedBox(height: 10);
+                                },
+                            itemBuilder: (BuildContext context, int index) {
+                              final QueryDocumentSnapshot<Map<String, dynamic>>
+                              document = users[index];
+
+                              return _UserRoleCard(
+                                userId: document.id,
+                                data: document.data(),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
       ),
     );
   }
@@ -180,8 +188,7 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
   }
 
   static String _displayName(Map<String, dynamic> data) {
-    final String profileName =
-        data['profilAdi']?.toString().trim() ?? '';
+    final String profileName = data['profilAdi']?.toString().trim() ?? '';
 
     if (profileName.isNotEmpty) {
       return profileName;
@@ -197,10 +204,7 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
 }
 
 class _UserRoleCard extends StatelessWidget {
-  const _UserRoleCard({
-    required this.userId,
-    required this.data,
-  });
+  const _UserRoleCard({required this.userId, required this.data});
 
   final String userId;
   final Map<String, dynamic> data;
@@ -211,11 +215,10 @@ class _UserRoleCard extends StatelessWidget {
 
     final String phone =
         data['telefon']?.toString().trim() ??
-            data['phoneNumber']?.toString().trim() ??
-            '';
+        data['phoneNumber']?.toString().trim() ??
+        '';
 
-    final String photoUrl =
-        data['profilFotografi']?.toString().trim() ?? '';
+    final String photoUrl = data['profilFotografi']?.toString().trim() ?? '';
 
     final String role = _normalizedRole(data);
 
@@ -242,8 +245,9 @@ class _UserRoleCard extends StatelessWidget {
             children: <Widget>[
               CircleAvatar(
                 radius: 27,
-                backgroundImage:
-                photoUrl.isEmpty ? null : NetworkImage(photoUrl),
+                backgroundImage: photoUrl.isEmpty
+                    ? null
+                    : NetworkImage(photoUrl),
                 child: photoUrl.isEmpty
                     ? const Icon(Icons.person_outline)
                     : null,
@@ -264,16 +268,10 @@ class _UserRoleCard extends StatelessWidget {
                     ),
                     if (phone.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 4),
-                      Text(
-                        phone,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                     const SizedBox(height: 8),
-                    _RoleLabel(
-                      role: role,
-                    ),
+                    _RoleLabel(role: role),
                   ],
                 ),
               ),
@@ -287,8 +285,7 @@ class _UserRoleCard extends StatelessWidget {
   }
 
   static String _displayName(Map<String, dynamic> data) {
-    final String profileName =
-        data['profilAdi']?.toString().trim() ?? '';
+    final String profileName = data['profilAdi']?.toString().trim() ?? '';
 
     if (profileName.isNotEmpty) {
       return profileName;
@@ -313,8 +310,15 @@ class _UserRoleCard extends StatelessWidget {
       return 'admin';
     }
 
-    if (role == 'moderator') {
-      return 'moderator';
+    if (<String>{
+      'moderator',
+      'verification_officer',
+      'support_officer',
+      'finance_officer',
+      'content_manager',
+      'analyst',
+    }.contains(role)) {
+      return role;
     }
 
     return 'user';
@@ -333,12 +337,10 @@ class _AdminRoleEditorScreen extends StatefulWidget {
   final String currentRole;
 
   @override
-  State<_AdminRoleEditorScreen> createState() =>
-      _AdminRoleEditorScreenState();
+  State<_AdminRoleEditorScreen> createState() => _AdminRoleEditorScreenState();
 }
 
-class _AdminRoleEditorScreenState
-    extends State<_AdminRoleEditorScreen> {
+class _AdminRoleEditorScreenState extends State<_AdminRoleEditorScreen> {
   final TextEditingController _reasonController = TextEditingController();
 
   late String _selectedRole;
@@ -368,6 +370,11 @@ class _AdminRoleEditorScreenState
       return;
     }
 
+    if (_selectedRole == widget.currentRole) {
+      _showMessage('Yeni bir rol seç.');
+      return;
+    }
+
     final User? currentAdmin = FirebaseAuth.instance.currentUser;
 
     if (currentAdmin == null) {
@@ -385,19 +392,21 @@ class _AdminRoleEditorScreenState
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Rol Değişikliğini Onayla'),
+          title: Text('Rol Değişikliğini Onayla'),
           content: Text(
             '${widget.displayName}\n\n'
-                '${_roleTitle(widget.currentRole)} → '
-                '${_roleTitle(_selectedRole)}\n\n'
-                'Açıklama: $reason',
+            '${_roleTitle(widget.currentRole)} → '
+            '${_roleTitle(_selectedRole)}\n\n'
+            'Açıklama: $reason\n\n'
+            'Güvenlik nedeniyle kullanıcının mevcut oturumları '
+            'kapatılacaktır.',
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Vazgeç'),
+              child: Text(_adminRolesText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
             ),
             FilledButton(
               onPressed: () {
@@ -419,11 +428,9 @@ class _AdminRoleEditorScreenState
     });
 
     try {
-
-
-      final HttpsCallable callable =
-      FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('setUserRole');
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('setUserRole');
 
       await callable.call(<String, dynamic>{
         'uid': widget.userId,
@@ -454,23 +461,29 @@ class _AdminRoleEditorScreenState
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  static String _roleTitle(String role) {
+  String _roleTitle(String role) {
     switch (role) {
       case 'super_admin':
-        return 'Süper Admin';
+        return _adminRolesText(context, tr: 'Süper Admin', en: 'Super Admin', de: 'Super-Admin');
       case 'admin':
         return 'Admin';
       case 'moderator':
-        return 'Moderatör';
+        return _adminRolesText(context, tr: 'Moderatör', en: 'Moderator', de: 'Moderator');
+      case 'verification_officer':
+        return 'Belge Doğrulama Görevlisi';
+      case 'support_officer':
+        return _adminRolesText(context, tr: 'Destek Görevlisi', en: 'Support Agent', de: 'Support-Mitarbeiter');
+      case 'finance_officer':
+        return _adminRolesText(context, tr: 'Finans Görevlisi', en: 'Finance Agent', de: 'Finanz-Mitarbeiter');
+      case 'content_manager':
+        return _adminRolesText(context, tr: 'İçerik Yöneticisi', en: 'Content Manager', de: 'Content-Manager');
+      case 'analyst':
+        return 'Salt Okunur Analist';
       default:
-        return 'Kullanıcı';
+        return _adminRolesText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer');
     }
   }
 
@@ -481,7 +494,17 @@ class _AdminRoleEditorScreenState
       case 'admin':
         return 'Kullanıcı, etkinlik, destek ve finans işlemlerini yönetebilir.';
       case 'moderator':
-        return 'Şikâyet, destek ve içerik moderasyonu yapabilir.';
+        return 'Kullanıcı, etkinlik ve moderasyon işlemlerini yönetebilir.';
+      case 'verification_officer':
+        return 'Kendisine atanan doğrulama taleplerini inceleyebilir.';
+      case 'support_officer':
+        return 'Destek taleplerini inceleyebilir ve yanıtlayabilir.';
+      case 'finance_officer':
+        return 'Cüzdan, ödeme, iade ve finans işlemlerini yönetebilir.';
+      case 'content_manager':
+        return 'Katalog, görsel, duyuru ve yönetilebilir içerikleri düzenleyebilir.';
+      case 'analyst':
+        return 'İstatistik ve raporları yalnızca görüntüleyebilir.';
       default:
         return 'Admin paneline erişemez.';
     }
@@ -495,6 +518,16 @@ class _AdminRoleEditorScreenState
         return Icons.admin_panel_settings_outlined;
       case 'moderator':
         return Icons.shield_outlined;
+      case 'verification_officer':
+        return Icons.verified_user_outlined;
+      case 'support_officer':
+        return Icons.support_agent_outlined;
+      case 'finance_officer':
+        return Icons.account_balance_wallet_outlined;
+      case 'content_manager':
+        return Icons.edit_note_outlined;
+      case 'analyst':
+        return Icons.analytics_outlined;
       default:
         return Icons.person_outline;
     }
@@ -504,11 +537,9 @@ class _AdminRoleEditorScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Rol ve Yetki Düzenle',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+        title: Text(
+          _adminRolesText(context, tr: 'Rol ve Yetki Düzenle', en: 'Edit Role and Permissions', de: 'Rolle und Berechtigungen bearbeiten'),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: ListView(
@@ -547,26 +578,49 @@ class _AdminRoleEditorScreenState
                         for (final String role in <String>[
                           'user',
                           'moderator',
+                          'verification_officer',
+                          'support_officer',
+                          'finance_officer',
+                          'content_manager',
+                          'analyst',
                           'admin',
                           'super_admin',
                         ])
                           RadioListTile<String>(
                             value: role,
                             contentPadding: EdgeInsets.zero,
-                            secondary: Icon(
-                              _roleIcon(role),
-                            ),
+                            secondary: Icon(_roleIcon(role)),
                             title: Text(
                               _roleTitle(role),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            subtitle: Text(
-                              _roleDescription(role),
-                            ),
+                            subtitle: Text(_roleDescription(role)),
                           ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(Icons.security_outlined),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Admin paneli rolleri yalnızca doğrulanmış '
+                              'e-posta/parola hesabına atanabilir. Rol '
+                              'değiştiğinde mevcut oturumlar güvenlik '
+                              'nedeniyle kapatılır.',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -575,10 +629,9 @@ class _AdminRoleEditorScreenState
                     enabled: !_saving,
                     minLines: 3,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'İşlem açıklaması',
-                      hintText:
-                      'Örnek: Moderasyon ekibine dahil edildi',
+                    decoration: InputDecoration(
+                      labelText: _adminRolesText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
+                      hintText: 'Örnek: Moderasyon ekibine dahil edildi',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -589,21 +642,15 @@ class _AdminRoleEditorScreenState
                       onPressed: _saving ? null : _save,
                       icon: _saving
                           ? const SizedBox(
-                        width: 19,
-                        height: 19,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Icon(Icons.save_outlined),
                       label: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          _saving
-                              ? 'Kaydediliyor...'
-                              : 'Rolü Güncelle',
+                          _saving ? 'Kaydediliyor...' : _adminRolesText(context, tr: 'Rolü Güncelle', en: 'Update Role', de: 'Rolle aktualisieren'),
                         ),
                       ),
                     ),
@@ -619,9 +666,7 @@ class _AdminRoleEditorScreenState
 }
 
 class _RoleLabel extends StatelessWidget {
-  const _RoleLabel({
-    required this.role,
-  });
+  const _RoleLabel({required this.role});
 
   final String role;
 
@@ -632,7 +677,7 @@ class _RoleLabel extends StatelessWidget {
 
     switch (role) {
       case 'super_admin':
-        title = 'Süper Admin';
+        title = _adminRolesText(context, tr: 'Süper Admin', en: 'Super Admin', de: 'Super-Admin');
         icon = Icons.security_rounded;
         break;
       case 'admin':
@@ -640,19 +685,36 @@ class _RoleLabel extends StatelessWidget {
         icon = Icons.admin_panel_settings_outlined;
         break;
       case 'moderator':
-        title = 'Moderatör';
+        title = _adminRolesText(context, tr: 'Moderatör', en: 'Moderator', de: 'Moderator');
         icon = Icons.shield_outlined;
         break;
+      case 'verification_officer':
+        title = 'Belge Doğrulama';
+        icon = Icons.verified_user_outlined;
+        break;
+      case 'support_officer':
+        title = 'Destek';
+        icon = Icons.support_agent_outlined;
+        break;
+      case 'finance_officer':
+        title = 'Finans';
+        icon = Icons.account_balance_wallet_outlined;
+        break;
+      case 'content_manager':
+        title = 'İçerik';
+        icon = Icons.edit_note_outlined;
+        break;
+      case 'analyst':
+        title = 'Analist';
+        icon = Icons.analytics_outlined;
+        break;
       default:
-        title = 'Kullanıcı';
+        title = _adminRolesText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer');
         icon = Icons.person_outline;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
@@ -664,10 +726,7 @@ class _RoleLabel extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
           ),
         ],
       ),

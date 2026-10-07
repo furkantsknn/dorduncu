@@ -2,6 +2,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'admin_event_detail_screen.dart';
 
+String _locText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
+}
+
+
 class AdminEventsScreen extends StatefulWidget {
   const AdminEventsScreen({super.key});
 
@@ -156,7 +173,7 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
                   children: <Widget>[
                     _buildFilter('all', 'Tümü'),
                     _buildFilter('active', 'Aktif'),
-                    _buildFilter('completed', 'Tamamlandı'),
+                    _buildFilter('completed', _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen')),
                     _buildFilter('cancelled', 'İptal'),
                     _buildFilter('hidden', 'Gizli'),
                   ],
@@ -486,12 +503,12 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
     return '';
   }
 
-  static String _statusTitle(String value) {
+  String _statusTitle(String value) {
     switch (value) {
       case 'completed':
-        return 'Tamamlandı';
+        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
       case 'cancelled':
-        return 'İptal edildi';
+        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
       case 'hidden':
         return 'Gizli';
       default:
@@ -512,7 +529,7 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
     }
   }
 
-  static String _formatDate(DateTime value) {
+  String _formatDate(DateTime value) {
     final String day = value.day.toString().padLeft(2, '0');
     final String month = value.month.toString().padLeft(2, '0');
     final String year = value.year.toString();

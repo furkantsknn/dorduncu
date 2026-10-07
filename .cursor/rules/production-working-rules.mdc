@@ -1,0 +1,48 @@
+---
+description: Production çalışma kuralları — kök neden, sınırlı değişiklik, Firebase sınırları
+alwaysApply: true
+---
+
+# Production çalışma kuralları
+
+Bu repo production'a hazırlanan Flutter + Firebase uygulamasıdır (`com.dortapp.dort`, proje `dorduncu-8e599`).
+
+## Değişiklik disiplini
+
+- Önce kök nedeni bul. Tahminle kod değiştirme.
+- İlgili dosyaları ve bağımlılıkları okumadan düzenleme.
+- Yalnızca sorunu çözen dosyalara dokun. Çalışan özelliği yeniden tasarlama veya gereksiz refactor yapma.
+- Dosyayı silmeden önce gerekçeyi söyle. Paket güncelleme.
+- Secret, keystore, `key.properties` ve kimlik bilgilerini değiştirme veya paylaşma.
+
+## Navigasyon
+
+Aktif kabuk `SplashScreen` → `AuthControl` → `HomeScreen`. Alt çubuk `MaterialPageRoute` ile Keşfet, Mesajlar ve Profil açar. `lib/screens/main_screen.dart` kullanılmaz; oraya navigasyon ekleme.
+
+```dart
+// ❌ BAD — ölü kabuk
+Navigator.push(context, MaterialPageRoute(builder: (_) => MainScreen(...)));
+
+// ✅ GOOD — gerçek kabuk
+Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+```
+
+## Firebase sınırları
+
+Auth, Firestore, Storage, App Check, Cloud Functions ve security rules birlikte değerlendirilir. Güvenlik, ödeme, doğrulama, rol ve özel adres alanları istemciden yazılmaz; sunucu fonksiyonu ve kural sahibi kalır.
+
+Ödeme veya doğrulamada sahte başarılı durum üretme. `getEventPaymentProvider()` bağlı değilse sağlayıcıyı bypass etme. Plus/rozet Google Play (`fulfillGooglePlayPurchase`) yolundadır; cüzdanla dijital satın alma kapalıdır.
+
+## Doğrulama ve rapor
+
+Dart değişikliğinden sonra değişen dosyalarda `dart format`, ardından `flutter analyze`. Analyze hatası varken görev bitmiş sayılmaz.
+
+Görev sonunda yalnızca şu başlıklarla kısa rapor ver:
+
+1. Kök neden
+2. Değiştirilen dosyalar
+3. Yapılan değişiklik
+4. flutter analyze sonucu
+5. Kullanıcının telefonda yapması gereken tek test
+
+Paylaşılan bir kavram değiştiyse aynı rapora `ETKİLENEN TÜM KULLANIM NOKTALARI` başlığını ekle. Kontrol edilen noktaları ve bilinçli olarak bırakılanları yaz.
