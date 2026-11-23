@@ -4,7 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/chat_service.dart';
+import '../services/notification_push_service.dart';
 import '../utils/support_categories.dart';
+import '../widgets/profile_menu_tile.dart';
+import '../widgets/market_palette.dart';
 import 'create_support_request_screen.dart';
 
 String _eventChatText(
@@ -58,6 +61,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
   @override
   void initState() {
     super.initState();
+    NotificationPushService.setVisibleChat(widget.eventId);
 
     _messageController.addListener(_handleTypingChanged);
 
@@ -68,6 +72,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
 
   @override
   void dispose() {
+    NotificationPushService.setVisibleChat(null);
     _typingTimer?.cancel();
     _messageController.removeListener(_handleTypingChanged);
     _messageController.dispose();
@@ -487,6 +492,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
     final User? currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
+      backgroundColor: MarketPalette.of(context).background,
       appBar: AppBar(
         titleSpacing: 8,
         title: Column(
@@ -496,7 +502,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
               widget.eventTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+              style: profileMenuTitleStyle(context),
             ),
             StreamBuilder<List<String>>(
               stream: _chatService.watchTypingUserIds(widget.eventId),
@@ -547,6 +553,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
                       de: 'Nachrichten konnten nicht geladen werden.',
                     )
                   : _chatClosedMessage(context),
+              onRetry: _accessCheckFailed ? _resolveMessageAccess : null,
             )
           : Column(
               children: <Widget>[
@@ -579,15 +586,14 @@ class _EventChatScreenState extends State<EventChatScreen> {
                                       en: 'Messages could not be loaded.',
                                       de: 'Nachrichten konnten nicht geladen werden.',
                                     ),
+                              onRetry: denied ? null : () => setState(() {}),
                             );
                           }
 
                           if (snapshot.connectionState ==
                                   ConnectionState.waiting &&
                               !snapshot.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
+                            return const _ChatLoadingState();
                           }
 
                           final List<ChatMessage> messages =
@@ -696,9 +702,10 @@ class _MessageComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Material(
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 8,
+      color: palette.surface,
+      elevation: 0,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -725,8 +732,14 @@ class _MessageComposer extends StatelessWidget {
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.newline,
                   decoration: InputDecoration(
-                    hintText: 'Mesaj yaz...',
-                    prefixIcon: Icon(Icons.chat_bubble_outline_rounded),
+                    hintText: _eventChatText(
+                      context,
+                      tr: 'Mesaj yaz...',
+                      en: 'Write a message...',
+                      de: 'Nachricht schreiben...',
+                    ),
+                    filled: true,
+                    fillColor: palette.raised,
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 11,
@@ -739,6 +752,11 @@ class _MessageComposer extends StatelessWidget {
                 width: 48,
                 height: 48,
                 child: IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: palette.accent,
+                    foregroundColor: palette.onAccent,
+                    disabledBackgroundColor: palette.raised,
+                  ),
                   tooltip: _eventChatText(
                     context,
                     tr: 'Gönder',
@@ -779,10 +797,9 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    final MarketPalette palette = MarketPalette.of(context);
 
-    final Color bubbleColor = mine
-        ? const Color(0xffFF9800)
-        : colors.surfaceContainerHighest;
+    final Color bubbleColor = mine ? palette.accent : palette.raised;
 
     final Color foregroundColor = mine ? Colors.black : colors.onSurface;
 
@@ -798,6 +815,7 @@ class _MessageBubble extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 9, 10, 7),
           decoration: BoxDecoration(
             color: bubbleColor,
+            border: mine ? null : Border.all(color: palette.line),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(18),
               topRight: const Radius.circular(18),
@@ -899,6 +917,58 @@ class _MessageBubble extends StatelessWidget {
     return '${value.hour.toString().padLeft(2, '0')}:'
         '${value.minute.toString().padLeft(2, '0')}';
   }
+}
+
+@visibleForTesting
+Widget buildEventChatDesignPreview() {
+  ChatMessage message({
+    required String id,
+    required String text,
+    required String sender,
+  }) {
+    return ChatMessage(
+      id: id,
+      eventId: 'preview-event',
+      type: ChatMessageType.text,
+      text: text,
+      senderUid: sender,
+      senderName: sender == 'me' ? 'Ben' : 'Abdullah Kerim Yıldırımoğlu',
+      senderPhotoUrl: '',
+      createdAt: DateTime.now(),
+      updatedAt: null,
+      edited: false,
+      deleted: false,
+      readBy: const <String>[],
+    );
+  }
+
+  return ListView(
+    padding: const EdgeInsets.all(16),
+    children: <Widget>[
+      _DateSeparator(date: DateTime.now()),
+      _MessageBubble(
+        message: message(
+          id: 'incoming',
+          text:
+              'Uzun mesajlar dar ekranda taşmadan dengeli biçimde satırlara ayrılır.',
+          sender: 'friend',
+        ),
+        mine: false,
+        readByAnother: false,
+        onLongPress: () {},
+      ),
+      _MessageBubble(
+        message: message(
+          id: 'outgoing',
+          text: 'Tamam, etkinlik sohbetinde görüşürüz.',
+          sender: 'me',
+        ),
+        mine: true,
+        readByAnother: true,
+        onLongPress: () {},
+      ),
+    ],
+  );
 }
 
 class _MiniAvatar extends StatelessWidget {
@@ -1051,9 +1121,10 @@ class _EmptyChatState extends StatelessWidget {
 }
 
 class _ChatErrorState extends StatelessWidget {
-  const _ChatErrorState({required this.message});
+  const _ChatErrorState({required this.message, this.onRetry});
 
   final String message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -1070,9 +1141,55 @@ class _ChatErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4),
             ),
+            if (onRetry != null) ...<Widget>[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(
+                  _eventChatText(
+                    context,
+                    tr: 'Yeniden dene',
+                    en: 'Try again',
+                    de: 'Erneut versuchen',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ChatLoadingState extends StatelessWidget {
+  const _ChatLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
+    return ListView(
+      reverse: true,
+      padding: const EdgeInsets.all(14),
+      children: <Widget>[
+        for (final double width in <double>[190, 250, 160, 220])
+          Align(
+            alignment: width == 250
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Container(
+              width: width,
+              height: 56,
+              margin: const EdgeInsets.only(top: 10),
+              decoration: BoxDecoration(
+                color: palette.raised,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.line),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

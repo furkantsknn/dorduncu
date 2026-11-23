@@ -6,17 +6,23 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/event_application_state.dart';
 import '../models/event_model.dart';
+import '../models/user_model.dart';
 import '../services/chat_service.dart';
 import '../services/user_service.dart';
 import '../services/event_service.dart';
 import '../services/event_rating_service.dart';
 import 'public_profile_screen.dart';
+import '../widgets/plus_emblem.dart';
 import '../utils/game_cover_assets.dart';
+import '../utils/game_catalog.dart';
+import '../utils/profile_completion.dart';
 import '../utils/support_categories.dart';
+import '../widgets/favorite_event_button.dart';
 import '../widgets/game_visuals.dart';
 import '../widgets/user_avatar.dart';
 import 'create_support_request_screen.dart';
 import 'event_chat_screen.dart';
+import 'edit_profile_screen.dart';
 
 String _eventText(
   BuildContext context, {
@@ -55,7 +61,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (_completionRequested || !mounted) {
       return;
     }
-    if (!EventModel.mapHasEnded(data) || EventModel.mapIsTerminal(data)) {
+    if (!EventModel.mapHasEnded(data) ||
+        data['closureReason'] == 'occurred_confirmed') {
       return;
     }
     final User? user = FirebaseAuth.instance.currentUser;
@@ -71,8 +78,56 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
     _completionRequested = true;
     try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            _eventText(
+              context,
+              tr: 'Etkinlik gerçekleşti mi?',
+              en: 'Did the event take place?',
+              de: 'Hat die Veranstaltung stattgefunden?',
+            ),
+          ),
+          content: Text(
+            _eventText(
+              context,
+              tr: 'Tarihin geçmesi gerçekleşme kanıtı değildir. Yalnız gerçekten gerçekleştiyse onayla.',
+              en: 'Elapsed time does not confirm attendance. Confirm only if the event actually took place.',
+              de: 'Der Zeitablauf bestätigt keine Durchführung. Nur bestätigen, wenn sie stattgefunden hat.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                _eventText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(
+                _eventText(
+                  context,
+                  tr: 'Gerçekleşti',
+                  en: 'Confirm',
+                  de: 'Bestätigen',
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
       await EventService().markEventCompleted(eventId: widget.eventId);
-    } catch (_) {
+    } catch (error) {
+      _message(error.toString());
+    } finally {
       _completionRequested = false;
     }
   }
@@ -156,9 +211,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       return;
     }
 
-    final int needed = ((data['oyuncuSayisi'] as num?)?.toInt() ?? 1)
-        .clamp(1, 4)
-        .toInt();
+    final int needed = ((data['oyuncuSayisi'] as num?)?.toInt() ?? 1) < 1
+        ? 1
+        : (data['oyuncuSayisi'] as num?)?.toInt() ?? 1;
     if (selectedPlayers.length >= needed) {
       _message(
         _eventText(
@@ -176,6 +231,75 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       _message(
         'Başvurmak için oyuncu profilini tamamlayıp Oyuncu Rozeti almalısın.',
       );
+      return;
+    }
+
+    final String eventGameId = data['gameId']?.toString().trim() ?? '';
+    final UserModel player = UserModel.fromMap(profile, documentId: user.uid);
+    if (eventGameId.isEmpty || !player.gameSkills.containsKey(eventGameId)) {
+      final String gameName =
+          GameCatalog.gameById(eventGameId)?.name ??
+          data['gameName']?.toString() ??
+          'Bu oyun';
+      if (!mounted) return;
+      final bool edit =
+          await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(
+                _eventText(
+                  context,
+                  tr: 'Oyun profilinde yok',
+                  en: 'Game not in your profile',
+                  de: 'Spiel fehlt im Profil',
+                ),
+              ),
+              content: Text(
+                _eventText(
+                  context,
+                  tr: '$gameName oyununu profiline eklemeden başvuramazsın.',
+                  en: 'Add $gameName to your profile before applying.',
+                  de: 'Füge $gameName deinem Profil hinzu, bevor du dich bewirbst.',
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(
+                    _eventText(
+                      context,
+                      tr: 'Vazgeç',
+                      en: 'Cancel',
+                      de: 'Abbrechen',
+                    ),
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(
+                    _eventText(
+                      context,
+                      tr: 'Profili düzenle',
+                      en: 'Edit profile',
+                      de: 'Profil bearbeiten',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (edit && mounted) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => EditProfileScreen(
+              initialData: profile,
+              focus: ProfileCompletionField.games,
+            ),
+          ),
+        );
+        await UserService.getProfileData();
+      }
       return;
     }
 
@@ -895,9 +1019,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 user != null && selectedPlayers.contains(user.uid);
             final bool applied =
                 justApplied || (user != null && applicants.contains(user.uid));
-            final int needed = ((data['oyuncuSayisi'] as num?)?.toInt() ?? 1)
-                .clamp(1, 4)
-                .toInt();
+            final int rawNeeded = (data['oyuncuSayisi'] as num?)?.toInt() ?? 1;
+            final int needed = rawNeeded < 1 ? 1 : rawNeeded;
             final bool full = selectedPlayers.length >= needed;
             final String status = data['durum']?.toString() ?? 'aktif';
             final bool ended = EventModel.mapHasEnded(data);
@@ -909,12 +1032,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             final bool closed = cancelled || completed || ended;
             final String displayStatus = cancelled
                 ? status
-                : (completed || ended)
-                ? 'tamamlandi'
+                : completed
+                ? (data['closureReason'] == 'occurred_confirmed'
+                      ? 'tamamlandi'
+                      : 'legacy_closed')
+                : ended
+                ? 'expired'
                 : status;
-            if (ended && !completed && !cancelled) {
-              _ensureCompleted(data);
-            }
 
             final String publicLocationText = <String>[
               city,
@@ -935,6 +1059,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ),
                 centerTitle: true,
                 actions: <Widget>[
+                  FavoriteEventButton(eventId: widget.eventId),
                   if (!isCreator)
                     IconButton(
                       tooltip: _eventText(
@@ -981,6 +1106,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  if (ended &&
+                      !cancelled &&
+                      !completed &&
+                      (data['olusturanUid'] ==
+                          FirebaseAuth.instance.currentUser?.uid))
+                    OutlinedButton(
+                      onPressed: _completionRequested
+                          ? null
+                          : () => _ensureCompleted(data),
+                      child: Text(
+                        _eventText(
+                          context,
+                          tr: 'Gerçekleştiğini onayla',
+                          en: 'Confirm event took place',
+                          de: 'Durchführung bestätigen',
+                        ),
+                      ),
+                    ),
                   _info(
                     Icons.calendar_month_rounded,
                     date == null
@@ -1851,7 +1994,7 @@ class _OrganizerCard extends StatelessWidget {
             ],
             if (plus) ...<Widget>[
               const SizedBox(width: 5),
-              const Icon(Icons.diamond, size: 17, color: Color(0xffFF9800)),
+              const PlusMark(size: 16),
             ],
           ],
         ),
@@ -1922,6 +2065,22 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final String label;
     switch (status) {
+      case 'expired':
+        label = _eventText(
+          context,
+          tr: 'Tarihi geçti',
+          en: 'Expired',
+          de: 'Abgelaufen',
+        );
+        break;
+      case 'legacy_closed':
+        label = _eventText(
+          context,
+          tr: 'Geçmiş kayıt',
+          en: 'Past record',
+          de: 'Vergangener Eintrag',
+        );
+        break;
       case 'oyuncularSecildi':
         label = _eventText(
           context,

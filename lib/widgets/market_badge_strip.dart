@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import '../models/market_badge_display.dart';
@@ -18,10 +19,12 @@ class MarketBadgeStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool viewerIsOwner =
-        FirebaseAuth.instance.currentUser?.uid == userId && userId.isNotEmpty;
+        Firebase.apps.isNotEmpty &&
+        FirebaseAuth.instance.currentUser?.uid == userId &&
+        userId.isNotEmpty;
 
     if (!viewerIsOwner) {
-      return _MarketBadgeWrap(badges: projected);
+      return ProfileBadgeRow(badges: projected, ownsBadges: false);
     }
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -41,20 +44,27 @@ class MarketBadgeStrip extends StatelessWidget {
                     .where((
                       QueryDocumentSnapshot<Map<String, dynamic>> document,
                     ) {
-                      return document.data()['googlePlayEntitled'] != false;
+                      return ownedBadgeIsEntitled(document.data());
                     })
                     .map(MarketBadgeDisplay.fromOwnedDocument)
                     .toList(growable: false);
-            return _MarketBadgeWrap(badges: owned);
+            return ProfileBadgeRow(badges: owned, ownsBadges: true);
           },
     );
   }
 }
 
-class _MarketBadgeWrap extends StatelessWidget {
-  const _MarketBadgeWrap({required this.badges});
+class ProfileBadgeRow extends StatelessWidget {
+  const ProfileBadgeRow({
+    required this.badges,
+    required this.ownsBadges,
+    super.key,
+  });
 
   final List<MarketBadgeDisplay> badges;
+  final bool ownsBadges;
+
+  static const double emblemSize = 48;
 
   @override
   Widget build(BuildContext context) {
@@ -63,53 +73,36 @@ class _MarketBadgeWrap extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: 12),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          const double emblemSize = 32;
-          const double gap = 8;
-          final int fit = ((constraints.maxWidth + gap) / (emblemSize + gap))
-              .floor();
-          final int slots = fit.clamp(1, 4).toInt();
-          final bool overflow = badges.length > 3 || badges.length > slots;
-          final int visibleCount = overflow
-              ? (slots - 1).clamp(1, 3).toInt()
-              : badges.length.clamp(0, 3).toInt();
-          final int hidden = badges.length - visibleCount;
-
-          return InkWell(
-            onTap: () => _showMarketBadgeSheet(context, badges),
-            borderRadius: BorderRadius.circular(20),
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: gap,
-              runSpacing: gap,
+          const double gap = 12;
+          final double content =
+              badges.length * emblemSize + (badges.length - 1) * gap;
+          final List<Widget> marks = <Widget>[
+            for (int index = 0; index < badges.length; index++)
+              _ProfileBadgeButton(badge: badges[index], ownsBadges: ownsBadges),
+          ];
+          if (content <= constraints.maxWidth) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                for (int index = 0; index < visibleCount; index++)
-                  _CatalogBadgeEmblem(badge: badges[index], size: emblemSize),
-                if (hidden > 0)
-                  Container(
-                    width: emblemSize,
-                    height: emblemSize,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xff141414),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xffC98A2E),
-                        width: 2,
-                      ),
-                    ),
-                    child: Text(
-                      '+$hidden',
-                      style: const TextStyle(
-                        color: Color(0xffE1B86C),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
+                for (int index = 0; index < marks.length; index++) ...<Widget>[
+                  if (index > 0) const SizedBox(width: gap),
+                  marks[index],
+                ],
               ],
+            );
+          }
+          return SizedBox(
+            height: emblemSize,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: marks.length,
+              separatorBuilder: (BuildContext context, int index) {
+                return const SizedBox(width: gap);
+              },
+              itemBuilder: (BuildContext context, int index) => marks[index],
             ),
           );
         },
@@ -118,52 +111,134 @@ class _MarketBadgeWrap extends StatelessWidget {
   }
 }
 
-void _showMarketBadgeSheet(
-  BuildContext context,
-  List<MarketBadgeDisplay> badges,
-) {
+class _ProfileBadgeButton extends StatelessWidget {
+  const _ProfileBadgeButton({required this.badge, required this.ownsBadges});
+
+  final MarketBadgeDisplay badge;
+  final bool ownsBadges;
+
+  @override
+  Widget build(BuildContext context) {
+    final String name = profileBadgeName(badge);
+    return Semantics(
+      button: true,
+      label: name,
+      child: InkWell(
+        onTap: () =>
+            showOwnedBadgeDetail(context, badge: badge, ownsBadges: ownsBadges),
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: ProfileBadgeRow.emblemSize,
+          height: ProfileBadgeRow.emblemSize,
+          child: ExcludeSemantics(
+            child: CatalogBadgeEmblem(
+              badge: badge,
+              size: ProfileBadgeRow.emblemSize,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String profileBadgeName(MarketBadgeDisplay badge) {
+  final String gameName = badge.gameName.trim();
+  if (gameName.isNotEmpty) {
+    return gameName;
+  }
+  return badge.title.trim();
+}
+
+void showOwnedBadgeDetail(
+  BuildContext context, {
+  required MarketBadgeDisplay badge,
+  required bool ownsBadges,
+}) {
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    isScrollControlled: true,
     useSafeArea: true,
     builder: (BuildContext sheetContext) {
-      final ColorScheme colors = Theme.of(sheetContext).colorScheme;
-      final double height = MediaQuery.sizeOf(sheetContext).height * 0.62;
-      return SizedBox(
-        height: height,
-        child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.78,
-          ),
-          itemCount: badges.length,
-          itemBuilder: (BuildContext context, int index) {
-            final MarketBadgeDisplay badge = badges[index];
-            return Column(
-              children: <Widget>[
-                CatalogBadgeEmblem(badge: badge, size: 58),
-                const SizedBox(height: 8),
-                MarketBadgeTitle(
-                  badge: badge,
-                  maxLines: 2,
-                  style: TextStyle(
-                    color: colors.onSurface,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      );
+      return OwnedBadgeDetail(badge: badge, ownsBadges: ownsBadges);
     },
   );
+}
+
+class OwnedBadgeDetail extends StatelessWidget {
+  const OwnedBadgeDetail({
+    required this.badge,
+    required this.ownsBadges,
+    super.key,
+  });
+
+  final MarketBadgeDisplay badge;
+  final bool ownsBadges;
+
+  @override
+  Widget build(BuildContext context) {
+    final String name = profileBadgeName(badge);
+    final DateTime? purchasedAt = badge.purchasedAt;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          CatalogBadgeEmblem(badge: badge, size: 176),
+          const SizedBox(height: 16),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            ownsBadges
+                ? _badgeStripText(
+                    context,
+                    tr: 'Bu rozet sende.',
+                    en: 'You own this badge.',
+                    de: 'Dieses Abzeichen gehört dir.',
+                  )
+                : _badgeStripText(
+                    context,
+                    tr: 'Bu oyuncunun rozeti.',
+                    en: 'This player’s badge.',
+                    de: 'Abzeichen dieses Spielers.',
+                  ),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          if (purchasedAt != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              MaterialLocalizations.of(context).formatMediumDate(purchasedAt),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _badgeStripText(
+  BuildContext context, {
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
 }
 
 class MarketBadgeTitle extends StatelessWidget {
@@ -233,7 +308,7 @@ class _CatalogBadgeEmblem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!badge.needsCatalogTitle && badge.emoji.isNotEmpty) {
+    if (badge.gameId.trim().isNotEmpty || badge.gameName.trim().isNotEmpty) {
       return _emblem(badge);
     }
 
@@ -256,8 +331,9 @@ class _CatalogBadgeEmblem extends StatelessWidget {
     return Tooltip(
       message: resolved.title,
       child: GameBadgeEmblem(
-        emoji: resolved.emoji,
+        emoji: '',
         imageUrl: resolved.imageUrl,
+        gameId: resolved.gameId,
         gameName: resolved.gameName.isNotEmpty
             ? resolved.gameName
             : resolved.title,

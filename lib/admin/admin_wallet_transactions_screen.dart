@@ -17,12 +17,8 @@ String _locText(
   }
 }
 
-
 class AdminWalletTransactionsScreen extends StatelessWidget {
-  const AdminWalletTransactionsScreen({
-    super.key,
-    required this.userId,
-  });
+  const AdminWalletTransactionsScreen({super.key, required this.userId});
 
   final String userId;
 
@@ -43,77 +39,67 @@ class AdminWalletTransactionsScreen extends StatelessWidget {
             .orderBy('createdAt', descending: true)
             .limit(200)
             .snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Cüzdan hareketleri yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Cüzdan hareketleri yüklenirken bir hata oluştu.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> documents =
-              snapshot.data!.docs;
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              documents = snapshot.data!.docs;
 
-          if (documents.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Bu kullanıcıya ait cüzdan hareketi bulunmuyor.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            );
-          }
+              if (documents.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Bu kullanıcıya ait cüzdan hareketi bulunmuyor.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                );
+              }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            itemCount: documents.length,
-            separatorBuilder: (
-                BuildContext context,
-                int index,
-                ) {
-              return const SizedBox(height: 10);
-            },
-            itemBuilder: (
-                BuildContext context,
-                int index,
-                ) {
-              final QueryDocumentSnapshot<Map<String, dynamic>> document =
-              documents[index];
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                itemCount: documents.length,
+                separatorBuilder: (BuildContext context, int index) {
+                  return const SizedBox(height: 10);
+                },
+                itemBuilder: (BuildContext context, int index) {
+                  final QueryDocumentSnapshot<Map<String, dynamic>> document =
+                      documents[index];
 
-              return _TransactionCard(
-                transactionId: document.id,
-                data: document.data(),
+                  return _TransactionCard(
+                    transactionId: document.id,
+                    data: document.data(),
+                  );
+                },
               );
             },
-          );
-        },
       ),
     );
   }
 }
 
 class _TransactionCard extends StatelessWidget {
-  const _TransactionCard({
-    required this.transactionId,
-    required this.data,
-  });
+  const _TransactionCard({required this.transactionId, required this.data});
 
   final String transactionId;
   final Map<String, dynamic> data;
@@ -124,19 +110,16 @@ class _TransactionCard extends StatelessWidget {
 
     final String status = data['status']?.toString().trim() ?? '';
 
-    final String description =
-        data['description']?.toString().trim() ?? '';
+    final String description = data['description']?.toString().trim() ?? '';
 
-    final String eventTitle =
-        data['eventTitle']?.toString().trim() ?? '';
+    final String eventTitle = data['eventTitle']?.toString().trim() ?? '';
 
     final String adminId =
         data['adminId']?.toString().trim() ??
-            data['performedByUid']?.toString().trim() ??
-            '';
+        data['performedByUid']?.toString().trim() ??
+        '';
 
-    final int amountKurus =
-        (data['amountKurus'] as num?)?.toInt() ?? 0;
+    final int amountKurus = (data['amountKurus'] as num?)?.toInt() ?? 0;
 
     final DateTime? createdAt = _dateFromValue(data['createdAt']);
 
@@ -153,9 +136,7 @@ class _TransactionCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            CircleAvatar(
-              child: Icon(_transactionIcon(type)),
-            ),
+            CircleAvatar(child: Icon(_transactionIcon(type))),
             const SizedBox(width: 13),
             Expanded(
               child: Column(
@@ -179,9 +160,7 @@ class _TransactionCard extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 17,
-                          color: isNegative
-                              ? Colors.red
-                              : Colors.green,
+                          color: isNegative ? Colors.red : Colors.green,
                         ),
                       ),
                     ],
@@ -234,10 +213,7 @@ class _TransactionCard extends StatelessWidget {
     );
   }
 
-  static bool _isNegativeTransaction(
-      String type,
-      int amountKurus,
-      ) {
+  static bool _isNegativeTransaction(String type, int amountKurus) {
     if (amountKurus < 0) {
       return true;
     }
@@ -263,8 +239,7 @@ class _TransactionCard extends StatelessWidget {
       return Icons.account_balance_outlined;
     }
 
-    if (normalized.contains('purchase') ||
-        normalized.contains('payment')) {
+    if (normalized.contains('purchase') || normalized.contains('payment')) {
       return Icons.shopping_bag_outlined;
     }
 
@@ -310,13 +285,28 @@ class _TransactionCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'completed':
       case 'success':
-        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
+        return _locText(
+          context,
+          tr: 'Tamamlandı',
+          en: 'Completed',
+          de: 'Abgeschlossen',
+        );
       case 'pending':
         return 'Bekliyor';
       case 'failed':
-        return _locText(context, tr: 'Başarısız', en: 'Failed', de: 'Fehlgeschlagen');
+        return _locText(
+          context,
+          tr: 'Başarısız',
+          en: 'Failed',
+          de: 'Fehlgeschlagen',
+        );
       case 'cancelled':
-        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
+        return _locText(
+          context,
+          tr: 'İptal edildi',
+          en: 'Cancelled',
+          de: 'Abgesagt',
+        );
       default:
         return status;
     }
@@ -354,10 +344,7 @@ class _TransactionCard extends StatelessWidget {
 }
 
 class _InfoLabel extends StatelessWidget {
-  const _InfoLabel({
-    required this.text,
-    required this.icon,
-  });
+  const _InfoLabel({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -365,10 +352,7 @@ class _InfoLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
@@ -380,10 +364,7 @@ class _InfoLabel extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
         ],
       ),

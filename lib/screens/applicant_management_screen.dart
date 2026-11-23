@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../models/event_model.dart';
 import '../services/event_service.dart';
+import '../utils/game_experience.dart';
+import '../widgets/plus_emblem.dart';
 import 'public_profile_screen.dart';
 
 String _applicantText(
@@ -272,17 +274,14 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen> {
                       }
 
                       final bool inactive = EventModel.mapIsInactive(data);
-                      final List<String> applicants =
+                      final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                      applicants =
                           applicationSnapshot.data?.docs
-                              .map(
-                                (
-                                  QueryDocumentSnapshot<Map<String, dynamic>>
-                                  document,
-                                ) => document.id,
+                              .where(
+                                (document) => document.id.trim().isNotEmpty,
                               )
-                              .where((String uid) => uid.trim().isNotEmpty)
                               .toList(growable: false) ??
-                          <String>[];
+                          <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
                       if (applicants.isEmpty) {
                         return _EmptyState(eventTitle: _eventTitle(data));
@@ -308,19 +307,20 @@ class _ApplicantManagementScreenState extends State<ApplicantManagementScreen> {
                           ],
                           const SizedBox(height: 14),
                           ...applicants.map(
-                            (String uid) => Padding(
+                            (document) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _ApplicantCard(
-                                uid: uid,
-                                busy: _busyApplicantIds.contains(uid),
+                                uid: document.id,
+                                application: document.data(),
+                                busy: _busyApplicantIds.contains(document.id),
                                 actionsEnabled: !inactive,
                                 onAccept: (String name) => _reviewApplicant(
-                                  uid: uid,
+                                  uid: document.id,
                                   name: name,
                                   accept: true,
                                 ),
                                 onReject: (String name) => _reviewApplicant(
-                                  uid: uid,
+                                  uid: document.id,
                                   name: name,
                                   accept: false,
                                 ),
@@ -401,6 +401,7 @@ class _HeaderCard extends StatelessWidget {
 
 class _ApplicantCard extends StatelessWidget {
   final String uid;
+  final Map<String, dynamic> application;
   final bool busy;
   final bool actionsEnabled;
   final ValueChanged<String> onAccept;
@@ -408,6 +409,7 @@ class _ApplicantCard extends StatelessWidget {
 
   const _ApplicantCard({
     required this.uid,
+    required this.application,
     required this.busy,
     required this.actionsEnabled,
     required this.onAccept,
@@ -582,11 +584,7 @@ class _ApplicantCard extends StatelessWidget {
                                     ],
                                     if (plus) ...<Widget>[
                                       const SizedBox(width: 5),
-                                      const Icon(
-                                        Icons.diamond,
-                                        size: 17,
-                                        color: Color(0xffFF9800),
-                                      ),
+                                      const PlusMark(size: 16),
                                     ],
                                   ],
                                 ),
@@ -642,6 +640,24 @@ class _ApplicantCard extends StatelessWidget {
                                   ],
                                 ),
                               ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: <Widget>[
+                          const Icon(Icons.sports_esports_outlined, size: 18),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              selfDeclaredExperienceText(
+                                context,
+                                application['applicantGameExperienceLevel'],
+                              ),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],

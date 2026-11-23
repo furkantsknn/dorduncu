@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../services/session_service.dart';
 import 'legal_document.dart';
 import 'legal_versions.dart';
 
@@ -239,6 +241,12 @@ class LegalService {
     if (user == null || user.uid != userId) {
       throw StateError('Legal acceptance requires the signed-in user.');
     }
+    final AuthSessionBinding? binding = await SessionService.captureAuthSession(
+      user: user,
+    );
+    if (binding == null) {
+      throw StateError('Legal acceptance requires a current app session.');
+    }
 
     final String language = normalizeLanguageCode(locale);
     final FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -247,6 +255,8 @@ class LegalService {
         .doc(userId)
         .collection('legal_acceptances');
 
+    final WriteBatch batch = firestore.batch();
+    var hasWrites = false;
     for (final LegalDocumentDefinition document
         in onboardingAcceptanceDocuments()) {
       final String documentId = acceptanceDocumentId(
@@ -257,16 +267,17 @@ class LegalService {
         documentId,
       );
       final DocumentSnapshot<Map<String, dynamic>> current = await currentRef
-          .get();
+          .get(const GetOptions(source: Source.server));
+      await _assertBinding(binding);
       if (current.exists) {
         continue;
       }
 
       final QuerySnapshot<Map<String, dynamic>> previous = await collection
           .where('documentCode', isEqualTo: document.code)
-          .get();
+          .get(const GetOptions(source: Source.server));
+      await _assertBinding(binding);
 
-      final WriteBatch batch = firestore.batch();
       for (final QueryDocumentSnapshot<Map<String, dynamic>> old
           in previous.docs) {
         if (old.id == documentId || old.data()['active'] != true) {
@@ -283,8 +294,95 @@ class LegalService {
         'source': onboardingAcceptanceSource,
         'active': true,
       });
-      await batch.commit();
+      hasWrites = true;
     }
+    if (hasWrites) {
+      await batch.commit();
+      await _assertBinding(binding);
+    }
+    if (!await hasCurrentOnboardingAcceptances(
+      userId: userId,
+      expectedBinding: binding,
+    )) {
+      throw StateError('Mandatory legal acceptances were not persisted.');
+    }
+  }
+
+  /// Returns true only when all three current mandatory records are valid.
+  static Future<bool> hasCurrentOnboardingAcceptances({
+    required String userId,
+    AuthSessionBinding? expectedBinding,
+  }) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.uid != userId) return false;
+    final AuthSessionBinding? binding =
+        expectedBinding ?? await SessionService.captureAuthSession(user: user);
+    if (binding == null ||
+        !await SessionService.isAuthSessionCurrent(binding)) {
+      return false;
+    }
+    final CollectionReference<Map<String, dynamic>> collection =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('legal_acceptances');
+    return validateOnboardingAcceptancesFromServer(
+      userId: userId,
+      readRecord: (String documentId) async {
+        final DocumentSnapshot<Map<String, dynamic>> snapshot = await collection
+            .doc(documentId)
+            .get(const GetOptions(source: Source.server));
+        return snapshot.exists ? snapshot.data() : null;
+      },
+      bindingStillCurrent: () => SessionService.isAuthSessionCurrent(binding),
+    );
+  }
+
+  @visibleForTesting
+  static Future<bool> validateOnboardingAcceptancesFromServer({
+    required String userId,
+    required Future<Map<String, dynamic>?> Function(String documentId)
+    readRecord,
+    required Future<bool> Function() bindingStillCurrent,
+  }) async {
+    final Map<String, Map<String, dynamic>?> records =
+        <String, Map<String, dynamic>?>{};
+    for (final LegalDocumentDefinition document
+        in onboardingAcceptanceDocuments()) {
+      final String documentId = acceptanceDocumentId(
+        documentCode: document.code,
+        version: document.version,
+      );
+      records[document.code] = await readRecord(documentId);
+      if (!await bindingStillCurrent()) return false;
+    }
+    return hasValidOnboardingAcceptanceData(userId: userId, records: records);
+  }
+
+  static Future<void> _assertBinding(AuthSessionBinding binding) async {
+    if (!await SessionService.isAuthSessionCurrent(binding)) {
+      throw StateError('Legal acceptance session changed.');
+    }
+  }
+
+  static bool hasValidOnboardingAcceptanceData({
+    required String userId,
+    required Map<String, Map<String, dynamic>?> records,
+  }) {
+    for (final LegalDocumentDefinition document
+        in onboardingAcceptanceDocuments()) {
+      final Map<String, dynamic>? data = records[document.code];
+      if (data == null ||
+          data['userId'] != userId ||
+          data['documentCode'] != document.code ||
+          data['version'] != document.version ||
+          data['source'] != onboardingAcceptanceSource ||
+          data['active'] != true ||
+          data['acceptedAt'] == null) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static void clearCache() {

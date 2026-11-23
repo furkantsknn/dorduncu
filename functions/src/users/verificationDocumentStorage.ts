@@ -3,6 +3,11 @@ import {randomUUID} from "node:crypto";
 import {getStorage} from "firebase-admin/storage";
 import * as logger from "firebase-functions/logger";
 
+import {
+  exactGenerationDeleteOptions,
+  VerificationObjectVersion,
+} from "./verificationCleanupPolicy";
+
 const allowedStorageBuckets = new Set([
   "dorduncu-8e599.firebasestorage.app",
   "dorduncu-8e599.appspot.com",
@@ -129,7 +134,7 @@ export function verificationObjectPath(
  */
 export async function assertVerificationObject(
   objectPath: string,
-): Promise<void> {
+): Promise<VerificationObjectVersion> {
   const file =
     getStorage()
       .bucket()
@@ -162,6 +167,20 @@ export async function assertVerificationObject(
       "Verification object metadata is invalid.",
     );
   }
+
+  const generation =
+    metadata.generation?.toString().trim() ?? "";
+  if (!generation) {
+    throw new Error(
+      "Verification object generation is unavailable.",
+    );
+  }
+
+  return {
+    field: "",
+    path: objectPath,
+    generation,
+  };
 }
 
 /**
@@ -240,5 +259,95 @@ export async function deleteVerificationObjects(
     }
   }
 
+  return deleted;
+}
+
+/**
+ * Reads the immutable generation of a private verification object.
+ * @param {string} objectPath Private Storage object path.
+ * @return {Promise<VerificationObjectVersion>} Object version.
+ */
+export async function verificationObjectVersion(
+  objectPath: string,
+): Promise<VerificationObjectVersion> {
+  let metadata;
+  try {
+    [metadata] = await getStorage()
+      .bucket()
+      .file(objectPath)
+      .getMetadata();
+  } catch (error) {
+    if (storageErrorCode(error) === 404) {
+      return {field: "", path: objectPath, generation: "", missing: true};
+    }
+    throw error;
+  }
+  const generation =
+    metadata.generation?.toString().trim() ?? "";
+  if (!generation) {
+    throw new Error(
+      "Verification object generation is unavailable.",
+    );
+  }
+  return {field: "", path: objectPath, generation};
+}
+
+/**
+ * Extracts an HTTP status from a Storage error.
+ * @param {unknown} error Storage error.
+ * @return {number|null} HTTP status, when present.
+ */
+export function storageErrorCode(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const candidate = error as {code?: unknown; statusCode?: unknown};
+  for (const value of [candidate.code, candidate.statusCode]) {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (Number.isInteger(parsed)) return parsed;
+  }
+  return null;
+}
+
+/**
+ * Deletes exact object generations. A later upload at the same path is never
+ * deleted. Missing objects count as an already completed retry.
+ * @param {VerificationObjectVersion[]} objects Exact object versions.
+ * @return {Promise<number>} Number of delete operations completed.
+ */
+export async function deleteVerificationObjectVersions(
+  objects: VerificationObjectVersion[],
+): Promise<number> {
+  let deleted = 0;
+  const unique = new Map<string, VerificationObjectVersion>();
+  for (const object of objects) {
+    unique.set(`${object.path}:${object.generation}`, object);
+  }
+
+  for (const object of unique.values()) {
+    if (object.missing) {
+      continue;
+    }
+    try {
+      await getStorage().bucket().file(object.path).delete(
+        exactGenerationDeleteOptions(object.generation),
+      );
+      deleted += 1;
+    } catch (error) {
+      if (storageErrorCode(error) === 412) {
+        logger.info("verification_document_generation_already_replaced", {
+          field: object.field,
+        });
+        continue;
+      }
+      logger.error(
+        "verification_document_version_delete_failed",
+        {
+          field: object.field,
+          generationMismatchPossible: true,
+          error,
+        },
+      );
+      throw error;
+    }
+  }
   return deleted;
 }

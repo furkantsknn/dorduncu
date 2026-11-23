@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/event_detail_screen.dart';
@@ -15,7 +16,6 @@ class HomeScreenV2 extends StatelessWidget {
   const HomeScreenV2({
     required this.greeting,
     required this.cityLabel,
-    required this.profilePhotoUrl,
     required this.categories,
     required this.selectedCategory,
     required this.onCategorySelected,
@@ -24,6 +24,7 @@ class HomeScreenV2 extends StatelessWidget {
     required this.onExplore,
     required this.events,
     required this.activeEvents,
+    this.profilePhotoUrl = '',
     super.key,
   });
 
@@ -151,6 +152,7 @@ class _GreetingBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final String photo = profilePhotoUrl.trim();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
@@ -162,10 +164,8 @@ class _GreetingBar extends StatelessWidget {
             child: CircleAvatar(
               radius: 24,
               backgroundColor: const Color(0xff1B2433),
-              backgroundImage: profilePhotoUrl.isEmpty
-                  ? null
-                  : NetworkImage(profilePhotoUrl),
-              child: profilePhotoUrl.isEmpty
+              backgroundImage: photo.isEmpty ? null : NetworkImage(photo),
+              child: photo.isEmpty
                   ? const Icon(Icons.person_rounded, color: Colors.white)
                   : null,
             ),
@@ -233,7 +233,9 @@ class _NotificationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final User? user = FirebaseAuth.instance.currentUser;
+    final User? user = Firebase.apps.isEmpty
+        ? null
+        : FirebaseAuth.instance.currentUser;
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: user == null

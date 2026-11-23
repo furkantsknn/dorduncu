@@ -8,45 +8,17 @@ import {
 
 import {firestore} from "../config/firebaseAdmin";
 import {
-  deleteVerificationObjects,
-  verificationObjectPath,
+  deleteVerificationObjectVersions,
 } from "./verificationDocumentStorage";
+import {
+  completeCleanup,
+  markCleanupFailure,
+  prepareCleanup,
+} from "./cleanupVerificationDocuments";
+import {FINAL_VERIFICATION_STATUSES} from "./verificationRetentionPolicy";
 
 interface RequestVerificationDocumentDeletionData {
   requestId?: unknown;
-}
-
-const DOCUMENT_FIELDS = [
-  ["identityFrontPath", "identityFrontUrl"],
-  ["identityBackPath", "identityBackUrl"],
-  ["criminalRecordPath", "criminalRecordUrl"],
-  ["selfiePath", "selfieUrl"],
-] as const;
-
-/**
- * Collects owned verification object paths from request data.
- * @param {FirebaseFirestore.DocumentData} data Verification request data.
- * @param {string} uid Owner user id.
- * @return {string[]} Private object paths.
- */
-function collectDocumentPaths(
-  data: FirebaseFirestore.DocumentData,
-  uid: string,
-): string[] {
-  const result: string[] = [];
-
-  for (const [pathField, legacyField] of DOCUMENT_FIELDS) {
-    const path = verificationObjectPath(
-      data[pathField] ?? data[legacyField],
-      uid,
-    );
-
-    if (path) {
-      result.push(path);
-    }
-  }
-
-  return result;
 }
 
 export const requestVerificationDocumentDeletion =
@@ -97,62 +69,54 @@ export const requestVerificationDocumentDeletion =
       const status =
         data.status?.toString().trim() ?? "pending";
 
-      if (
-        status === "pending" ||
-        status === "revision"
-      ) {
+      if (!FINAL_VERIFICATION_STATUSES.has(status)) {
         throw new HttpsError(
           "failed-precondition",
           "İnceleme sürerken belgeler silinemez.",
         );
       }
 
-      const paths = collectDocumentPaths(
+      const plan = await prepareCleanup(
+        reference,
         data,
-        request.auth.uid,
+        new Date(8640000000000000),
       );
-
-      await reference.update({
-        deletionRequestedAt:
-          FieldValue.serverTimestamp(),
-        deletionStatus: "processing",
-        updatedAt:
-          FieldValue.serverTimestamp(),
-      });
-
-      const deletedCount =
-        await deleteVerificationObjects(paths);
-
-      const deleteFields:
-        Record<string, unknown> = {
-          deletionStatus: "completed",
-          documentsDeletedAt:
-            FieldValue.serverTimestamp(),
-          documentRetentionPolicy:
-            "final_decision_30_days",
-          updatedAt:
-            FieldValue.serverTimestamp(),
-        };
-
-      for (const [pathField, legacyField] of DOCUMENT_FIELDS) {
-        deleteFields[pathField] =
-          FieldValue.delete();
-        deleteFields[legacyField] =
-          FieldValue.delete();
+      if (!plan) {
+        throw new HttpsError(
+          "aborted",
+          "Belge durumu değişti; isteği güncel durumla yeniden deneyin.",
+        );
       }
-
-      await reference.update(deleteFields);
+      await reference.update({
+        deletionRequestedAt: FieldValue.serverTimestamp(),
+      });
+      try {
+        await deleteVerificationObjectVersions(plan.objects);
+      } catch (error) {
+        await markCleanupFailure(reference, plan);
+        throw error;
+      }
+      if (!await completeCleanup(reference, plan)) {
+        throw new HttpsError(
+          "aborted",
+          "Belge durumu değişti; isteği güncel durumla yeniden deneyin.",
+        );
+      }
+      const deletedCount = plan.objects.filter((item) => !item.missing).length;
 
       await firestore
         .collection("verification_document_deletion_logs")
-        .add({
+        .doc(`${requestId}_${plan.submissionId}`)
+        .set({
           requestId,
           userId: request.auth.uid,
           deletedCount,
           requestedBy: request.auth.uid,
+          submissionId: plan.submissionId,
+          operationId: plan.operationId,
           completedAt:
             FieldValue.serverTimestamp(),
-        });
+        }, {merge: true});
 
       return {
         success: true,

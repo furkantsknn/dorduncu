@@ -3,7 +3,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import 'admin_access.dart';
+import 'admin_review_scope.dart';
 import 'admin_support_detail_screen.dart';
+import 'admin_user_number.dart';
 
 String _locText(
   BuildContext context, {
@@ -21,9 +23,16 @@ String _locText(
   }
 }
 
-
 class AdminSupportListScreen extends StatefulWidget {
-  const AdminSupportListScreen({super.key});
+  const AdminSupportListScreen({
+    super.key,
+    this.initialStatus = 'all',
+    this.initialCategory = 'all',
+    this.embedded = false,
+  });
+  final String initialStatus;
+  final String initialCategory;
+  final bool embedded;
 
   @override
   State<AdminSupportListScreen> createState() => _AdminSupportListScreenState();
@@ -32,14 +41,17 @@ class AdminSupportListScreen extends StatefulWidget {
 class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  String _selectedStatus = 'all';
+  late String _selectedStatus;
   String _selectedCategory = 'all';
   String _selectedUrgency = 'all';
   String _searchText = '';
+  String? _managementUid;
 
   @override
   void initState() {
     super.initState();
+    _selectedStatus = widget.initialStatus;
+    _selectedCategory = widget.initialCategory;
     _migrateLegacyPrivateNotes();
   }
 
@@ -71,12 +83,14 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Destek Talepleri',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text(
+                'Destek Talepleri',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('support_requests')
@@ -120,7 +134,15 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                 }
 
                 final String category = data['category']?.toString() ?? '';
-                if (_selectedCategory != 'all' &&
+                if (_selectedCategory == 'reports' ||
+                    _selectedCategory == 'support') {
+                  if (!adminReviewMatchesScope(
+                    data,
+                    adminReviewScopeFromFilter(_selectedCategory),
+                  )) {
+                    return false;
+                  }
+                } else if (_selectedCategory != 'all' &&
                     category != _selectedCategory) {
                   return false;
                 }
@@ -132,6 +154,10 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
 
                 if (_searchText.isEmpty) {
                   return true;
+                }
+
+                if (_searchText.toUpperCase().startsWith('U-')) {
+                  return data['userId']?.toString() == _managementUid;
                 }
 
                 final String query = _searchText.toLowerCase();
@@ -149,11 +175,14 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                     data['description']?.toString().toLowerCase() ?? '';
 
                 final String requestId = document.id.toLowerCase();
+                final String ticketId =
+                    data['ticketId']?.toString().toLowerCase() ?? '';
 
                 return subject.contains(query) ||
                     categorySearch.contains(query) ||
                     userId.contains(query) ||
                     description.contains(query) ||
+                    ticketId.contains(query) ||
                     requestId.contains(query);
               }).toList();
 
@@ -190,7 +219,18 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                            child: _buildStatistics(allDocuments),
+                            child: _buildStatistics(
+                              allDocuments
+                                  .where((document) {
+                                    return adminReviewMatchesScope(
+                                      document.data(),
+                                      adminReviewScopeFromFilter(
+                                        widget.initialCategory,
+                                      ),
+                                    );
+                                  })
+                                  .toList(growable: false),
+                            ),
                           ),
                         ),
                         SliverToBoxAdapter(
@@ -198,9 +238,19 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                             child: TextField(
                               controller: _searchController,
-                              onChanged: (String value) {
+                              onChanged: (String value) async {
+                                final normalized = value.trim();
+                                final uid = await findUidByManagementNumber(
+                                  normalized,
+                                );
+                                if (!mounted ||
+                                    _searchController.text.trim() !=
+                                        normalized) {
+                                  return;
+                                }
                                 setState(() {
-                                  _searchText = value.trim();
+                                  _searchText = normalized;
+                                  _managementUid = uid;
                                 });
                               },
                               decoration: InputDecoration(
@@ -260,6 +310,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
                                     initialValue: _selectedCategory,
+                                    isExpanded: true,
                                     decoration: const InputDecoration(
                                       labelText: 'Kategori',
                                       border: OutlineInputBorder(),
@@ -269,6 +320,18 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                                       DropdownMenuItem(
                                         value: 'all',
                                         child: Text('Tümü'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'reports',
+                                        child: Text('Tüm şikâyetler'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'support',
+                                        child: Text(
+                                          'Destek (şikâyet dışı)',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                       DropdownMenuItem(
                                         value: 'suggestion',
@@ -292,7 +355,14 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                                       ),
                                       DropdownMenuItem(
                                         value: 'user_report',
-                                        child: Text(_locText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer')),
+                                        child: Text(
+                                          _locText(
+                                            context,
+                                            tr: 'Kullanıcı',
+                                            en: 'User',
+                                            de: 'Nutzer',
+                                          ),
+                                        ),
                                       ),
                                       DropdownMenuItem(
                                         value: 'event_report',
@@ -323,6 +393,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
                                     initialValue: _selectedUrgency,
+                                    isExpanded: true,
                                     decoration: const InputDecoration(
                                       labelText: 'Aciliyet',
                                       border: OutlineInputBorder(),
@@ -543,6 +614,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
     final String subject = data['subject']?.toString() ?? '';
 
     final String userId = data['userId']?.toString() ?? '';
+    final String ticketId = data['ticketId']?.toString().trim() ?? '';
 
     final String urgency = data['urgency']?.toString() ?? 'normal';
 
@@ -555,7 +627,6 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         : null;
 
     final Color statusColor = _statusColor(status);
-    final Color urgencyColor = _urgencyColor(urgency);
 
     return Card(
       elevation: 0,
@@ -579,45 +650,22 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  CircleAvatar(
-                    backgroundColor: statusColor.withValues(alpha: 0.14),
-                    child: Icon(
-                      Icons.support_agent_rounded,
-                      color: statusColor,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          subject.isEmpty ? _categoryTitle(category) : subject,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          _categoryTitle(category),
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: AdminUserIdentity(uid: userId)),
                   const SizedBox(width: 10),
                   const Icon(Icons.chevron_right),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
+              Text(
+                subject.isEmpty ? _categoryTitle(category) : subject,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -627,33 +675,18 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                     label: _statusTitle(status),
                     color: statusColor,
                   ),
-                  _SmallLabel(
-                    icon: Icons.priority_high_rounded,
-                    label: _urgencyTitle(urgency),
-                    color: urgencyColor,
-                  ),
-                  if (attachmentUrls.isNotEmpty)
-                    _SmallLabel(
-                      icon: Icons.attach_file,
-                      label: '${attachmentUrls.length} ek dosya',
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Row(
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      userId.isEmpty
-                          ? 'Kullanıcı bilgisi yok'
-                          : 'Kullanıcı: $userId',
+                      '${_categoryTitle(category)} · ${_urgencyTitle(urgency)}'
+                      '${attachmentUrls.isEmpty ? "" : " · ${attachmentUrls.length} ek"}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
                   if (createdAt != null)
@@ -669,7 +702,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
               ),
               const SizedBox(height: 7),
               Text(
-                'Talep no: ${document.id}',
+                'Talep no: ${ticketId.isEmpty ? "Henüz atanmadı" : ticketId}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -772,21 +805,6 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
       case 'new':
       default:
         return Colors.orange;
-    }
-  }
-
-  Color _urgencyColor(String urgency) {
-    switch (urgency) {
-      case 'low':
-        return Colors.green;
-      case 'high':
-        return Colors.deepOrange;
-      case 'critical':
-      case 'emergency':
-        return Colors.red;
-      case 'normal':
-      default:
-        return Colors.blueGrey;
     }
   }
 }

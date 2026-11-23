@@ -1,0 +1,5 @@
+CFBundleDisplayName = "Dört.";
+NSCameraUsageDescription = "Profil ve doğrulama fotoğraflarını çekebilmen için kamera erişimi gerekir.";
+NSPhotoLibraryUsageDescription = "Profil ve doğrulama görsellerini seçebilmen için fotoğraf arşivi erişimi gerekir.";
+NSPhotoLibraryAddUsageDescription = "Seçtiğin veya oluşturduğun görselleri fotoğraf arşivine kaydetmek için izin gerekir.";
+NSLocationWhenInUseUsageDescription = "Yakındaki etkinlikleri göstermek ve haritayı bulunduğun bölgeye taşımak için konum erişimi gerekir.";

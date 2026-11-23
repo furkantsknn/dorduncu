@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/user_model.dart';
+import '../legal/legal_service.dart';
 import 'session_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
@@ -15,6 +16,7 @@ enum AuthDestinationType {
   deletionRequested,
   deleted,
   sessionExpired,
+  legalAcceptanceRequired,
 }
 
 class AuthDestination {
@@ -55,27 +57,94 @@ class UserService {
     }).toList();
   }
 
-  static Future<AuthDestination> getAuthDestination({User? user}) async {
+  static Future<AuthDestination> getAuthDestination({
+    User? user,
+    bool allowStatusRefresh = true,
+  }) async {
     final currentUser = user ?? FirebaseAuth.instance.currentUser;
 
     if (currentUser == null) {
       return const AuthDestination(type: AuthDestinationType.login);
     }
+    final AuthSessionBinding? authBinding =
+        await SessionService.captureAuthSession(user: currentUser);
+    if (authBinding == null) {
+      return const AuthDestination(type: AuthDestinationType.sessionExpired);
+    }
+
+    AuthDestination sessionChanged() =>
+        const AuthDestination(type: AuthDestinationType.login);
+
+    if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+      return sessionChanged();
+    }
 
     await currentUser.getIdToken(true);
+    if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+      return sessionChanged();
+    }
 
     await Future.delayed(const Duration(milliseconds: 500));
+    if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+      return sessionChanged();
+    }
 
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(currentUser.uid)
-        .get();
+        .get(const GetOptions(source: Source.server));
+    if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+      return sessionChanged();
+    }
 
-    if (!doc.exists || doc.data() == null) {
+    return resolveLoadedAccountDestination(
+      data: doc.exists ? doc.data() : null,
+      reloadAccount: () async {
+        final refreshed = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser.uid)
+            .get(const GetOptions(source: Source.server));
+        return refreshed.exists ? refreshed.data() : null;
+      },
+      refreshAccountStatus: () => FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('refreshAccountStatus').call(),
+      hasCurrentAcceptances: () => LegalService.hasCurrentOnboardingAcceptances(
+        userId: currentUser.uid,
+        expectedBinding: authBinding,
+      ),
+      getLocalSessionId: SessionService.getCurrentSessionId,
+      authStillCurrent: () => SessionService.isAuthSessionCurrent(authBinding),
+      allowStatusRefresh: allowStatusRefresh,
+    );
+  }
+
+  @visibleForTesting
+  static Future<AuthDestination> resolveLoadedAccountDestination({
+    required Map<String, dynamic>? data,
+    required Future<Map<String, dynamic>?> Function() reloadAccount,
+    required Future<void> Function() refreshAccountStatus,
+    required Future<bool> Function() hasCurrentAcceptances,
+    required Future<String> Function() getLocalSessionId,
+    required Future<bool> Function() authStillCurrent,
+    bool allowStatusRefresh = true,
+    DateTime Function()? now,
+  }) async {
+    AuthDestination sessionChanged() =>
+        const AuthDestination(type: AuthDestinationType.login);
+    if (!await authStillCurrent()) return sessionChanged();
+    if (data == null) {
+      if (!await hasCurrentAcceptances()) {
+        return const AuthDestination(
+          type: AuthDestinationType.legalAcceptanceRequired,
+        );
+      }
+      if (!await authStillCurrent()) return sessionChanged();
+      await getLocalSessionId();
+      if (!await authStillCurrent()) return sessionChanged();
       return const AuthDestination(type: AuthDestinationType.createProfile);
     }
 
-    final data = doc.data()!;
     final profileName = data['profilAdi']?.toString().trim() ?? '';
     final rawStatus = data['accountStatus']?.toString().trim() ?? '';
     final status = rawStatus.isEmpty ? 'active' : rawStatus;
@@ -84,30 +153,52 @@ class UserService {
           data['suspensionEndsAt'] as Timestamp?;
 
       if (suspensionEndsAt != null &&
-          DateTime.now().isAfter(suspensionEndsAt.toDate())) {
-        final HttpsCallable callable = FirebaseFunctions.instanceFor(
-          region: 'europe-west1',
-        ).httpsCallable('refreshAccountStatus');
-
-        await callable.call();
-
-        return AuthDestination(
-          type: AuthDestinationType.home,
-          profileName: profileName.isNotEmpty ? profileName : 'Oyuncu',
+          (now ?? DateTime.now)().isAfter(suspensionEndsAt.toDate())) {
+        if (!allowStatusRefresh) {
+          return const AuthDestination(type: AuthDestinationType.suspended);
+        }
+        await refreshAccountStatus();
+        if (!await authStillCurrent()) {
+          return sessionChanged();
+        }
+        final Map<String, dynamic>? refreshedData = await reloadAccount();
+        if (!await authStillCurrent()) return sessionChanged();
+        return resolveLoadedAccountDestination(
+          data: refreshedData,
+          reloadAccount: reloadAccount,
+          refreshAccountStatus: refreshAccountStatus,
+          hasCurrentAcceptances: hasCurrentAcceptances,
+          getLocalSessionId: getLocalSessionId,
+          authStillCurrent: authStillCurrent,
+          allowStatusRefresh: false,
+          now: now,
         );
       }
     }
 
-    if (status == 'active') {
+    if (status == 'active' || status == 'pendingProfile') {
       final String remoteSessionId =
           data['activeSessionId']?.toString().trim() ?? '';
-      final String localSessionId = await SessionService.getCurrentSessionId();
+      final String localSessionId = await getLocalSessionId();
+      if (!await authStillCurrent()) {
+        return sessionChanged();
+      }
 
       if (remoteSessionId.isNotEmpty &&
           localSessionId.isNotEmpty &&
           remoteSessionId != localSessionId) {
         return const AuthDestination(type: AuthDestinationType.sessionExpired);
       }
+    }
+
+    if ((status == 'active' || status == 'pendingProfile') &&
+        !await hasCurrentAcceptances()) {
+      return const AuthDestination(
+        type: AuthDestinationType.legalAcceptanceRequired,
+      );
+    }
+    if (!await authStillCurrent()) {
+      return sessionChanged();
     }
 
     switch (status) {
@@ -127,11 +218,12 @@ class UserService {
       case 'deleted':
         return const AuthDestination(type: AuthDestinationType.deleted);
       case 'active':
-      default:
         return AuthDestination(
           type: AuthDestinationType.home,
           profileName: profileName.isNotEmpty ? profileName : 'Oyuncu',
         );
+      default:
+        return const AuthDestination(type: AuthDestinationType.suspended);
     }
   }
 
@@ -213,11 +305,15 @@ class UserService {
       'longitude': (data['longitude'] as num?)?.toDouble() ?? 0.0,
       'puan': (data['puan'] as num?)?.toDouble() ?? 0.0,
       'plus': data['plus'] == true || data['isPlus'] == true,
+      'plusAdminGranted': data['plusAdminGranted'] == true,
       'plusPlan':
           data['plusPlan']?.toString() ??
           data['subscriptionPlan']?.toString() ??
           '',
       'plusExpiresAt': data['plusExpiresAt'] ?? data['subscriptionExpiresAt'],
+      'plusSubscriptionExpiresAt': data['plusSubscriptionExpiresAt'],
+      'plusSubscriptionState': data['plusSubscriptionState'],
+      'plusGiftExpiresAt': data['plusGiftExpiresAt'],
       'verified': data['verified'] == true,
       'verificationStatus': data['verificationStatus']?.toString() ?? '',
       'oyuncuRozeti': data['oyuncuRozeti'] == true,

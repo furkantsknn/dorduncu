@@ -110,6 +110,11 @@ class _HomeEventMapState extends State<HomeEventMap> {
             userAgentPackageName: 'com.dortapp.dort',
             maxNativeZoom: 20,
           ),
+          const RichAttributionWidget(
+            attributions: [
+              TextSourceAttribution('OpenStreetMap contributors'),
+            ],
+          ),
           MarkerLayer(
             markers: <Marker>[
               for (final HomeListedEvent event in points)

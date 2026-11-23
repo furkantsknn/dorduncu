@@ -1,78 +1,83 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dört. Hesap Silme</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 760px;
-      margin: 40px auto;
-      padding: 0 20px;
-      line-height: 1.6;
-      color: #222;
-    }
-    h1, h2 { color: #111; }
-    .box {
-      background: #f5f5f5;
-      padding: 20px;
-      border-radius: 10px;
-      margin: 20px 0;
-    }
-    a { color: #1565c0; }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Dört. hesabı ve ilişkili veriler için silme süreci">
+  <link rel="canonical" href="https://dortapp.com/account-deletion.html">
+  <link rel="stylesheet" href="/legal.css">
+  <title>Dört. Hesap ve Veri Silme</title>
 </head>
 <body>
-  <h1>Dört. Hesap Silme</h1>
-  <p>
-    Dört. hesabınızın ve hesabınızla ilişkili temel kişisel verilerin
-    silinmesini talep edebilirsiniz. Talep kaydedildiği anda silme bitmez.
-  </p>
+<main id="top">
+  <nav aria-label="Yasal sayfalar">
+    <a href="/privacy">Gizlilik Politikası</a>
+    <a href="/account-deletion.html" aria-current="page">Hesap ve veri silme</a>
+    <a href="/child-safety.html">Çocuk güvenliği</a>
+  </nav>
+  <h1>Dört. Hesap ve Veri Silme</h1>
+  <p>Dört. hesabınızın silinmesini uygulama içinden talep edebilirsiniz. Talebin
+    kaydedilmesi silmenin aynı anda tamamlandığı anlamına gelmez.</p>
 
-  <h2>Uygulama içinden</h2>
-  <p>
-    Dört. uygulamasında Ayarlar bölümünü açın ve “Hesap silme talebi oluştur”
-    adımını onaylayın. Talep kaydedilir, oturumunuz kapanır ve işlem
-    tamamlanana kadar hesabı kullanamazsınız.
-  </p>
-
-  <h2>Uygulamaya giremiyorsanız</h2>
-  <div class="box">
-    <p>
-      Kayıtlı telefon numaranızı yazarak
-      <a href="mailto:destek@dortapp.com?subject=D%C3%B6rt.%20Hesap%20Silme%20Talebi">destek@dortapp.com</a>
-      adresine “Dört. Hesap Silme Talebi” konulu e-posta gönderin.
-    </p>
-    <p>
-      E-posta tek başına silmeyi tamamlamaz. Talep, hesap silme süreci
-      üzerinden değerlendirilir. Hesabın size ait olduğunu doğrulamak için
-      ek bilgi istenebilir.
-    </p>
-  </div>
+  <h2>Uygulama içinden talep</h2>
+  <ol>
+    <li>Dört. uygulamasında hesabınızla oturum açın.</li>
+    <li><strong>Ayarlar</strong> bölümünü açın.</li>
+    <li><strong>Hesap silme talebi oluştur</strong> seçeneğini açıp onaylayın.</li>
+  </ol>
+  <p>Talep sunucuda kaydedilir, oturumunuz kapatılır ve işlem tamamlanana kadar
+    hesap kullanılamaz. İşlem kısmi hata halinde güvenli biçimde yeniden
+    denenebilir.</p>
 
   <h2>İşlem tamamlandığında silinenler</h2>
   <ul>
-    <li>Hesap girişi</li>
-    <li>Profil ve herkese açık profil</li>
+    <li>Firebase Authentication hesabı ve oturum bilgileri</li>
+    <li>Özel profil ve herkese açık profil</li>
     <li>Profil fotoğrafları</li>
-    <li>Doğrulama belgeleriniz ve doğrulama talebiniz</li>
+    <li>Doğrulama belgelerinin silme planına ait kayıtlı dosya sürümleri</li>
+    <li>Kullanıcıya ait özel alt koleksiyonlar ve doğrudan session/public
+      verification kayıtları</li>
   </ul>
 
-  <h2>Tutulabilecek sınırlı kayıtlar</h2>
-  <p>
-    Başka kullanıcıların etkinlik ve mesaj kayıtları silinmeyebilir.
-    Güvenlik, uyuşmazlık veya yasal ya da finansal yükümlülük için gerekli
-    sınırlı kayıtlar saklanabilir. Giriş ve denetim kayıtlarındaki kimlik
-    alanları anonimleştirilebilir. Telefon numaranızın özeti, aynı numarayla
-    yeniden kaydı engellemek için tutulabilir.
-  </p>
+  <h2>Kalabilen veya takma kimlikle tutulan kayıtlar</h2>
+  <ul>
+    <li>Başka kullanıcılarla ortak etkinlik, başvuru ve mesaj kayıtları silinmez.</li>
+    <li>Kimlik rezervasyonu, giriş geçmişi ve denetim kayıtlarındaki doğrudan
+      kimlik alanları tek yönlü özet tabanlı takma değerlerle değiştirilebilir. Bu işlem
+      kaydı bütünüyle anonim hâle getirmez.</li>
+    <li>Diğer hesaplardaki arkadaş, engel veya bildirim karşı kayıtları kalabilir.</li>
+    <li>Kullanıcının destek talebindeki konu, açıklama, mesaj ve ekleri temizlenir;
+      talep yapısı, yetkili yanıtları ve üçüncü kişilere ilişkin güvenlik delilleri
+      sınırlı olarak kalabilir.</li>
+    <li>Ortak mali kayıtlar ile Plus/rozet/hediye/satış işlem kayıtları otomatik
+      toplu silmeye dahil değildir.</li>
+    <li>Yasal kabul kayıtları kullanıcı alt koleksiyonuyla silinir; kanıtlama ve
+      yasal yükümlülükler nedeniyle başka sınırlı kayıtların tutulması gerekebilir.</li>
+  </ul>
+  <p>Final doğrulama kararına ait belge dosyaları için uygulanan teknik süre 30
+    gündür. Yukarıdaki diğer kalan veya takma kimlikle tutulan gruplar için kodda
+    uygulanmış kategori bazlı süre yoktur. Bu sayfa “her şey anında silinir”
+    vaadinde bulunmaz.</p>
 
-  <h2>İletişim</h2>
-  <p>
-    Destek: <a href="mailto:destek@dortapp.com">destek@dortapp.com</a><br>
-    Genel iletişim: <a href="mailto:iletisim@dortapp.com">iletisim@dortapp.com</a><br>
-    İnternet sitesi: <a href="https://dortapp.com">https://dortapp.com</a>
-  </p>
+  <h2>Google Play aboneliği</h2>
+  <p>Dört. hesabının silinmesi Google Play aboneliğini otomatik olarak iptal
+    etmez. Aktif Dört. Plus aboneliğinizi hesap silme talebinden önce
+    <a href="https://play.google.com/store/account/subscriptions">Google Play
+    abonelikler</a> bölümünden yönetin veya iptal edin. Hesap silme, Google Play'in
+    faturalandırma ve iade kurallarını değiştirmez.</p>
+
+  <h2>Uygulamaya erişemiyorsanız</h2>
+  <p>Kayıtlı telefon numaranızı belirterek
+    <a href="mailto:destek@dortapp.com?subject=D%C3%B6rt.%20Hesap%20Silme%20Talebi">destek@dortapp.com</a>
+    adresine “Dört. Hesap Silme Talebi” konulu e-posta gönderebilirsiniz.</p>
+  <div class="notice">E-posta gelir gelmez hesap otomatik silinmez. Başkasının
+    hesabının silinmesini önlemek için hesap sahipliği güvenli biçimde
+    doğrulanır ve talep mevcut hesap silme sürecinden geçirilir. Destek sizden
+    şifre, SMS doğrulama kodu, kimlik fotoğrafı veya Google Play satın alma
+    tokenı istemez. Bu bilgileri e-postayla göndermeyin.</div>
+  <p>Uygulama içindeki Destek bölümü, hesabına erişebilen kullanıcılar için
+    kullanılabilir; asıl hesap silme işlemi Ayarlar bölümündeki sunucu akışından
+    başlatılır.</p>
+</main>
 </body>
 </html>

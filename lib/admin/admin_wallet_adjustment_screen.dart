@@ -17,7 +17,6 @@ String _locText(
   }
 }
 
-
 class AdminWalletAdjustmentScreen extends StatefulWidget {
   const AdminWalletAdjustmentScreen({super.key, required this.userId});
 
@@ -95,7 +94,9 @@ class _AdminWalletAdjustmentScreenState
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen'),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -282,7 +283,12 @@ class _AdminWalletAdjustmentScreenState
                     minLines: 3,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      labelText: _locText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
+                      labelText: _locText(
+                        context,
+                        tr: 'İşlem açıklaması',
+                        en: 'Action description',
+                        de: 'Aktionsbeschreibung',
+                      ),
                       hintText:
                           'Örnek: Kampanya ödülü, manuel düzeltme veya iade',
                       border: OutlineInputBorder(),

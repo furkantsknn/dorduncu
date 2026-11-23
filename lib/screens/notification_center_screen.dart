@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/notification_service.dart';
+import '../widgets/profile_menu_tile.dart';
+import '../widgets/market_palette.dart';
 import 'event_chat_screen.dart';
 import 'event_detail_screen.dart';
 import 'public_profile_screen.dart';
@@ -565,7 +567,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                       child: Text(
                         notification.title,
                         style: Theme.of(sheetContext).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
@@ -668,6 +670,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     }
 
     return Scaffold(
+      backgroundColor: MarketPalette.of(context).background,
       appBar: AppBar(
         title: Text(
           _notificationText(
@@ -758,146 +761,154 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           Expanded(
             child: StreamBuilder<List<AppNotification>>(
               stream: NotificationService.watchNotifications(limit: 150),
-              builder: (BuildContext context, AsyncSnapshot<List<AppNotification>> snapshot) {
-                if (snapshot.hasError) {
-                  final Object error =
-                      snapshot.error ??
-                      _notificationText(
-                        context,
-                        tr: 'Bilinmeyen hata',
-                        en: 'Unknown error',
-                        de: 'Unbekannter Fehler',
-                      );
-
-                  return _ErrorState(
-                    message: error is NotificationServiceException
-                        ? error.message
-                        : _notificationText(
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<AppNotification>> snapshot,
+                  ) {
+                    if (snapshot.hasError) {
+                      final Object error =
+                          snapshot.error ??
+                          _notificationText(
                             context,
-                            tr: 'Bildirimler yüklenemedi.',
-                            en: 'Notifications could not be loaded.',
-                            de: 'Benachrichtigungen konnten nicht geladen werden.',
-                          ),
-                  );
-                }
+                            tr: 'Bilinmeyen hata',
+                            en: 'Unknown error',
+                            de: 'Unbekannter Fehler',
+                          );
 
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    !snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                      return _ErrorState(
+                        message: error is NotificationServiceException
+                            ? error.message
+                            : _notificationText(
+                                context,
+                                tr: 'Bildirimler yüklenemedi.',
+                                en: 'Notifications could not be loaded.',
+                                de: 'Benachrichtigungen konnten nicht geladen werden.',
+                              ),
+                        onRetry: () => setState(() {}),
+                      );
+                    }
 
-                final List<AppNotification> notifications =
-                    (snapshot.data ?? <AppNotification>[])
-                        .where(_matchesFilter)
-                        .toList(growable: false);
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return const _NotificationLoadingState();
+                    }
 
-                if (notifications.isEmpty) {
-                  return _EmptyState(filtered: _selectedFilter != 'Tümü');
-                }
+                    final List<AppNotification> notifications =
+                        (snapshot.data ?? <AppNotification>[])
+                            .where(_matchesFilter)
+                            .toList(growable: false);
 
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    await Future<void>.delayed(
-                      const Duration(milliseconds: 350),
-                    );
-                  },
-                  child: ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
-                    itemCount: notifications.length,
-                    separatorBuilder: (BuildContext context, int index) {
-                      return const SizedBox(height: 8);
-                    },
-                    itemBuilder: (BuildContext context, int index) {
-                      final AppNotification notification = notifications[index];
+                    if (notifications.isEmpty) {
+                      return _EmptyState(filtered: _selectedFilter != 'Tümü');
+                    }
 
-                      return Dismissible(
-                        key: ValueKey<String>(notification.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 22),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            Icons.delete_outline_rounded,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
-                          ),
-                        ),
-                        confirmDismiss: (_) async {
-                          return await showDialog<bool>(
-                            context: context,
-                            builder: (BuildContext dialogContext) {
-                              return AlertDialog(
-                                title: Text(
-                                  _notificationText(
-                                    context,
-                                    tr: 'Bildirim silinsin mi?',
-                                    en: 'Delete notification?',
-                                    de: 'Benachrichtigung löschen?',
-                                  ),
-                                ),
-                                content: Text(
-                                  _notificationText(
-                                    context,
-                                    tr: 'Bu bildirim kalıcı olarak silinecek.',
-                                    en: 'This notification will be permanently deleted.',
-                                    de: 'Diese Benachrichtigung wird dauerhaft gelöscht.',
-                                  ),
-                                ),
-                                actions: <Widget>[
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(dialogContext, false);
-                                    },
-                                    child: Text(
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 350),
+                        );
+                      },
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
+                        itemCount: notifications.length,
+                        separatorBuilder: (BuildContext context, int index) {
+                          return const SizedBox(height: 8);
+                        },
+                        itemBuilder: (BuildContext context, int index) {
+                          final AppNotification notification =
+                              notifications[index];
+
+                          return Dismissible(
+                            key: ValueKey<String>(notification.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 22),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.delete_outline_rounded,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                              ),
+                            ),
+                            confirmDismiss: (_) async {
+                              return await showDialog<bool>(
+                                context: context,
+                                builder: (BuildContext dialogContext) {
+                                  return AlertDialog(
+                                    title: Text(
                                       _notificationText(
                                         context,
-                                        tr: 'Vazgeç',
-                                        en: 'Cancel',
-                                        de: 'Abbrechen',
+                                        tr: 'Bildirim silinsin mi?',
+                                        en: 'Delete notification?',
+                                        de: 'Benachrichtigung löschen?',
                                       ),
                                     ),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () {
-                                      Navigator.pop(dialogContext, true);
-                                    },
-                                    child: Text(
+                                    content: Text(
                                       _notificationText(
                                         context,
-                                        tr: 'Sil',
-                                        en: 'Delete',
-                                        de: 'Löschen',
+                                        tr: 'Bu bildirim kalıcı olarak silinecek.',
+                                        en: 'This notification will be permanently deleted.',
+                                        de: 'Diese Benachrichtigung wird dauerhaft gelöscht.',
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    actions: <Widget>[
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(dialogContext, false);
+                                        },
+                                        child: Text(
+                                          _notificationText(
+                                            context,
+                                            tr: 'Vazgeç',
+                                            en: 'Cancel',
+                                            de: 'Abbrechen',
+                                          ),
+                                        ),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () {
+                                          Navigator.pop(dialogContext, true);
+                                        },
+                                        child: Text(
+                                          _notificationText(
+                                            context,
+                                            tr: 'Sil',
+                                            en: 'Delete',
+                                            de: 'Löschen',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               );
                             },
+                            onDismissed: (_) {
+                              _deleteNotification(notification);
+                            },
+                            child: _NotificationCard(
+                              notification: notification,
+                              onTap: () {
+                                _openNotification(notification);
+                              },
+                              onReadToggle: () {
+                                _toggleRead(notification);
+                              },
+                            ),
                           );
                         },
-                        onDismissed: (_) {
-                          _deleteNotification(notification);
-                        },
-                        child: _NotificationCard(
-                          notification: notification,
-                          onTap: () {
-                            _openNotification(notification);
-                          },
-                          onReadToggle: () {
-                            _toggleRead(notification);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+                      ),
+                    );
+                  },
             ),
           ),
         ],
@@ -920,9 +931,20 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    final MarketPalette palette = MarketPalette.of(context);
 
     return Card(
-      color: notification.isRead ? null : colors.primaryContainer,
+      elevation: 0,
+      color: palette.raised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: notification.isRead
+              ? palette.line
+              : palette.accent.withValues(alpha: .8),
+          width: notification.isRead ? 1 : 1.5,
+        ),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
@@ -937,28 +959,50 @@ class _NotificationCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            notification.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: notification.isRead
-                                  ? FontWeight.w700
-                                  : FontWeight.w900,
-                            ),
+                        Text(
+                          notification.title,
+                          style: profileMenuTitleStyle(context).copyWith(
+                            fontWeight: notification.isRead
+                                ? FontWeight.w600
+                                : FontWeight.w800,
                           ),
                         ),
                         if (!notification.isRead)
-                          Container(
-                            width: 9,
-                            height: 9,
-                            margin: const EdgeInsets.only(left: 8),
-                            decoration: const BoxDecoration(
-                              color: Color(0xffFF9800),
-                              shape: BoxShape.circle,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Semantics(
+                              label: _notificationText(
+                                context,
+                                tr: 'Okunmamış',
+                                en: 'Unread',
+                                de: 'Ungelesen',
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: palette.accent.withValues(alpha: .16),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  _notificationText(
+                                    context,
+                                    tr: 'YENİ',
+                                    en: 'NEW',
+                                    de: 'NEU',
+                                  ),
+                                  style: TextStyle(
+                                    color: palette.accent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -967,16 +1011,15 @@ class _NotificationCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(
                         notification.body,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.onSurfaceVariant,
-                          height: 1.35,
-                        ),
+                        style: profileMenuSubtitleStyle(
+                          context,
+                        ).copyWith(height: 1.4),
                       ),
                     ],
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
                       children: <Widget>[
                         Text(
                           _timeText(context, notification.createdAt),
@@ -986,7 +1029,6 @@ class _NotificationCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const Spacer(),
                         Text(
                           _notificationTypeText(context, notification.type),
                           style: TextStyle(
@@ -1028,6 +1070,49 @@ class _NotificationCard extends StatelessWidget {
       ),
     );
   }
+}
+
+@visibleForTesting
+Widget buildNotificationsDesignPreview() {
+  final DateTime now = DateTime.now();
+  AppNotification item({required bool read, required String id}) {
+    return AppNotification(
+      id: id,
+      userId: 'preview-user',
+      type: NotificationType.message,
+      title: read ? 'Etkinlik güncellendi' : 'Yeni sohbet mesajı',
+      body: read
+          ? 'Buluşma saati 20.00 olarak güncellendi.'
+          : 'Uzun bir bildirim içeriği dar ekranda da okunabilir kalmalı ve doğru hedefe yönlenmeli.',
+      eventId: 'preview-event',
+      eventTitle: 'Akşam Okey Buluşması',
+      senderUid: 'preview-sender',
+      senderName: 'Ece',
+      senderPhotoUrl: '',
+      route: '/event-chat',
+      isRead: read,
+      createdAt: read ? now.subtract(const Duration(days: 1)) : now,
+      readAt: read ? now : null,
+      data: const <String, dynamic>{},
+    );
+  }
+
+  return ListView(
+    padding: const EdgeInsets.all(16),
+    children: <Widget>[
+      _NotificationCard(
+        notification: item(read: false, id: 'new'),
+        onTap: () {},
+        onReadToggle: () {},
+      ),
+      const SizedBox(height: 10),
+      _NotificationCard(
+        notification: item(read: true, id: 'read'),
+        onTap: () {},
+        onReadToggle: () {},
+      ),
+    ],
+  );
 }
 
 class _NotificationAvatar extends StatelessWidget {
@@ -1123,9 +1208,10 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message});
+  const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -1142,8 +1228,44 @@ class _ErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4),
             ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(
+                _notificationText(
+                  context,
+                  tr: 'Yeniden dene',
+                  en: 'Try again',
+                  de: 'Erneut versuchen',
+                ),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationLoadingState extends StatelessWidget {
+  const _NotificationLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+      itemCount: 5,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, _) => Container(
+        height: 112,
+        decoration: BoxDecoration(
+          color: palette.raised,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: palette.line),
+        ),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
     );
   }

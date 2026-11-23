@@ -9,6 +9,9 @@ import {
 
 import {firestore} from "../config/firebaseAdmin";
 import {
+  eventCreationRequestId, eventCreationFingerprint,
+} from "./eventCreationRequest";
+import {
   calculateEventPricing,
   MAXIMUM_DURATION_MINUTES,
   MINIMUM_DURATION_MINUTES,
@@ -19,8 +22,21 @@ import {
   applicationPaymentStatus,
 } from "./eventLifecycle";
 import {isPlusMembershipActive} from "../users/plusMembership";
+import {
+  evaluateEventSchedule,
+  EVENT_FREE_TODAY_CODE,
+} from "./eventSchedulePolicy";
+import {
+  evaluateSoughtPlayerCount,
+  PLUS_PLAYER_LIMIT_CODE,
+} from "./plusPlayerLimit";
+import {
+  OPEN_EVENT_QUOTA_CODE,
+  syncEventQuotaInTransaction,
+} from "./eventOpenQuotaPolicy";
 
 interface CreateEventRequest {
+  requestId?: unknown;
   gameId?: unknown;
   playerCount?: unknown;
   memberPreference?: unknown;
@@ -204,7 +220,7 @@ function requireDate(
  * @param {number} value Coordinate.
  * @return {number} Rounded coordinate.
  */
-function approximateCoordinate(value: number): number {
+export function approximateCoordinate(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
@@ -235,10 +251,10 @@ export const createEvent = onCall(
       "playerCount"
     );
 
-    if (playerCount < 1 || playerCount > 4) {
+    if (playerCount < 1) {
       throw new HttpsError(
         "invalid-argument",
-        "Oyuncu sayısı 1 ile 4 arasında olmalıdır."
+        "Oyuncu sayısı pozitif bir tam sayı olmalıdır."
       );
     }
 
@@ -386,32 +402,37 @@ export const createEvent = onCall(
     }
 
     const isPlus = isPlusMembershipActive(userData);
-
-    const today = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
+    const playerLimit = evaluateSoughtPlayerCount(
+      playerCount,
+      isPlus,
     );
 
-    const maximumEventDate = new Date(today);
-
-    maximumEventDate.setDate(
-      maximumEventDate.getDate() +
-      (isPlus ? 365 : 1)
-    );
-
-    const selectedEventDay = new Date(
-      startAt.getFullYear(),
-      startAt.getMonth(),
-      startAt.getDate()
-    );
-
-    if (selectedEventDay > maximumEventDate) {
+    if (playerLimit === "plus_required") {
       throw new HttpsError(
         "permission-denied",
-        isPlus ?
-          "Etkinlik en fazla 365 gün sonrası için oluşturulabilir." :
-          "Normal üyeler yalnızca bugün veya yarın için etkinlik oluşturabilir."
+        "2 veya daha fazla oyuncu için Plus üyelik gerekir.",
+        {code: PLUS_PLAYER_LIMIT_CODE},
+      );
+    }
+
+    const schedule = evaluateEventSchedule(
+      startAt.getTime(),
+      now.getTime(),
+      isPlus,
+    );
+
+    if (schedule === "past") {
+      throw new HttpsError(
+        "invalid-argument",
+        "Geçmiş tarihli etkinlik oluşturulamaz.",
+      );
+    }
+
+    if (schedule === "free_not_today") {
+      throw new HttpsError(
+        "permission-denied",
+        "Ücretsiz üyelikte etkinlik yalnızca bugün için açılabilir.",
+        {code: EVENT_FREE_TODAY_CODE},
       );
     }
 
@@ -438,8 +459,15 @@ export const createEvent = onCall(
       );
     }
 
-    const eventReference =
+    const requestDocumentId = eventCreationRequestId(uid, data.requestId);
+    const eventReference = requestDocumentId ?
+      firestore.collection("events").doc(requestDocumentId) :
       firestore.collection("events").doc();
+    const requestFingerprint = eventCreationFingerprint([
+      gameId, playerCount, memberPreference, description, city, district,
+      neighborhood, address, latitude, longitude,
+      startAt.getTime(), endAt.getTime(),
+    ]);
 
     const privateLocationReference =
       eventReference
@@ -468,6 +496,7 @@ export const createEvent = onCall(
       gameName: pricing.game.name,
       oyun: `${pricing.game.emoji} ${pricing.game.name}`,
 
+      // Sought players only. The host stays in katilanlar.
       oyuncuSayisi: playerCount,
       oyuncuSayisiMetni: `${playerCount} Oyuncu`,
       uyeTercihi: memberPreference,
@@ -532,6 +561,8 @@ export const createEvent = onCall(
     };
 
     const privateLocationData = {
+      ...(requestDocumentId ?
+        {creationRequestFingerprint: requestFingerprint} : {}),
       eventId: eventReference.id,
       sehir: city,
       ilce: district,
@@ -546,19 +577,39 @@ export const createEvent = onCall(
         FieldValue.serverTimestamp(),
     };
 
-    const batch = firestore.batch();
-
-    batch.create(
-      eventReference,
-      eventData
-    );
-
-    batch.create(
-      privateLocationReference,
-      privateLocationData
-    );
-
-    await batch.commit();
+    await firestore.runTransaction(async (transaction) => {
+      if (requestDocumentId) {
+        const existing = await transaction.get(eventReference);
+        if (existing.exists) {
+          const privateLocation = await transaction.get(
+            privateLocationReference,
+          );
+          if (privateLocation.get("creationRequestFingerprint") !==
+              requestFingerprint) {
+            throw new HttpsError(
+              "failed-precondition", "Event request already used.",
+              {code: "event_request_conflict"},
+            );
+          }
+          return;
+        }
+      }
+      const state = await syncEventQuotaInTransaction(
+        transaction, firestore, uid, now.getTime(), isPlus, eventReference.id,
+      );
+      if (!isPlus && state.openEventCount > 2) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "Ücretsiz üyelikte aynı anda en fazla 2 açık etkinliğin olabilir.",
+          {
+            code: OPEN_EVENT_QUOTA_CODE,
+            openEventCount: state.openEventCount - 1,
+          },
+        );
+      }
+      transaction.create(eventReference, eventData);
+      transaction.create(privateLocationReference, privateLocationData);
+    });
 
     return {
       success: true,

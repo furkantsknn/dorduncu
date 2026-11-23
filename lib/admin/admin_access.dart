@@ -123,6 +123,7 @@ class AdminAccess {
     }
 
     final IdTokenResult token = await user.getIdTokenResult(forceRefresh);
+    if (FirebaseAuth.instance.currentUser?.uid != user.uid) return null;
 
     return token.claims;
   }

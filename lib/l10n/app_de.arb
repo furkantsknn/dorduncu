@@ -316,7 +316,8 @@
   "eventDurationMaxSixHours": "Die Eventdauer darf höchstens 6 Stunden betragen.",
   "eventDurationThirtyMinuteSteps": "Start- und Endzeiten müssen in 30-Minuten-Intervallen gewählt werden.",
   "plusRequiredForMultiplePlayers": "Für 2 oder mehr Spieler ist eine Plus-Mitgliedschaft erforderlich.",
-  "normalMembersTomorrowOnly": "Normale Mitglieder können Events höchstens für morgen erstellen.",
+  "normalMembersTomorrowOnly": "Mit der kostenlosen Mitgliedschaft kannst du ein Event nur für heute erstellen.",
+  "eventPlusSevenDayLimit": "Mit Plus kannst du Events für zukünftige Termine erstellen.",
   "sessionNotFoundPleaseLogin": "Sitzung nicht gefunden. Du musst dich erneut anmelden.",
   "addressNotFoundOnMap": "Adresse konnte auf der Karte nicht gefunden werden. Schreibe den Stadtteil, die Straße oder den Ortsnamen klarer oder wähle auf der Karte aus.",
   "eventCreateFailedWithCode": "Event konnte nicht erstellt werden ({code}): {message}",
@@ -347,8 +348,8 @@
   "basePricePerPlayer": "Grundpreis pro Person",
   "totalFee": "Gesamtgebühr",
   "durationRangeHint": "Die Dauer muss zwischen 1 und 6 Stunden in 30-Minuten-Intervallen liegen.",
-  "plusMemberBenefits": "Plus-Mitglied: Du kannst mehrere Spieler und zukünftige Termine wählen.",
-  "normalMemberLimits": "Normales Mitglied: Du kannst ein Event für 1 Spieler und höchstens morgen erstellen.",
+  "plusMemberBenefits": "Plus: Erstelle mehrere Events gleichzeitig; die Zahl offener Events ist unbegrenzt.",
+  "normalMemberLimits": "Kostenlos: gleichzeitig 2 offene Events; nur heute und 1 Spieler.",
   "startTimeLabel": "Start {time}",
   "@startTimeLabel": {
     "placeholders": {
@@ -430,5 +431,9 @@
   "accountDeletionRequestCouldNotBeCreated": "Der Kontolöschantrag konnte nicht erstellt werden.",
   "legalTermsBody": "Dört. hilft Menschen, fehlende Mitspieler für Spiele, Sport und soziale Aktivitäten zu finden. Das Erstellen von und die Teilnahme an Veranstaltungen ist kostenlos. Die Nutzer sind für die Richtigkeit ihrer Angaben, ihr Verhalten bei Veranstaltungen und die Einhaltung der geltenden Regeln verantwortlich.",
   "privacyPolicyBody": "Profil-, Telefonbestätigungs-, Veranstaltungs-, Standort-, Nachrichten-, Benachrichtigungs- und Google-Play-Kaufdaten werden zur Bereitstellung des Dienstes verarbeitet. Identitäts- und Verifizierungsdokumente werden für den Verifizierungsprozess verwendet. Eine Kontolöschung kann in der App oder über destek@dortapp.com beantragt werden.",
-  "communityRulesBody": "Sei respektvoll. Belästigung, Drohungen, Diskriminierung, Betrug und irreführende Veranstaltungen sind verboten. Bewirb dich nicht für Veranstaltungen, an denen du nicht teilnehmen kannst; informiere den Veranstalter rechtzeitig, wenn du absagen musst. Melde Nutzer, die ein Sicherheitsrisiko darstellen, über den Support-Kanal."
+  "communityRulesBody": "Sei respektvoll. Belästigung, Drohungen, Diskriminierung, Betrug und irreführende Veranstaltungen sind verboten. Bewirb dich nicht für Veranstaltungen, an denen du nicht teilnehmen kannst; informiere den Veranstalter rechtzeitig, wenn du absagen musst. Melde Nutzer, die ein Sicherheitsrisiko darstellen, über den Support-Kanal.",
+  "eventServiceBusy": "Der Dienst ist ausgelastet oder ein Anfragelimit wurde erreicht. Dies bedeutet kein Plus-Eventlimit. Prüfe Meine Events, bevor du es erneut versuchst. ({code})",
+  "eventCreateUncertain": "Das Ergebnis konnte nicht bestätigt werden. Prüfe Meine Events, bevor du das Event erneut erstellst. ({code})",
+  "eventVerificationFailed": "Sitzung oder Berechtigung konnte nicht bestätigt werden. Prüfe Verbindung und Anmeldung. ({code})",
+  "eventCreateSafeFailure": "Das Event konnte nicht erstellt werden. Prüfe Meine Events, bevor du es erneut versuchst. ({code})"
 }

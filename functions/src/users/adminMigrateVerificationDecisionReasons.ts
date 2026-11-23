@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 import {
   onCall,
 } from "firebase-functions/v2/https";
@@ -21,6 +22,7 @@ export const adminMigrateVerificationDecisionReasons =
     },
     async (request) => {
       assertSuperAdmin(request);
+      await assertCurrentAdminSession(request);
 
       const marker =
         firestore

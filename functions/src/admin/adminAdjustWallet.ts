@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
@@ -7,6 +8,7 @@ import {
   getAdminRole,
 } from "../security/adminAuthorization";
 import {writeAuditLog} from "../audit/writeAuditLog";
+import {assertV1WalletMutationAllowed} from "../policy/v1WalletPolicy";
 
 const REGION = "europe-west1";
 
@@ -14,8 +16,10 @@ export const adminAdjustWallet = onCall(
   {region: REGION, enforceAppCheck: true},
   async (request) => {
     assertAdminPermission(request, "finance.manage");
+    await assertCurrentAdminSession(request);
     const adminId = request.auth.uid;
     const adminRole = getAdminRole(request);
+    assertV1WalletMutationAllowed();
     const data = request.data as Record<string, unknown>;
     const userId = readString(data.userId, "Kullanıcı kimliği gerekli.", 128);
     const operation = readString(data.operation, "İşlem türü gerekli.", 32);

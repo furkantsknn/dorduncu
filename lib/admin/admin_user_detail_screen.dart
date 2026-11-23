@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'admin_wallet_transactions_screen.dart';
 import 'admin_point_transactions_screen.dart';
@@ -8,8 +9,11 @@ import 'admin_membership_management_screen.dart';
 import 'admin_user_actions_screen.dart';
 import 'admin_permission_gate.dart';
 import 'admin_access.dart';
+import 'admin_user_number.dart';
 import '../services/plus_entitlement.dart';
 import '../utils/verification_admin_labels.dart';
+import '../widgets/game_badge_emblem.dart';
+import '../widgets/premium_badge_assets.dart';
 
 String _locText(
   BuildContext context, {
@@ -34,10 +38,6 @@ class AdminUserDetailScreen extends StatelessWidget {
 
   DocumentReference<Map<String, dynamic>> get _userReference {
     return FirebaseFirestore.instance.collection('users').doc(userId);
-  }
-
-  DocumentReference<Map<String, dynamic>> get _walletReference {
-    return FirebaseFirestore.instance.collection('wallets').doc(userId);
   }
 
   @override
@@ -195,6 +195,8 @@ class AdminUserDetailScreen extends StatelessWidget {
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 children: <Widget>[
+                  AdminUserNumber(uid: userId),
+                  const SizedBox(height: 14),
                   _ProfileHeaderCard(
                     displayName: displayName,
                     fullName: fullName,
@@ -214,11 +216,6 @@ class AdminUserDetailScreen extends StatelessWidget {
                     ),
                     icon: Icons.person_outline,
                     children: <Widget>[
-                      _InformationRow(
-                        label: 'Kullanıcı kimliği',
-                        value: userId,
-                      ),
-                      const SizedBox(height: 14),
                       AdminPermissionGate(
                         permission: AdminPermission.usersModerate,
                         child: SizedBox(
@@ -351,7 +348,15 @@ class AdminUserDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  _OwnedBadgesSection(userId: userId),
+                  _EventQuotaSection(userId: userId),
+                  const SizedBox(height: 14),
+                  AdminPermissionGate(
+                    permission: AdminPermission.contentManage,
+                    child: _OwnedBadgesSection(
+                      userId: userId,
+                      userName: displayName,
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   _SectionCard(
                     title: 'Üyelik ve Rozetler',
@@ -416,17 +421,6 @@ class AdminUserDetailScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                  AdminPermissionGate(
-                    permission: AdminPermission.financeManage,
-                    child: const SizedBox(height: 14),
-                  ),
-                  AdminPermissionGate(
-                    permission: AdminPermission.financeManage,
-                    child: _WalletSection(
-                      userId: userId,
-                      walletReference: _walletReference,
-                    ),
                   ),
                   const SizedBox(height: 14),
                   _SectionCard(
@@ -506,6 +500,145 @@ class AdminUserDetailScreen extends StatelessWidget {
   }
 }
 
+class _EventQuotaSection extends StatelessWidget {
+  const _EventQuotaSection({required this.userId});
+
+  final String userId;
+
+  Future<Map<dynamic, dynamic>> _load() async {
+    final HttpsCallableResult<dynamic> result =
+        await FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('getEventCreationQuotaState')
+            .call(<String, dynamic>{'uid': userId});
+    if (result.data is! Map) throw StateError('Kota bilgisi okunamadı.');
+    return result.data as Map<dynamic, dynamic>;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<dynamic, dynamic>>(
+      future: _load(),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<dynamic, dynamic>> snapshot,
+          ) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const _SectionCard(
+                title: 'Etkinlik oluşturma kotası',
+                icon: Icons.event_available_outlined,
+                children: <Widget>[Center(child: CircularProgressIndicator())],
+              );
+            }
+            if (snapshot.hasError || !snapshot.hasData) {
+              return _SectionCard(
+                title: _locText(
+                  context,
+                  tr: 'Etkinlik oluşturma kotası',
+                  en: 'Event creation quota',
+                  de: 'Event-Erstellungskontingent',
+                ),
+                icon: Icons.event_busy_outlined,
+                children: <Widget>[
+                  Text(
+                    _locText(
+                      context,
+                      tr: 'Sunucu kota bilgisi okunamadı.',
+                      en: 'Server quota state could not be loaded.',
+                      de: 'Das serverseitige Kontingent konnte nicht geladen werden.',
+                    ),
+                  ),
+                ],
+              );
+            }
+            final Map<dynamic, dynamic> data = snapshot.data!;
+            final bool plus = data['plusActive'] == true;
+            final int count = (data['openEventCount'] as num?)?.toInt() ?? 0;
+            final bool canCreate = data['canCreate'] == true;
+            return _SectionCard(
+              title: _locText(
+                context,
+                tr: 'Etkinlik oluşturma kotası',
+                en: 'Event creation quota',
+                de: 'Event-Erstellungskontingent',
+              ),
+              icon: Icons.event_available_outlined,
+              children: <Widget>[
+                _InformationRow(
+                  label: _locText(
+                    context,
+                    tr: 'Geçerli üyelik',
+                    en: 'Current membership',
+                    de: 'Aktuelle Mitgliedschaft',
+                  ),
+                  value: plus
+                      ? 'Plus'
+                      : _locText(
+                          context,
+                          tr: 'Ücretsiz',
+                          en: 'Free',
+                          de: 'Kostenlos',
+                        ),
+                ),
+                const Divider(height: 24),
+                _InformationRow(
+                  label: _locText(
+                    context,
+                    tr: 'Kotaya dahil açık etkinlik',
+                    en: 'Open events in quota',
+                    de: 'Offene Events im Kontingent',
+                  ),
+                  value: '$count',
+                ),
+                const Divider(height: 24),
+                _InformationRow(
+                  label: _locText(
+                    context,
+                    tr: 'Kota',
+                    en: 'Quota',
+                    de: 'Kontingent',
+                  ),
+                  value: plus
+                      ? _locText(
+                          context,
+                          tr: 'Sınırsız',
+                          en: 'Unlimited',
+                          de: 'Unbegrenzt',
+                        )
+                      : '$count/2',
+                ),
+                const Divider(height: 24),
+                _StatusRow(
+                  title: _locText(
+                    context,
+                    tr: 'Yeni etkinlik oluşturabilir',
+                    en: 'Can create a new event',
+                    de: 'Kann ein neues Event erstellen',
+                  ),
+                  enabled: canCreate,
+                  enabledText: _locText(
+                    context,
+                    tr: 'Evet',
+                    en: 'Yes',
+                    de: 'Ja',
+                  ),
+                  disabledText: _locText(
+                    context,
+                    tr: 'Hayır — kota dolu',
+                    en: 'No — quota reached',
+                    de: 'Nein — Kontingent erreicht',
+                  ),
+                ),
+              ],
+            );
+          },
+    );
+  }
+}
+
+// Retained only to decode historical wallet records during controlled support
+// work; there is no active route to this widget in V1.
+// ignore: unused_element
 class _WalletSection extends StatelessWidget {
   const _WalletSection({required this.userId, required this.walletReference});
 
@@ -819,11 +952,322 @@ class _BalanceRow extends StatelessWidget {
   }
 }
 
-class _OwnedBadgesSection extends StatelessWidget {
-  const _OwnedBadgesSection({required this.userId});
+class _OwnedBadgesSection extends StatefulWidget {
+  const _OwnedBadgesSection({required this.userId, required this.userName});
 
   final String userId;
+  final String userName;
 
+  @override
+  State<_OwnedBadgesSection> createState() => _OwnedBadgesSectionState();
+}
+
+class _OwnedBadgesSectionState extends State<_OwnedBadgesSection> {
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
+  String? _busyBadgeId;
+  String? _result;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _manage(
+    BuildContext context, {
+    required String badgeId,
+    required String badgeName,
+    required bool grant,
+  }) async {
+    final TextEditingController reason = TextEditingController();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(
+          grant
+              ? _locText(
+                  context,
+                  tr: 'Rozet ver',
+                  en: 'Grant badge',
+                  de: 'Abzeichen vergeben',
+                )
+              : _locText(
+                  context,
+                  tr: 'Rozeti kaldır',
+                  en: 'Remove badge',
+                  de: 'Abzeichen entfernen',
+                ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              grant
+                  ? badgeName
+                  : _locText(
+                      context,
+                      tr: '${widget.userName} kullanıcısından “$badgeName” rozeti kaldırılacak. Google Play iadesi yapılmaz.',
+                      en: '“$badgeName” will be removed from ${widget.userName}. This does not issue a Google Play refund.',
+                      de: '„$badgeName“ wird von ${widget.userName} entfernt. Dies löst keine Google-Play-Erstattung aus.',
+                    ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reason,
+              maxLength: 500,
+              decoration: InputDecoration(
+                labelText: _locText(
+                  context,
+                  tr: 'Gerekçe (zorunlu)',
+                  en: 'Reason (required)',
+                  de: 'Begründung (erforderlich)',
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              _locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen'),
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (reason.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, true);
+            },
+            child: Text(
+              grant
+                  ? _locText(context, tr: 'Ver', en: 'Grant', de: 'Vergeben')
+                  : _locText(
+                      context,
+                      tr: 'Kaldır',
+                      en: 'Remove',
+                      de: 'Entfernen',
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      reason.dispose();
+      return;
+    }
+    setState(() {
+      _busyBadgeId = badgeId;
+      _result = null;
+    });
+    try {
+      await FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('adminManageUserBadge').call(<String, dynamic>{
+        'targetUid': widget.userId,
+        'badgeId': badgeId,
+        'action': grant ? 'grant' : 'remove',
+        'reason': reason.text.trim(),
+      });
+      if (mounted) {
+        setState(
+          () => _result = _locText(
+            context,
+            tr: 'İşlem tamamlandı.',
+            en: 'Operation completed.',
+            de: 'Vorgang abgeschlossen.',
+          ),
+        );
+      }
+    } on FirebaseFunctionsException catch (error) {
+      if (mounted) {
+        setState(() => _result = error.message ?? error.code);
+      }
+    } finally {
+      reason.dispose();
+      if (mounted) setState(() => _busyBadgeId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('badge_products')
+          .snapshots(),
+      builder: (context, catalogSnapshot) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.userId)
+              .collection('owned_badges')
+              .snapshots(),
+          builder: (context, snapshot) {
+            final Map<String, QueryDocumentSnapshot<Map<String, dynamic>>>
+            owned = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{
+              for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+                  in snapshot.data?.docs ??
+                      const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                doc.id: doc,
+            };
+            final Map<String, Map<String, dynamic>> rows =
+                <String, Map<String, dynamic>>{};
+            for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+                in catalogSnapshot.data?.docs ??
+                    const <QueryDocumentSnapshot<Map<String, dynamic>>>[]) {
+              final Map<String, dynamic> data = doc.data();
+              if (premiumBadgeAssets.containsKey(doc.id) &&
+                  (data['gameId']?.toString() ?? doc.id) == doc.id) {
+                rows[doc.id] = data;
+              }
+            }
+            for (final MapEntry<
+                  String,
+                  QueryDocumentSnapshot<Map<String, dynamic>>
+                >
+                entry
+                in owned.entries) {
+              rows.putIfAbsent(entry.key, entry.value.data);
+            }
+            final List<MapEntry<String, Map<String, dynamic>>>
+            visible = rows.entries.where((entry) {
+              final String haystack =
+                  '${entry.key} ${entry.value['title'] ?? ''} ${entry.value['gameName'] ?? ''}'
+                      .toLowerCase();
+              return haystack.contains(_query);
+            }).toList()..sort((a, b) => a.key.compareTo(b.key));
+
+            return _SectionCard(
+              title: _locText(
+                context,
+                tr: 'Oyun rozetlerini yönet',
+                en: 'Manage game badges',
+                de: 'Spielabzeichen verwalten',
+              ),
+              icon: Icons.military_tech_outlined,
+              children: <Widget>[
+                TextField(
+                  controller: _search,
+                  onChanged: (String value) =>
+                      setState(() => _query = value.trim().toLowerCase()),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: _locText(
+                      context,
+                      tr: 'Rozet ara',
+                      en: 'Search badges',
+                      de: 'Abzeichen suchen',
+                    ),
+                  ),
+                ),
+                if (_result != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      _result!,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                if (!catalogSnapshot.hasData || !snapshot.hasData)
+                  const LinearProgressIndicator()
+                else
+                  ...visible.map((entry) {
+                    final Map<String, dynamic>? ownedData = owned[entry.key]
+                        ?.data();
+                    final bool blocked = ownedData?['adminBlocked'] == true;
+                    final bool entitled =
+                        !blocked &&
+                        (ownedData?['adminGranted'] == true ||
+                            (ownedData != null &&
+                                ownedData['googlePlayEntitled'] != false));
+                    final String name =
+                        entry.value['gameName']?.toString().trim().isNotEmpty ==
+                            true
+                        ? entry.value['gameName'].toString().trim()
+                        : entry.value['title']?.toString().trim().isNotEmpty ==
+                              true
+                        ? entry.value['title'].toString().trim()
+                        : entry.key;
+                    final bool busy = _busyBadgeId == entry.key;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: GameBadgeEmblem(
+                        emoji: entry.value['emoji']?.toString() ?? '',
+                        imageUrl: entry.value['imageUrl']?.toString() ?? '',
+                        gameId: entry.value['gameId']?.toString() ?? entry.key,
+                        gameName: name,
+                        size: 42,
+                      ),
+                      title: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        blocked
+                            ? _locText(
+                                context,
+                                tr: 'Admin engeli — yeniden satın alınamaz',
+                                en: 'Admin blocked — cannot be repurchased',
+                                de: 'Admin-Sperre — kein erneuter Kauf',
+                              )
+                            : entitled
+                            ? _locText(
+                                context,
+                                tr: 'Sahip',
+                                en: 'Owned',
+                                de: 'Im Besitz',
+                              )
+                            : _locText(
+                                context,
+                                tr: 'Sahip değil',
+                                en: 'Not owned',
+                                de: 'Nicht im Besitz',
+                              ),
+                      ),
+                      trailing: busy
+                          ? const SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : TextButton(
+                              onPressed: _busyBadgeId == null
+                                  ? () => _manage(
+                                      context,
+                                      badgeId: entry.key,
+                                      badgeName: name,
+                                      grant: !entitled,
+                                    )
+                                  : null,
+                              child: Text(
+                                entitled
+                                    ? _locText(
+                                        context,
+                                        tr: 'Rozeti kaldır',
+                                        en: 'Remove badge',
+                                        de: 'Entfernen',
+                                      )
+                                    : _locText(
+                                        context,
+                                        tr: 'Rozet ver',
+                                        en: 'Grant badge',
+                                        de: 'Vergeben',
+                                      ),
+                              ),
+                            ),
+                    );
+                  }),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /*
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -860,25 +1304,42 @@ class _OwnedBadgesSection extends StatelessWidget {
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        name,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      GameBadgeEmblem(
+                        emoji: '',
+                        imageUrl: data['imageUrl']?.toString() ?? '',
+                        gameId: data['gameId']?.toString() ?? document.id,
+                        gameName: data['gameName']?.toString() ?? name,
+                        size: 40,
                       ),
-                      const SizedBox(height: 4),
-                      Text('Rozet kimliği: ${document.id}'),
-                      Text(
-                        'Play ürünü: ${AdminUserDetailScreen._textOrDash(data['googlePlayProductId'])}',
-                      ),
-                      Text(
-                        revoked
-                            ? 'Durum: Play hakkı kaldırıldı'
-                            : 'Durum: Aktif',
-                      ),
-                      Text(
-                        'Satın alma: ${AdminUserDetailScreen._formatOptionalDate(data['purchasedAt'] ?? data['createdAt'])}',
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Rozet kimliği: ${document.id}'),
+                            Text(
+                              'Play ürünü: ${AdminUserDetailScreen._textOrDash(data['googlePlayProductId'])}',
+                            ),
+                            Text(
+                              revoked
+                                  ? 'Durum: Play hakkı kaldırıldı'
+                                  : 'Durum: Aktif',
+                            ),
+                            Text(
+                              'Satın alma: ${AdminUserDetailScreen._formatOptionalDate(data['purchasedAt'] ?? data['createdAt'])}',
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -889,6 +1350,7 @@ class _OwnedBadgesSection extends StatelessWidget {
       },
     );
   }
+*/
 }
 
 class _StatusRow extends StatelessWidget {

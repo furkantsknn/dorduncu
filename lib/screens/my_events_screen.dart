@@ -7,6 +7,7 @@ import '../services/chat_service.dart';
 import '../services/event_service.dart';
 import '../models/event_application_state.dart';
 import '../models/event_model.dart';
+import '../models/event_closure.dart';
 
 import '../l10n/app_localizations.dart';
 
@@ -62,6 +63,7 @@ class _MyEventsScreenState extends State<MyEventsScreen>
     'Aktif',
     'Yaklaşan',
     'Tamamlanan',
+    'Geçmiş',
     'İptal',
   ];
 
@@ -398,7 +400,7 @@ class _MyEventsScreenState extends State<MyEventsScreen>
   }
 
   bool _isActive(Map<String, dynamic> data) {
-    return !_isCancelled(data) && !_isCompleted(data);
+    return eventClosure(data) == EventClosure.active;
   }
 
   bool _matchesSearch(Map<String, dynamic> data) {
@@ -431,7 +433,9 @@ class _MyEventsScreenState extends State<MyEventsScreen>
       case 'Yaklaşan':
         return _isUpcoming(data);
       case 'Tamamlanan':
-        return _isCompleted(data);
+        return eventClosure(data) == EventClosure.confirmed;
+      case 'Geçmiş':
+        return eventClosure(data) != EventClosure.active && !_isCancelled(data);
       case 'İptal':
         return _isCancelled(data);
       default:
@@ -915,9 +919,9 @@ class _MyEventsScreenState extends State<MyEventsScreen>
       _showMessage(
         _myEventsText(
           context,
-          tr: 'Tamamlanmış etkinlik iptal edilemez.',
-          en: 'A completed event cannot be cancelled.',
-          de: 'Eine abgeschlossene Veranstaltung kann nicht abgesagt werden.',
+          tr: 'Geçmiş etkinlik değiştirilemez.',
+          en: 'A past event cannot be changed.',
+          de: 'Eine vergangene Veranstaltung kann nicht geändert werden.',
         ),
       );
       return;
@@ -1229,6 +1233,10 @@ class _MyEventsScreenState extends State<MyEventsScreen>
   }
 
   String _statusLabel(Map<String, dynamic> data) {
+    final closure = eventClosure(data);
+    if (closure != EventClosure.active) {
+      return eventClosureLabel(context, closure);
+    }
     if (_isCancelled(data)) {
       return _myEventsText(
         context,
@@ -2046,8 +2054,9 @@ class _MyEventsScreenState extends State<MyEventsScreen>
             ),
           ),
           child: GameBadgeEmblem(
-            emoji: GameVisuals.emoji(_gameReference(data)),
+            emoji: '',
             imageUrl: '',
+            gameId: _firstText(data, const <String>['gameId', 'oyunId']),
             gameName: _gameReference(data),
             size: 46,
           ),
@@ -2655,6 +2664,13 @@ class _MyEventsScreenState extends State<MyEventsScreen>
           en: 'Cancelled',
           de: 'Abgesagt',
         );
+      case 'Geçmiş':
+        return _myEventsText(
+          context,
+          tr: 'Geçmiş',
+          en: 'Past',
+          de: 'Vergangen',
+        );
       default:
         return AppLocalizations.of(context)!.all;
     }
@@ -2720,9 +2736,9 @@ class _MyEventsScreenState extends State<MyEventsScreen>
             icon: Icon(Icons.task_alt_outlined),
             text: _myEventsText(
               context,
-              tr: 'Tamamlananlar',
-              en: 'Completed',
-              de: 'Abgeschlossen',
+              tr: 'Geçmiş etkinlikler',
+              en: 'Past events',
+              de: 'Vergangene Veranstaltungen',
             ),
           ),
         ],

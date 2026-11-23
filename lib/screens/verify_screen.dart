@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import '../services/firebase_auth_language.dart';
 import 'package:flutter/services.dart';
 
 import 'create_profile_screen.dart';
@@ -12,6 +13,7 @@ import '../legal/legal_service.dart';
 import '../services/language_controller.dart';
 import '../services/phone_verification_session.dart';
 import '../services/user_service.dart';
+import 'legal_acceptance_screen.dart';
 
 class VerifyScreen extends StatefulWidget {
   final String phoneNumber;
@@ -46,7 +48,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   }
 
   bool get canResend {
-    return !loading && !resending && remainingSeconds == 0;
+    return !loading && !resending && widget.session.resendRemainingSeconds == 0;
   }
 
   @override
@@ -80,8 +82,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
   void _startCountdown() {
     countdownTimer?.cancel();
     setState(() {
-      remainingSeconds = 60;
+      remainingSeconds = widget.session.resendRemainingSeconds;
     });
+
+    if (remainingSeconds == 0) return;
 
     countdownTimer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
       if (!mounted) {
@@ -89,14 +93,15 @@ class _VerifyScreenState extends State<VerifyScreen> {
         return;
       }
 
-      if (remainingSeconds <= 1) {
+      final int current = widget.session.resendRemainingSeconds;
+      if (current == 0) {
         timer.cancel();
         setState(() {
           remainingSeconds = 0;
         });
       } else {
         setState(() {
-          remainingSeconds--;
+          remainingSeconds = current;
         });
       }
     });
@@ -194,8 +199,13 @@ class _VerifyScreenState extends State<VerifyScreen> {
       return;
     }
     _attemptId = resent;
+    _startCountdown();
 
     try {
+      await applyFirebaseAuthLanguage(
+        FirebaseAuth.instance,
+        Localizations.localeOf(context).languageCode,
+      );
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: widget.phoneNumber,
         timeout: const Duration(seconds: 60),
@@ -310,18 +320,22 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
       await UserService.registerSuccessfulLogin(user);
 
+      var acceptanceFailed = false;
       try {
         await LegalService.recordOnboardingAcceptances(
           userId: user.uid,
           locale: LanguageController.locale.value.languageCode,
         );
       } catch (error) {
+        acceptanceFailed = true;
         debugPrint('legal acceptance record failed: $error');
       }
 
-      final AuthDestination destination = await UserService.getAuthDestination(
-        user: user,
-      );
+      final AuthDestination destination = acceptanceFailed
+          ? const AuthDestination(
+              type: AuthDestinationType.legalAcceptanceRequired,
+            )
+          : await UserService.getAuthDestination(user: user);
 
       if (!widget.session.isCurrent(attempt) || !mounted) return;
 
@@ -360,6 +374,8 @@ class _VerifyScreenState extends State<VerifyScreen> {
         return const SizedBox.shrink();
       case AuthDestinationType.createProfile:
         return const CreateProfileScreen();
+      case AuthDestinationType.legalAcceptanceRequired:
+        return const LegalAcceptanceScreen();
       case AuthDestinationType.home:
         return HomeScreen(userName: destination.profileName);
       case AuthDestinationType.suspended:
@@ -460,11 +476,11 @@ class _VerifyScreenState extends State<VerifyScreen> {
                     padding: const EdgeInsets.all(24),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                        minHeight:
-                            MediaQuery.of(context).size.height -
-                            MediaQuery.of(context).padding.vertical -
-                            kToolbarHeight -
-                            48,
+                        minHeight: (MediaQuery.of(context).size.height -
+                                MediaQuery.of(context).padding.vertical -
+                                kToolbarHeight -
+                                48)
+                            .clamp(0.0, double.infinity),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -510,6 +526,9 @@ class _VerifyScreenState extends State<VerifyScreen> {
                             enabled: !loading && !resending,
                             autofocus: true,
                             keyboardType: TextInputType.number,
+                            autofillHints: const <String>[
+                              AutofillHints.oneTimeCode,
+                            ],
                             textInputAction: TextInputAction.done,
                             textAlign: TextAlign.center,
                             maxLength: 6,

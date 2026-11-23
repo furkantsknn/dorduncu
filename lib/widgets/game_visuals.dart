@@ -126,6 +126,7 @@ abstract final class GameVisuals {
 const Map<String, String> _marketBadgeEmoji = <String, String>{
   'okey': '🎴',
   'okey_101': '🀄',
+  'paintball': '🎯',
   'batak': '♠️',
   'tavla': '🎲',
   'satranc': '♟️',

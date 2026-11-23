@@ -3,6 +3,9 @@ import {
   onCall,
 } from "firebase-functions/v2/https";
 import {
+  assertCurrentAdminSession, assertAdminPermission,
+} from "../security/adminAuthorization";
+import {
   FieldValue,
 } from "firebase-admin/firestore";
 
@@ -88,6 +91,8 @@ export const getVerificationDocumentContent =
       memory: "512MiB",
     },
     async (request) => {
+      assertAdminPermission(request, "verification.review");
+      await assertCurrentAdminSession(request);
       const data =
         request.data as
           DocumentContentRequest;

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../utils/game_catalog.dart';
+import '../services/plus_entitlement.dart';
 
 class UserGameSkill {
   const UserGameSkill({
@@ -109,7 +110,7 @@ class UserGameSkill {
       categoryId: category?.id ?? '',
       categoryName: category?.name ?? '',
       level: 30,
-      levelLabel: 'Başlangıç',
+      levelLabel: 'Acemi',
     );
   }
 
@@ -196,8 +197,12 @@ class UserModel {
     required this.puan,
     required this.plus,
     required this.oyunlar,
+    this.plusAdminGranted = false,
     this.plusPlan = '',
     this.plusExpiresAt,
+    this.plusSubscriptionState = '',
+    this.plusSubscriptionExpiresAt,
+    this.plusGiftExpiresAt,
     this.ilce = '',
     this.aktifSehir = '',
     this.profilFotografi = '',
@@ -253,8 +258,12 @@ class UserModel {
   final int completedEventCount;
 
   final bool plus;
+  final bool plusAdminGranted;
   final String plusPlan;
   final DateTime? plusExpiresAt;
+  final String plusSubscriptionState;
+  final DateTime? plusSubscriptionExpiresAt;
+  final DateTime? plusGiftExpiresAt;
   final bool verified;
   final String verificationStatus;
   final String verificationReasonCode;
@@ -284,17 +293,18 @@ class UserModel {
   final DateTime? lastLoginAt;
 
   bool get isPlusActive {
-    final DateTime? expiry = plusExpiresAt;
-
-    if (!plus || expiry == null) {
-      return false;
-    }
-
-    return expiry.isAfter(DateTime.now());
+    return PlusEntitlement.isActive({
+      'plusAdminGranted': plusAdminGranted,
+      'plus': plus,
+      'plusExpiresAt': plusExpiresAt,
+      'plusSubscriptionExpiresAt': plusSubscriptionExpiresAt,
+      'plusSubscriptionState': plusSubscriptionState,
+      'plusGiftExpiresAt': plusGiftExpiresAt,
+    });
   }
 
   int get plusRemainingDays {
-    final DateTime? expiry = plusExpiresAt;
+    final DateTime? expiry = effectivePlusExpiresAt;
 
     if (!isPlusActive || expiry == null) {
       return 0;
@@ -303,6 +313,15 @@ class UserModel {
     final Duration difference = expiry.difference(DateTime.now());
     return difference.inHours <= 0 ? 0 : (difference.inHours / 24).ceil();
   }
+
+  DateTime? get effectivePlusExpiresAt => PlusEntitlement.expiresAt({
+    'plusAdminGranted': plusAdminGranted,
+    'plus': plus,
+    'plusExpiresAt': plusExpiresAt,
+    'plusSubscriptionExpiresAt': plusSubscriptionExpiresAt,
+    'plusSubscriptionState': plusSubscriptionState,
+    'plusGiftExpiresAt': plusGiftExpiresAt,
+  });
 
   String get plusPlanLabel {
     switch (plusPlan.trim().toLowerCase()) {
@@ -509,17 +528,28 @@ class UserModel {
         'completedEventCount',
         'tamamlananEtkinlikSayisi',
       ]),
-      plus: _firstBool(map, const <String>['plus', 'isPlus']),
+      plus:
+          _firstBool(map, const <String>['plus']) ||
+          _firstBool(map, const <String>['isPlus']),
+      plusAdminGranted: _firstBool(map, const <String>['plusAdminGranted']),
       plusPlan: _firstString(map, const <String>[
         'plusPlan',
         'subscriptionPlan',
       ]),
       plusExpiresAt: _nullableDate(
         _firstValue(map, const <String>[
+          'plusSubscriptionExpiresAt',
           'plusExpiresAt',
           'subscriptionExpiresAt',
         ]),
       ),
+      plusSubscriptionState: _firstString(map, const <String>[
+        'plusSubscriptionState',
+      ]),
+      plusSubscriptionExpiresAt: _nullableDate(
+        _firstValue(map, const <String>['plusSubscriptionExpiresAt']),
+      ),
+      plusGiftExpiresAt: _nullableDate(map['plusGiftExpiresAt']),
       verified: _firstBool(map, const <String>['verified', 'dogrulanmis']),
       verificationStatus: _firstString(map, const <String>[
         'verificationStatus',
@@ -601,7 +631,15 @@ class UserModel {
       'completedEventCount': completedEventCount,
       'plus': plus,
       'isPlus': plus,
+      'plusAdminGranted': plusAdminGranted,
       'plusPlan': plusPlan,
+      'plusSubscriptionState': plusSubscriptionState,
+      if (plusSubscriptionExpiresAt != null)
+        'plusSubscriptionExpiresAt': Timestamp.fromDate(
+          plusSubscriptionExpiresAt!,
+        ),
+      if (plusGiftExpiresAt != null)
+        'plusGiftExpiresAt': Timestamp.fromDate(plusGiftExpiresAt!),
       if (plusExpiresAt != null)
         'plusExpiresAt': Timestamp.fromDate(plusExpiresAt!),
       'verified': verified,
@@ -649,7 +687,15 @@ class UserModel {
       'completedEventCount': completedEventCount,
       'plus': isPlusActive,
       'isPlus': isPlusActive,
+      'plusAdminGranted': plusAdminGranted,
       'plusPlan': plusPlan,
+      'plusSubscriptionState': plusSubscriptionState,
+      if (plusSubscriptionExpiresAt != null)
+        'plusSubscriptionExpiresAt': Timestamp.fromDate(
+          plusSubscriptionExpiresAt!,
+        ),
+      if (plusGiftExpiresAt != null)
+        'plusGiftExpiresAt': Timestamp.fromDate(plusGiftExpiresAt!),
       if (plusExpiresAt != null)
         'plusExpiresAt': Timestamp.fromDate(plusExpiresAt!),
       'verified': verified,
@@ -680,8 +726,12 @@ class UserModel {
     int? ratingCount,
     int? completedEventCount,
     bool? plus,
+    bool? plusAdminGranted,
     String? plusPlan,
     DateTime? plusExpiresAt,
+    String? plusSubscriptionState,
+    DateTime? plusSubscriptionExpiresAt,
+    DateTime? plusGiftExpiresAt,
     bool? verified,
     String? verificationStatus,
     String? verificationReasonCode,
@@ -720,8 +770,14 @@ class UserModel {
       ratingCount: ratingCount ?? this.ratingCount,
       completedEventCount: completedEventCount ?? this.completedEventCount,
       plus: plus ?? this.plus,
+      plusAdminGranted: plusAdminGranted ?? this.plusAdminGranted,
       plusPlan: plusPlan ?? this.plusPlan,
       plusExpiresAt: plusExpiresAt ?? this.plusExpiresAt,
+      plusSubscriptionState:
+          plusSubscriptionState ?? this.plusSubscriptionState,
+      plusSubscriptionExpiresAt:
+          plusSubscriptionExpiresAt ?? this.plusSubscriptionExpiresAt,
+      plusGiftExpiresAt: plusGiftExpiresAt ?? this.plusGiftExpiresAt,
       verified: verified ?? this.verified,
       verificationStatus: verificationStatus ?? this.verificationStatus,
       verificationReasonCode:

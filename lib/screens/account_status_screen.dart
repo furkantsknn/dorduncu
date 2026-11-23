@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/notification_push_service.dart';
+
 import '../services/session_service.dart';
 import 'login_screen.dart';
 import 'support_home_screen.dart';
@@ -48,6 +50,7 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
 
     try {
       await SessionService.clearSession();
+      await NotificationPushService.unregisterCurrentToken();
       await FirebaseAuth.instance.signOut();
 
       if (!mounted) return;

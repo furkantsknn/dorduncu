@@ -2,10 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AdminPointTransactionsScreen extends StatelessWidget {
-  const AdminPointTransactionsScreen({
-    super.key,
-    required this.userId,
-  });
+  const AdminPointTransactionsScreen({super.key, required this.userId});
 
   final String userId;
 
@@ -26,67 +23,60 @@ class AdminPointTransactionsScreen extends StatelessWidget {
             .orderBy('createdAt', descending: true)
             .limit(200)
             .snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Puan hareketleri yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Puan hareketleri yüklenirken bir hata oluştu.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> documents =
-              snapshot.data!.docs;
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              documents = snapshot.data!.docs;
 
-          if (documents.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Bu kullanıcıya ait puan hareketi bulunmuyor.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            );
-          }
+              if (documents.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Bu kullanıcıya ait puan hareketi bulunmuyor.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                );
+              }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            itemCount: documents.length,
-            separatorBuilder: (
-                BuildContext context,
-                int index,
-                ) {
-              return const SizedBox(height: 10);
-            },
-            itemBuilder: (
-                BuildContext context,
-                int index,
-                ) {
-              final QueryDocumentSnapshot<Map<String, dynamic>> document =
-              documents[index];
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                itemCount: documents.length,
+                separatorBuilder: (BuildContext context, int index) {
+                  return const SizedBox(height: 10);
+                },
+                itemBuilder: (BuildContext context, int index) {
+                  final QueryDocumentSnapshot<Map<String, dynamic>> document =
+                      documents[index];
 
-              return _PointTransactionCard(
-                transactionId: document.id,
-                data: document.data(),
+                  return _PointTransactionCard(
+                    transactionId: document.id,
+                    data: document.data(),
+                  );
+                },
               );
             },
-          );
-        },
       ),
     );
   }
@@ -105,20 +95,16 @@ class _PointTransactionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final String type = data['type']?.toString().trim() ?? '';
 
-    final String description =
-        data['description']?.toString().trim() ?? '';
+    final String description = data['description']?.toString().trim() ?? '';
 
-    final String adminId =
-        data['adminId']?.toString().trim() ?? '';
+    final String adminId = data['adminId']?.toString().trim() ?? '';
 
-    final double amount =
-        (data['amount'] as num?)?.toDouble() ?? 0;
+    final double amount = (data['amount'] as num?)?.toDouble() ?? 0;
 
     final double previousPoints =
         (data['previousPoints'] as num?)?.toDouble() ?? 0;
 
-    final double newPoints =
-        (data['newPoints'] as num?)?.toDouble() ?? 0;
+    final double newPoints = (data['newPoints'] as num?)?.toDouble() ?? 0;
 
     final DateTime? createdAt = _dateFromValue(data['createdAt']);
 
@@ -133,9 +119,7 @@ class _PointTransactionCard extends StatelessWidget {
           children: <Widget>[
             CircleAvatar(
               child: Icon(
-                isNegative
-                    ? Icons.remove_rounded
-                    : Icons.add_rounded,
+                isNegative ? Icons.remove_rounded : Icons.add_rounded,
               ),
             ),
             const SizedBox(width: 13),
@@ -159,9 +143,7 @@ class _PointTransactionCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w900,
-                          color: isNegative
-                              ? Colors.red
-                              : Colors.green,
+                          color: isNegative ? Colors.red : Colors.green,
                         ),
                       ),
                     ],
@@ -173,10 +155,8 @@ class _PointTransactionCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   Text(
                     '${_formatPoints(previousPoints)} → '
-                        '${_formatPoints(newPoints)} puan',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    '${_formatPoints(newPoints)} puan',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 9),
                   Wrap(
@@ -260,10 +240,7 @@ class _PointTransactionCard extends StatelessWidget {
 }
 
 class _InfoLabel extends StatelessWidget {
-  const _InfoLabel({
-    required this.text,
-    required this.icon,
-  });
+  const _InfoLabel({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -271,10 +248,7 @@ class _InfoLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
@@ -286,10 +260,7 @@ class _InfoLabel extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
         ],
       ),

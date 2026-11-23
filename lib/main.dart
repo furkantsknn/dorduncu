@@ -1,15 +1,21 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'admin/admin_panel_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/account_status_screen.dart';
 import 'screens/create_profile_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/legal_acceptance_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/digital_purchase_service.dart';
 import 'services/phone_verification_session.dart';
@@ -17,23 +23,83 @@ import 'services/language_controller.dart';
 import 'services/notification_push_service.dart';
 import 'services/theme_controller.dart';
 import 'services/user_service.dart';
+import 'widgets/app_update_gate.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+const bool _isDevelopment = String.fromEnvironment('DORT_ENV') == 'development';
+const String _firebaseEmulatorHost = String.fromEnvironment(
+  'FIREBASE_EMULATOR_HOST',
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (_isDevelopment &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android) {
+    await Firebase.initializeApp();
+  } else {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
 
-  await FirebaseAppCheck.instance.activate(
-    providerAndroid: kDebugMode
-        ? const AndroidDebugProvider()
-        : const AndroidPlayIntegrityProvider(),
-  );
+  if (_isDevelopment) {
+    if (_firebaseEmulatorHost.trim().isEmpty) {
+      throw StateError(
+        'Dört. Dev requires FIREBASE_EMULATOR_HOST; production fallback is disabled.',
+      );
+    }
+    await FirebaseAuth.instance.useAuthEmulator(
+      _firebaseEmulatorHost,
+      9099,
+      automaticHostMapping: false,
+    );
+    FirebaseFirestore.instance.useFirestoreEmulator(
+      _firebaseEmulatorHost,
+      8080,
+      automaticHostMapping: false,
+    );
+    FirebaseFunctions.instanceFor(region: 'europe-west1').useFunctionsEmulator(
+      _firebaseEmulatorHost,
+      5001,
+      automaticHostMapping: false,
+    );
+    await FirebaseStorage.instance.useStorageEmulator(
+      _firebaseEmulatorHost,
+      9199,
+      automaticHostMapping: false,
+    );
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
+  }
+
+  // The local emulator suite does not provide an App Check emulator. Activating
+  // a debug provider here would exchange its token with the live App Check API,
+  // which violates the Dev build's no-production-fallback boundary. Callable
+  // App Check enforcement remains enabled in production; the Functions emulator
+  // handles local calls without a live App Check token.
+  if (!_isDevelopment) {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: const AndroidPlayIntegrityProvider(),
+      providerApple: kDebugMode
+          ? const AppleDebugProvider()
+          : const AppleAppAttestWithDeviceCheckFallbackProvider(),
+    );
+  }
+
+  if (_isDevelopment) {
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: 'admin@dev.dort.invalid',
+      password: 'Dort-Dev-Only-2026',
+    );
+  }
 
   await ThemeController.initialize();
   await LanguageController.initialize();
-  await NotificationPushService.initialize(navigatorKey: appNavigatorKey);
+  if (!_isDevelopment) {
+    await NotificationPushService.initialize(navigatorKey: appNavigatorKey);
+  }
 
   runApp(const DorduncuApp());
 }
@@ -49,9 +115,11 @@ class DorduncuApp extends StatelessWidget {
         return ValueListenableBuilder<Locale>(
           valueListenable: LanguageController.locale,
           builder: (context, locale, child) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              NotificationPushService.flushPendingNavigation();
-            });
+            if (!_isDevelopment) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                NotificationPushService.flushPendingNavigation();
+              });
+            }
 
             return MaterialApp(
               navigatorKey: appNavigatorKey,
@@ -74,7 +142,26 @@ class DorduncuApp extends StatelessWidget {
               themeMode: themeMode,
               theme: _lightTheme(),
               darkTheme: _darkTheme(),
-              home: const SplashScreen(),
+              home: _isDevelopment
+                  ? (const String.fromEnvironment('DORT_DEV_HOME') == 'member'
+                        ? const HomeScreen(userName: 'Dört Dev Yönetici')
+                        : const AdminPanelScreen())
+                  : const SplashScreen(),
+              builder: (context, child) {
+                final Widget content = child ?? const SizedBox.shrink();
+                if (_isDevelopment) {
+                  return Banner(
+                    message: 'DEV • EMULATOR',
+                    location: BannerLocation.topEnd,
+                    color: const Color(0xffB42318),
+                    child: content,
+                  );
+                }
+                return AppUpdateGate(
+                  navigatorKey: appNavigatorKey,
+                  child: content,
+                );
+              },
             );
           },
         );
@@ -103,7 +190,52 @@ class DorduncuApp extends StatelessWidget {
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        elevation: 0,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: Color(0xffE0DBD1)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: const Color(0xffFFFCF8),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xffD8D3CA)),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        minVerticalPadding: 10,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -132,7 +264,52 @@ class DorduncuApp extends StatelessWidget {
       ),
       cardTheme: CardThemeData(
         color: const Color(0xff181B22),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        elevation: 0,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: Color(0xff343A46)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: const Color(0xff1C2028),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xff1C2028),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xff343A46)),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        minVerticalPadding: 10,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -186,7 +363,11 @@ class AuthControl extends StatelessWidget {
                     );
                   }
 
-                  return _destinationScreen(destinationSnapshot.data!, l10n);
+                  return _destinationScreen(
+                    destinationSnapshot.data!,
+                    l10n,
+                    user,
+                  );
                 },
               ),
             );
@@ -199,6 +380,7 @@ class AuthControl extends StatelessWidget {
   Widget _destinationScreen(
     AuthDestination destination,
     AppLocalizations l10n,
+    User user,
   ) {
     switch (destination.type) {
       case AuthDestinationType.login:
@@ -206,6 +388,9 @@ class AuthControl extends StatelessWidget {
 
       case AuthDestinationType.createProfile:
         return const CreateProfileScreen();
+
+      case AuthDestinationType.legalAcceptanceRequired:
+        return const LegalAcceptanceScreen();
 
       case AuthDestinationType.home:
         return HomeScreen(userName: destination.profileName);
@@ -261,12 +446,16 @@ class _SignedInPlayBillingState extends State<_SignedInPlayBilling> {
   @override
   void initState() {
     super.initState();
-    DigitalPurchaseService.instance.attachSession();
+    if (!_isDevelopment) {
+      DigitalPurchaseService.instance.attachSession();
+    }
   }
 
   @override
   void dispose() {
-    DigitalPurchaseService.instance.detachSession();
+    if (!_isDevelopment) {
+      DigitalPurchaseService.instance.detachSession();
+    }
     super.dispose();
   }
 

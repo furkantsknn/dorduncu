@@ -34,6 +34,7 @@ abstract final class GameCoverAssets {
     'binicilik': 'assets/images/games/binicilik.jpg',
     'kayak': 'assets/images/games/kayak.jpg',
     'snowboard': 'assets/images/games/snowboard.jpg',
+    'paintball': 'assets/images/games/paintball.png',
   };
 
   static String? pathFor(String? gameType) {

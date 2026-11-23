@@ -29,6 +29,18 @@ import {
   decideVerification,
   VerificationCheck,
 } from "./verificationDecision";
+import {
+  identityKeyFromData,
+  ownerApprovedFromUser,
+  planIdentityReservationRelease,
+} from "./identityReservationPolicy";
+import {
+  writeAuditLogInTransaction,
+} from "../audit/writeAuditLog";
+import {
+  assertDecisionWriteAllowed,
+  verificationDecisionRetentionFields,
+} from "./verificationRetentionPolicy";
 
 interface AnalyzeVerificationRequest {
   requestId?: unknown;
@@ -210,14 +222,17 @@ function createIdentityFingerprint(
 }
 
 /**
-   * Reserves an identity for one account.
+   * Reserves an identity for one account and submission.
+   * An approved or blocked key is not replaced.
    * @param {string} uid User id.
    * @param {string} fingerprint Identity fingerprint.
+   * @param {string} submissionId Current application submission.
    * @return {Promise<CheckResult>} Uniqueness result.
    */
 async function reserveIdentity(
   uid: string,
   fingerprint: string,
+  submissionId: string,
 ): Promise<CheckResult> {
   const reference =
       firestore
@@ -259,15 +274,25 @@ async function reserveIdentity(
               ?.toString()
               .trim() ?? "";
 
+        if (
+          currentStatus === "approved" ||
+          currentStatus === "blocked_after_deletion" ||
+          current.approvedAt != null
+        ) {
+          return {
+            status: "passed",
+            reasonCode: "identity_unique",
+            reason:
+                "Kimlik bu hesaba ait önceki başvuruyla eşleşiyor.",
+          };
+        }
+
         transaction.set(
           reference,
           {
             uid,
-            status:
-                currentStatus ===
-                  "approved" ?
-                  "approved" :
-                  "reserved",
+            status: "reserved",
+            submissionId,
             updatedAt:
                 FieldValue.serverTimestamp(),
           },
@@ -289,6 +314,7 @@ async function reserveIdentity(
         {
           uid,
           status: "reserved",
+          submissionId,
           createdAt:
               FieldValue.serverTimestamp(),
           updatedAt:
@@ -461,6 +487,11 @@ async function analyzeSelfie(
 export async function runVerificationAnalysis(
   requestId: string,
 ): Promise<void> {
+  if (process.env.FUNCTIONS_EMULATOR === "true" ||
+      process.env.FIRESTORE_EMULATOR_HOST) {
+    // The synthetic review workflow remains manual; Dev never invokes Vision.
+    return;
+  }
   const verificationReference =
     firestore
       .collection(
@@ -596,6 +627,7 @@ export async function runVerificationAnalysis(
     await reserveIdentity(
       uid,
       identityFingerprint,
+      submissionId,
     );
   }
 
@@ -652,6 +684,50 @@ export async function runVerificationAnalysis(
           return false;
         }
 
+        assertDecisionWriteAllowed(freshData, submissionId);
+
+        const userReference =
+          firestore.collection("users").doc(uid);
+        const userSnapshot =
+          await transaction.get(userReference);
+        let releaseReservation = false;
+
+        if (
+          decision.status === "rejected" &&
+          identityUniquenessCheck.status ===
+            "passed" &&
+          identityFingerprint
+        ) {
+          const identityReference =
+            firestore
+              .collection(
+                "verification_identity_keys",
+              )
+              .doc(identityFingerprint);
+          const identitySnapshot =
+            await transaction.get(
+              identityReference,
+            );
+          const plan =
+            planIdentityReservationRelease({
+              key: identityKeyFromData(
+                identitySnapshot.data(),
+                identitySnapshot.exists,
+              ),
+              request: {
+                uid,
+                status: "rejected",
+                submissionId,
+              },
+              ownerApproved:
+                ownerApprovedFromUser(
+                  userSnapshot.data(),
+                ),
+            });
+
+          releaseReservation = plan.release;
+        }
+
         const userUpdate =
           decision.userStatus === "rejected" ?
             {
@@ -701,6 +777,7 @@ export async function runVerificationAnalysis(
             automaticCheckStatus:
               decision.automaticCheckStatus,
             status: decision.status,
+            ...verificationDecisionRetentionFields(decision.status),
             reasonCode: decision.reasonCode,
             decisionSource:
               decision.decisionSource,
@@ -718,10 +795,35 @@ export async function runVerificationAnalysis(
         );
 
         transaction.set(
-          firestore.collection("users").doc(uid),
+          userReference,
           userUpdate,
           {merge: true},
         );
+
+        if (releaseReservation) {
+          transaction.delete(
+            firestore
+              .collection(
+                "verification_identity_keys",
+              )
+              .doc(identityFingerprint),
+          );
+          writeAuditLogInTransaction(
+            firestore,
+            transaction,
+            {
+              action:
+                "verification_identity_reservation_released",
+              performedBy:
+                "system:verification_analysis",
+              targetUid: uid,
+              metadata: {
+                requestStatus: "rejected",
+                outcome: "released",
+              },
+            },
+          );
+        }
 
         return true;
       },

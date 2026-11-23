@@ -1,8 +1,8 @@
 # Privacy Policy
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 
-**Effective:** 5 October 2026
+**Updated:** 19 October 2026
 
 This policy explains what information the Dört. app uses and why. The KVKK notice is a separate document.
 
@@ -46,13 +46,15 @@ Dört. Plus is a subscription. Digital badges are one-time Google Play products.
 
 # 9. Security logs
 
-Session, login history, device information and audit logs are kept to detect abuse and protect the account. Direct identity fields in these logs may be anonymized when the account is deleted.
+Session, login history, device information and audit logs are kept to detect abuse and protect the account. Direct identity fields in these logs may be replaced with hash-based pseudonyms when the account is deleted; this does not make the records fully anonymous.
 
 # 10. Deletion and retention
 
 Request deletion from Settings. If you cannot open the app, email your registered phone number to destek@dortapp.com. An email alone does not finish deletion.
 
 When processing completes, the login, profile, public profile, profile photos and verification documents are deleted. Content that remains in other users’ events or messages, and limited records required for security, disputes, or a legal or financial duty, may be kept. A digest of the phone number may be kept to block registering again with the same number.
+
+Deleting the Dört. account does not automatically cancel a Google Play subscription. Manage or cancel it in Google Play subscriptions.
 
 # 11. Third-party services
 

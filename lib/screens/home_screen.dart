@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,17 +12,22 @@ import 'package:geolocator/geolocator.dart';
 import '../models/event_model.dart';
 import '../models/user_model.dart';
 import '../utils/game_catalog.dart';
+import '../utils/profile_completion.dart';
 import '../utils/verification_reason.dart';
 import '../utils/turkey_city_centers.dart';
 import '../widgets/game_badge_emblem.dart';
-import '../widgets/game_visuals.dart';
+import '../widgets/home_bottom_navigation.dart';
+import '../widgets/plus_emblem.dart';
 import '../services/event_service.dart';
+import '../services/notification_push_service.dart';
+import '../services/plus_entitlement.dart';
 import '../services/session_service.dart';
 import '../services/user_service.dart';
 import '../services/language_controller.dart';
 import 'account_status_screen.dart';
 import 'create_event_screen.dart';
 import 'event_detail_screen.dart';
+import 'edit_profile_screen.dart';
 import 'favorites_screen.dart';
 import 'messages_screen.dart';
 import 'my_events_screen.dart';
@@ -64,7 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _listedCity;
   bool? _listedNearby;
   Stream<QuerySnapshot<Map<String, dynamic>>>? _listedEvents;
-  String selectedCategory = "Tümü";
+  static const String _allCategoryKey = "Tümü";
+  String selectedCategory = _allCategoryKey;
+
+  /// Filtre dilden bağımsız `Tümü` tutar; ekranda çevrilmiş etiket gösterilir.
+  String get _displayCategory =>
+      selectedCategory == _allCategoryKey ? text.allCategory : selectedCategory;
 
   List<String> get categories => [
     text.allCategory,
@@ -110,6 +121,9 @@ class _HomeScreenState extends State<HomeScreen> {
     LanguageController.language.addListener(_handleLanguageChanged);
     loadProfile();
     _startSessionListener();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) NotificationPushService.markHomeReady();
+    });
   }
 
   Future<void> _startSessionListener() async {
@@ -139,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    NotificationPushService.markHomeClosed();
     LanguageController.language.removeListener(_handleLanguageChanged);
     SessionService.stopListening();
     super.dispose();
@@ -169,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> logout() async {
+    await NotificationPushService.unregisterCurrentToken();
     await SessionService.clearSession();
     await FirebaseAuth.instance.signOut();
 
@@ -202,7 +218,43 @@ class _HomeScreenState extends State<HomeScreen> {
             GameCatalog.gameById(gameIdOrName) ??
             GameCatalog.gameByLegacyValue(gameIdOrName);
 
-        _showMessage(text.addGameBeforeApply(eventGame?.name ?? gameIdOrName));
+        final bool edit =
+            await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text(
+                  text.addGameBeforeApply(eventGame?.name ?? gameIdOrName),
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(text.v('Vazgeç', 'Cancel', 'Abbrechen')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(
+                      text.v(
+                        'Profili düzenle',
+                        'Edit profile',
+                        'Profil bearbeiten',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        if (edit && mounted) {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => EditProfileScreen(
+                initialData: profileData,
+                focus: ProfileCompletionField.games,
+              ),
+            ),
+          );
+          await loadProfile();
+        }
         return;
       }
     }
@@ -347,16 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   bool _isPlusActive([Map<String, dynamic>? data]) {
-    final Map<String, dynamic> source = data ?? profileData;
-    if (source['plus'] != true) {
-      return false;
-    }
-    final Object? expiry =
-        source['plusExpiresAt'] ?? source['subscriptionExpiresAt'];
-    if (expiry is Timestamp) {
-      return expiry.toDate().isAfter(DateTime.now());
-    }
-    return false;
+    return PlusEntitlement.isActive(data ?? profileData);
   }
 
   String _verificationStatusText() {
@@ -522,7 +565,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? profilFotografi
                           : (profileData['avatarUrl']?.toString().trim() ?? ''),
                       categories: categories,
-                      selectedCategory: selectedCategory,
+                      selectedCategory: _displayCategory,
                       onCategorySelected: (String category) {
                         if (category == text.allCategory) {
                           _showAllGames();
@@ -711,17 +754,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
                             const SizedBox(height: 5),
 
-                            Text(
-                              "📍 $sehir   •   ⭐ ${puan.toStringAsFixed(1)}",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            Row(
+                              children: <Widget>[
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    '$sehir   •   ${puan.toStringAsFixed(1)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 3),
+                                const Icon(Icons.star_rounded, size: 14),
+                              ],
                             ),
                           ],
                         ),
@@ -1057,7 +1113,7 @@ class _HomeScreenState extends State<HomeScreen> {
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
           final String category = categories[index];
-          final bool selected = category == selectedCategory;
+          final bool selected = category == _displayCategory;
 
           return ChoiceChip(
             label: Text(category),
@@ -1338,8 +1394,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     child: GameBadgeEmblem(
-                      emoji: GameVisuals.emoji(game),
+                      emoji: '',
                       imageUrl: '',
+                      gameId: eventModel.resolvedGameId,
                       gameName: game,
                       size: 36,
                     ),
@@ -1729,6 +1786,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       userAgentPackageName: "com.dortapp.dort",
                       maxNativeZoom: 20,
                     ),
+                    const RichAttributionWidget(
+                      attributions: [
+                        TextSourceAttribution('OpenStreetMap contributors'),
+                      ],
+                    ),
                     MarkerLayer(
                       markers: eventDocs.map((document) {
                         final Map<String, dynamic> event = document.data();
@@ -1824,7 +1886,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           child: GameBadgeEmblem(
-            emoji: GameVisuals.emoji(game),
+            emoji: '',
             imageUrl: '',
             gameName: game,
             size: 28,
@@ -1860,81 +1922,38 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _miniPlusBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xffFFF6C7), Color(0xffFFB300), Color(0xffF57C00)],
-        ),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white, width: 1),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.diamond, color: Color(0xff3A2200), size: 13),
-          SizedBox(width: 4),
-          Text(
-            "PLUS",
-            style: TextStyle(
-              color: Color(0xff3A2200),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        PlusMark(size: 18),
+        SizedBox(width: 4),
+        Text(
+          'Plus',
+          style: TextStyle(
+            color: Color(0xffFF9800),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _plusBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xffFFF6C7),
-            Color(0xffFFD54F),
-            Color(0xffFFB300),
-            Color(0xffF57C00),
-          ],
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        PlusMark(size: 22),
+        SizedBox(width: 6),
+        Text(
+          'Plus',
+          style: TextStyle(
+            color: Color(0xffFF9800),
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xffFFF9DE), width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xffFFB300).withValues(alpha: 0.45),
-            blurRadius: 16,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.diamond, size: 18, color: Color(0xff3A2200)),
-          SizedBox(width: 7),
-          Text(
-            "DÖRDÜNCÜ",
-            style: TextStyle(
-              color: Color(0xff3A2200),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
-            ),
-          ),
-          SizedBox(width: 5),
-          Text(
-            "PLUS",
-            style: TextStyle(
-              color: Color(0xff3A2200),
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1973,104 +1992,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _bottomNavigationBar() {
-    const Color canvas = Color(0xff0F1115);
-    const Color barColor = Color(0xff161D2B);
-    const double buttonSize = 56;
-
-    return ColoredBox(
-      color: canvas,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-          child: SizedBox(
-            height: 78,
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: <Widget>[
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 62,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: barColor,
-                          borderRadius: BorderRadius.circular(31),
-                          border: Border.all(color: const Color(0x1AFFFFFF)),
-                          boxShadow: const <BoxShadow>[
-                            BoxShadow(
-                              color: Color(0x59000000),
-                              blurRadius: 16,
-                              offset: Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 62,
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: _navItem(
-                              Icons.chat_bubble_outline_rounded,
-                              text.message,
-                              openMessages,
-                            ),
-                          ),
-                          const SizedBox(width: buttonSize + 10),
-                          Expanded(
-                            child: _navItem(
-                              Icons.person_outline_rounded,
-                              text.profile,
-                              _openProfile,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      left: (constraints.maxWidth - buttonSize) / 2,
-                      child: _createEventButton(buttonSize),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _createEventButton(double size) {
-    return Material(
-      color: const Color(0xffFF9800),
-      elevation: 8,
-      shadowColor: const Color(0x73FF9800),
-      shape: const CircleBorder(
-        side: BorderSide(color: Color(0xff0F1115), width: 4),
-      ),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: _openCreateEvent,
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: const Icon(
-            Icons.add_rounded,
-            color: Color(0xff111827),
-            size: 30,
-          ),
-        ),
-      ),
+    return HomeBottomNavigation(
+      messageTooltip: text.message,
+      profileTooltip: text.profile,
+      onMessages: openMessages,
+      onCreateEvent: _openCreateEvent,
+      onProfile: _openProfile,
     );
   }
 
@@ -2081,20 +2008,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ).then((_) {
       loadProfile();
     });
-  }
-
-  Widget _navItem(IconData icon, String tooltip, VoidCallback onTap) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: SizedBox(
-          height: 62,
-          child: Icon(icon, color: const Color(0xffE8EDF5), size: 24),
-        ),
-      ),
-    );
   }
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredEvents(
@@ -2130,7 +2043,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    if (!ignoreCategory && selectedCategory != "Tümü") {
+    if (!ignoreCategory && selectedCategory != _allCategoryKey) {
       final category = _normalize(_cleanGameName(selectedCategory));
       filtered = filtered.where((doc) {
         final game = _normalize(
@@ -2307,46 +2220,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (selectedCity == null || !mounted) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Sunucu onayı beklenmeden kamera ve liste seçilen şehre geçer; yazma
+    // sırası arka planda son seçimi kaydeder.
+    _profileEpoch++;
+    setState(() {
+      profileData["aktifSehir"] = selectedCity;
+      _nearbyMode = false;
+      _nearbyCenter = null;
+      _appliedMapCity = selectedCity;
+    });
+    if (!kUsePremiumHomeV2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          mapController.move(_cityCenter(selectedCity), 11.5);
+        } catch (_) {}
+      });
+    }
+
     _queuedCity = selectedCity;
     if (_writingCity) return;
     _writingCity = true;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _writingCity = false;
-      _queuedCity = null;
-      return;
-    }
-
     try {
-      while (_queuedCity != null && mounted) {
+      while (_queuedCity != null) {
         final String city = _queuedCity!;
         _queuedCity = null;
-        _profileEpoch++;
         await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
           "aktifSehir": city,
           "guncellemeTarihi": FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-        if (!mounted || _queuedCity != null) continue;
-        setState(() {
-          profileData["aktifSehir"] = city;
-          _nearbyMode = false;
-          _nearbyCenter = null;
-          _appliedMapCity = city;
-        });
-        if (!kUsePremiumHomeV2) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            try {
-              mapController.move(_cityCenter(city), 11.5);
-            } catch (_) {}
-          });
-        }
       }
     } catch (error) {
+      _queuedCity = null;
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(text.cityChangeFailed(error))));
+      unawaited(loadProfile());
     } finally {
       _writingCity = false;
     }
@@ -2484,7 +2397,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ...allGames.map(
               (game) => ListTile(
                 title: Text(game),
-                trailing: selectedCategory == game
+                trailing: _displayCategory == game
                     ? const Icon(Icons.check_circle, color: Color(0xffFF9800))
                     : null,
                 onTap: () => Navigator.pop(sheetContext, game),
@@ -2496,13 +2409,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (selected != null && mounted) {
       setState(() {
-        selectedCategory = selected;
+        selectedCategory = selected == text.allCategory
+            ? _allCategoryKey
+            : selected;
       });
     }
   }
 
   void _showEventPreview(String eventId, Map<String, dynamic> event) {
     final String game = event["oyun"]?.toString() ?? text.event;
+    final String gameIdOrName =
+        event['gameId']?.toString().trim().isNotEmpty == true
+        ? event['gameId'].toString().trim()
+        : game;
     final String city = event["sehir"]?.toString().trim() ?? "";
     final String district = event["ilce"]?.toString().trim() ?? "";
     final String publicLocation = [
@@ -2536,13 +2455,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
-                "📍 ${publicLocation.isEmpty ? "Konum belirtilmedi" : publicLocation}\n🕒 ${_formatEventDate(eventDate)}",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  height: 1.5,
-                ),
+              Column(
+                children: <Widget>[
+                  _EventPreviewMetaLine(
+                    icon: Icons.location_on_outlined,
+                    text: publicLocation.isEmpty
+                        ? 'Konum belirtilmedi'
+                        : publicLocation,
+                  ),
+                  const SizedBox(height: 6),
+                  _EventPreviewMetaLine(
+                    icon: Icons.schedule_outlined,
+                    text: _formatEventDate(eventDate),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               Row(
@@ -2561,7 +2487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        joinEvent(eventId);
+                        joinEvent(eventId, gameIdOrName: gameIdOrName);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xff111827),
@@ -2675,6 +2601,35 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return "${date.day} ${months[date.month - 1]} • $hour:$minute";
   }
+}
+
+class _EventPreviewMetaLine extends StatelessWidget {
+  const _EventPreviewMetaLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: <Widget>[
+      Icon(
+        icon,
+        size: 18,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+      const SizedBox(width: 6),
+      Flexible(
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _TrianglePainter extends CustomPainter {

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dort_notification_channel_name">Dört. notifications</string>
+    <string name="dort_notification_channel_description">Message, application and event notifications</string>
+</resources>

@@ -1,8 +1,8 @@
 # Kontorichtlinie
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 
-**Inkrafttreten:** 5. Oktober 2026
+**Aktualisiert:** 19. Oktober 2026
 
 # 1. Konto
 
@@ -18,6 +18,8 @@ Du kannst die Kontolöschung in den Einstellungen beantragen. Der Antrag wird ge
 
 Nach Abschluss werden Anmeldung, Profil, öffentliches Profil, Profilfotos und Verifizierungsdokumente gelöscht.
 
+Die Löschung des Dört.-Kontos beendet ein Google-Play-Abonnement nicht automatisch. Ein aktives Dört.-Plus-Abonnement muss vor dem Löschantrag im Abonnementbereich von Google Play verwaltet oder gekündigt werden.
+
 # 4. Wenn du die App nicht öffnen kannst
 
 Schreibe an destek@dortapp.com und nenne deine registrierte Telefonnummer. Betreff: „Dört. Kontolöschung“. Die E-Mail allein schließt die Löschung nicht ab. Der Antrag wird über den Kontolöschungsprozess geprüft.
@@ -26,4 +28,4 @@ Website: https://dortapp.com
 
 # 5. Aufzeichnungen, die bleiben können
 
-Veranstaltungs- und Nachrichtendaten anderer Nutzer werden möglicherweise nicht gelöscht. Begrenzte Aufzeichnungen für Sicherheit, einen Streitfall oder eine rechtliche oder finanzielle Pflicht können aufbewahrt werden. Identitätsfelder in Anmelde- und Prüfprotokollen können anonymisiert werden. Eine Zusammenfassung der Telefonnummer kann eine erneute Registrierung mit derselben Nummer verhindern.
+Veranstaltungs- und Nachrichtendaten anderer Nutzer werden möglicherweise nicht gelöscht. Begrenzte Aufzeichnungen für Sicherheit, einen Streitfall oder eine rechtliche oder finanzielle Pflicht können aufbewahrt werden. Identitätsfelder in Anmelde- und Prüfprotokollen können durch hashbasierte Pseudonyme ersetzt werden; dadurch werden die Aufzeichnungen nicht vollständig anonym. Eine Zusammenfassung der Telefonnummer kann eine erneute Registrierung mit derselben Nummer verhindern.

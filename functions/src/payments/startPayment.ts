@@ -13,6 +13,7 @@ import {
 import {
   getEventPaymentProvider,
 } from "./eventPaymentProvider";
+import {isEventPaymentStartAllowed} from "./eventPaymentPolicy";
 
 const REGION = "europe-west1";
 const APPLICATION_LIFECYCLE_VERSION = 2;
@@ -35,6 +36,13 @@ export const startPayment = onCall(
       throw new HttpsError(
         "unauthenticated",
         "Bu işlem için kullanıcı girişi gereklidir.",
+      );
+    }
+
+    if (!isEventPaymentStartAllowed()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "V1 etkinlikleri ücretsizdir; etkinlik ödemesi başlatılamaz.",
       );
     }
 

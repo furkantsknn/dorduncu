@@ -51,9 +51,33 @@ app.*.map.json
 /android/androidkey.properties
 .env
 .env.*
+**/.env
+**/.env.*
 *serviceAccount*.json
 *service-account*.json
 *firebase-adminsdk*.json
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+*.pem
+key.properties
+androidkey.properties
+auth_log.txt
+temp-users.json
+functions/eslint-report.json
+*.bak.ts
+
+# Local backups, release packages, and temporary artifacts
+/backups/
+/release-builds/
+/artifacts/
+/.firebase/
+/Dort_Guncel_Hukuki_Metinler.zip
+/marketing/social.zip
+/flutter_01.png
+/flutter_02.png
 
 # Generated build outputs
 /android/build/

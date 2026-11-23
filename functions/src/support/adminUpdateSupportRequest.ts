@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable require-jsdoc */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
@@ -17,6 +18,7 @@ export const adminUpdateSupportRequest = onCall(
   },
   async (request) => {
     assertAdminPermission(request, "support.manage");
+    await assertCurrentAdminSession(request);
 
     const adminId = request.auth.uid;
     const adminRole = getAdminRole(request);

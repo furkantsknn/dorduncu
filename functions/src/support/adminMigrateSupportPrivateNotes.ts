@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable require-jsdoc */
 import {onCall} from "firebase-functions/v2/https";
 import {
@@ -19,6 +20,7 @@ export const adminMigrateSupportPrivateNotes = onCall(
   },
   async (request) => {
     assertSuperAdmin(request);
+    await assertCurrentAdminSession(request);
 
     const adminId = request.auth.uid;
     const firestore = getFirestore();

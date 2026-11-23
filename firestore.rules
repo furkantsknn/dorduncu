@@ -23,24 +23,40 @@ rules_version = '2';
 
 
     function isAdmin() {
-      return signedIn() &&
+      return signedIn() && currentAdminSession() &&
         (
-          request.auth.token.admin == true ||
+          (!request.auth.token.keys().hasAny(['role']) && request.auth.token.admin == true) ||
           request.auth.token.role == "admin" ||
           request.auth.token.role == "super_admin"
         );
     }
 
     function hasRole(role) {
-      return signedIn() &&
+      return signedIn() && currentAdminSession() &&
         request.auth.token.keys().hasAny(['role']) &&
         request.auth.token.role == role;
     }
 
     function isLegacyModerator() {
-      return signedIn() &&
+      return signedIn() && currentAdminSession() &&
+        !request.auth.token.keys().hasAny(['role']) &&
         request.auth.token.keys().hasAny(['moderator']) &&
         request.auth.token.moderator == true;
+    }
+
+    function currentAdminSession() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      // Legacy accounts without a role mirror remain compatible. Once managed,
+      // the server-owned role mirror prevents stale claims retaining access.
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        ((!user.data.keys().hasAny(['disabled']) || user.data.disabled != true) &&
+         (!user.data.keys().hasAny(['accountStatus']) || !(user.data.accountStatus in ['suspended', 'disabled', 'blocked', 'banned', 'deleted', 'deletionRequested', 'deleting'])) &&
+         (!user.data.keys().hasAny(['deletionRequestStatus']) || !(user.data.deletionRequestStatus in ['pending', 'processing', 'failed', 'completed'])) &&
+         (!user.data.keys().hasAny(['role']) || user.data.role == null ||
+          (request.auth.token.keys().hasAny(['role']) && user.data.role == request.auth.token.role) ||
+          (!request.auth.token.keys().hasAny(['role']) &&
+           ((user.data.role == 'admin' && request.auth.token.keys().hasAny(['admin']) && request.auth.token.admin == true) ||
+            (user.data.role == 'moderator' && request.auth.token.keys().hasAny(['moderator']) && request.auth.token.moderator == true)))));
     }
 
     function canReadUsers() {
@@ -278,8 +294,27 @@ function canReadPrivateEventLocation(eventId) {
             request.resource.data.updatedAt == request.time;
         }
 
+    function validOnboardingAcceptance(uid, code, version) {
+      let acceptance = get(
+        /databases/$(database)/documents/users/$(uid)/legal_acceptances/$(code + '_' + version)
+      ).data;
+      return acceptance.userId == uid &&
+        acceptance.documentCode == code &&
+        acceptance.version == version &&
+        acceptance.source == 'onboarding/login' &&
+        acceptance.acceptedAt is timestamp &&
+        acceptance.active == true;
+    }
+
+    function hasCurrentOnboardingAcceptances(uid) {
+      return validOnboardingAcceptance(uid, 'terms_of_use', '1.0.0') &&
+        validOnboardingAcceptance(uid, 'community_rules', '1.0.0') &&
+        validOnboardingAcceptance(uid, 'age_declaration', '1.0.0');
+    }
+
     function validNewUser(uid) {
-      return request.resource.data.keys().hasOnly([
+      return hasCurrentOnboardingAcceptances(uid) &&
+        request.resource.data.keys().hasOnly([
           'uid',
           'ad',
           'soyad',
@@ -351,13 +386,29 @@ function canReadPrivateEventLocation(eventId) {
         request.auth.token.phone_number.size() > 0 &&
         request.resource.data.telefon is string &&
         request.resource.data.telefon == request.auth.token.phone_number &&
+        request.resource.data.dogumTarihi is timestamp &&
+        (
+          request.resource.data.dogumTarihi.year() < request.time.year() - 18 ||
+          (
+            request.resource.data.dogumTarihi.year() == request.time.year() - 18 &&
+            (
+              request.resource.data.dogumTarihi.month() < request.time.month() ||
+              (
+                request.resource.data.dogumTarihi.month() == request.time.month() &&
+                request.resource.data.dogumTarihi.day() <= request.time.day()
+              )
+            )
+          )
+        ) &&
+        request.resource.data.yas is int &&
         request.resource.data.plus == false &&
         request.resource.data.verified == false &&
-        request.resource.data.accountStatus == 'active' &&
+        request.resource.data.accountStatus in ['pendingProfile', 'active'] &&
         request.resource.data.puan == 0 &&
         request.resource.data.latitude == 0 &&
         request.resource.data.longitude == 0 &&
-        request.resource.data.onboardingCompleted == true &&
+        request.resource.data.onboardingCompleted ==
+          (request.resource.data.accountStatus == 'active') &&
         request.resource.data.verificationSkipped is bool &&
         request.resource.data.verificationStatus in ['pending', 'none'] &&
         (
@@ -375,11 +426,72 @@ function canReadPrivateEventLocation(eventId) {
         request.resource.data.guncellemeTarihi == request.time;
     }
 
+    function validProfileTextEdit() {
+      return (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['profilAdi']) ||
+          (
+            request.resource.data.profilAdi is string &&
+            request.resource.data.profilAdi.size() >= 2 &&
+            request.resource.data.profilAdi.size() <= 80
+          )
+        ) && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['sehir']) ||
+          (
+            request.resource.data.sehir is string &&
+            request.resource.data.sehir.size() >= 2 &&
+            request.resource.data.sehir.size() <= 40
+          )
+        ) && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['ilce']) ||
+          (
+            request.resource.data.ilce is string &&
+            request.resource.data.ilce.size() <= 40
+          )
+        );
+    }
+
+    function validOnboardingCompletion() {
+      return resource.data.accountStatus == 'pendingProfile' &&
+        resource.data.onboardingCompleted == false &&
+        request.resource.data.accountStatus == 'active' &&
+        request.resource.data.onboardingCompleted == true &&
+        request.resource.data.guncellemeTarihi == request.time &&
+        request.resource.data.profilFotografi is string &&
+        request.resource.data.avatarUrl is string &&
+        request.resource.data.verificationSkipped is bool &&
+        request.resource.data.verificationStatus in ['pending', 'none'] &&
+        (
+          (
+            request.resource.data.verificationStatus == 'pending' &&
+            request.resource.data.verificationSkipped == false
+          ) ||
+          (
+            request.resource.data.verificationStatus == 'none' &&
+            request.resource.data.verificationSkipped == true
+          )
+        ) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'profilFotografi',
+          'avatarUrl',
+          'accountStatus',
+          'onboardingCompleted',
+          'verificationStatus',
+          'verificationSkipped',
+          'guncellemeTarihi'
+        ]);
+    }
+
     function userEditableFieldsOnly() {
       return request.resource.data
         .diff(resource.data)
         .affectedKeys()
         .hasOnly([
+          'profilAdi',
+          'sehir',
+          'ilce',
           'profilFotografi',
           'avatarUrl',
           'hakkimda',
@@ -439,8 +551,19 @@ function canReadPrivateEventLocation(eventId) {
 
       allow update: if
         isOwner(uid) &&
-        userEditableFieldsOnly() &&
-        phoneFieldsMatchVerifiedAuth();
+        (
+          validOnboardingCompletion() ||
+          (
+            resource.data.accountStatus == 'pendingProfile' &&
+            request.resource.data.accountStatus == 'pendingProfile' &&
+            validNewUser(uid)
+          ) ||
+          (
+            userEditableFieldsOnly() &&
+            phoneFieldsMatchVerifiedAuth() &&
+            validProfileTextEdit()
+          )
+        );
 
 
       allow delete: if false;
@@ -577,6 +700,10 @@ match /friend_requests/{requestId} {
 
   allow create, update, delete: if false;
 }
+        match /event_owner_quotas/{uid} {
+          allow read, create, update, delete: if false;
+        }
+
         match /events/{eventId} {
           /*
            * Bu koleksiyon herkese açık etkinlik listesini beslediği için oturum
@@ -695,6 +822,18 @@ match /sessions/{uid} {
       allow create, update, delete: if false;
     }
 
+    // Management numbers are separate from user-readable profile data.
+    match /admin_user_metadata/{uid} {
+      allow read: if canReadUsers() || canReviewVerification() ||
+        canManageSupport() || canModerateEvents() || canManageFinance() ||
+        canReadAudit();
+      allow create, update, delete: if false;
+    }
+
+    match /admin_counters/{counterId} {
+      allow read, write: if false;
+    }
+
 
     match /commercial_operations/{operationId} {
       allow read: if signedIn() &&
@@ -759,47 +898,7 @@ match /sessions/{uid} {
         }
 
         match /support_requests/{requestId} {
-          allow create: if signedIn() &&
-            request.resource.data.userId == request.auth.uid &&
-            request.resource.data.keys().hasOnly([
-              'userId',
-              'category',
-              'subject',
-              'description',
-              'relatedUserId',
-              'relatedEventId',
-              'relatedMessageId',
-              'attachmentUrls',
-              'urgency',
-              'status',
-              'adminResponse',
-              'lastMessage',
-              'lastMessageSenderId',
-              'adminNotes',
-              'createdAt',
-              'updatedAt',
-              'closedAt',
-              'ticketId',
-              'replyCount',
-              'isReadByUser',
-              'isReadByAdmin',
-              'isDeleted',
-              'tags',
-              'assignedAdminId',
-              'firstResponseAt',
-              'lastReplyAt',
-              'priorityScore',
-              'satisfactionScore'
-            ]) &&
-            request.resource.data.status == 'new' &&
-            request.resource.data.adminResponse == '' &&
-            request.resource.data.adminNotes == '' &&
-            request.resource.data.replyCount == 0 &&
-            request.resource.data.isReadByUser == true &&
-            request.resource.data.isReadByAdmin == false &&
-            request.resource.data.isDeleted == false &&
-            request.resource.data.createdAt is timestamp &&
-            request.resource.data.updatedAt is timestamp;
+          allow create: if false;
 
           allow read: if signedIn() &&
             (
@@ -896,6 +995,14 @@ match /sessions/{uid} {
 
             allow update, delete: if false;
           }
+        }
+
+        match /moderation_report_evidence/{evidenceId} {
+          allow read, write: if false;
+        }
+
+        match /moderation_evidence/{evidenceId} {
+          allow read, write: if false;
         }
 
         match /verification_requests/{uid} {
@@ -1011,6 +1118,26 @@ match /sessions/{uid} {
           allow create, update, delete: if false;
         }
 
+        match /app_version_policies/{policyId} {
+          allow read: if canManageSettings();
+          allow create, update, delete: if false;
+        }
+
+        match /app_version_policy_history/{revisionId} {
+          allow read: if canManageSettings() || canReadAudit();
+          allow create, update, delete: if false;
+        }
+
+        match /public_app_versions/{policyId} {
+          allow read: if policyId in [
+            'android_test',
+            'android_production',
+            'ios_test',
+            'ios_production'
+          ];
+          allow create, update, delete: if false;
+        }
+
         match /marketProducts/{productId} {
           allow read: if signedIn();
           allow create, update, delete: if false;
@@ -1029,6 +1156,23 @@ match /sessions/{uid} {
         match /admin_system_actions/{actionId} {
           allow read: if canReadAudit();
           allow create, update, delete: if false;
+        }
+
+        match /gift_reviews/{reviewId} {
+          allow read: if canManageFinance();
+          allow write: if false;
+          match /history/{entryId} {
+            allow read: if canManageFinance();
+            allow write: if false;
+          }
+        }
+        match /gift_deliveries/{deliveryId} {
+          allow read: if signedIn() && (canManageFinance() || resource.data.buyerUid == request.auth.uid || resource.data.recipientUid == request.auth.uid);
+          allow write: if false;
+        }
+        match /dev_store_products/{productId} {
+          allow read: if signedIn();
+          allow write: if false;
         }
 
         match /notifications/{notificationId} {

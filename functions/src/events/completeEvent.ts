@@ -13,6 +13,8 @@ import {writeAuditLog} from "../audit/writeAuditLog";
 import {
   markEventPayoutEligibleInTransaction,
 } from "../payments/eventPayoutLifecycle";
+import {isPlusMembershipActive} from "../users/plusMembership";
+import {syncEventQuotaInTransaction} from "./eventOpenQuotaPolicy";
 
 export type CompleteEventResult =
   | "completed"
@@ -37,11 +39,14 @@ export type CompleteEventResult =
 export async function completeEventIfDue({
   eventId,
   actorUid,
+  adminConfirmed = false,
 }: {
   eventId: string;
   actorUid: string | null;
+  adminConfirmed?: boolean;
 }): Promise<CompleteEventResult> {
   const firestore = getFirestore();
+  const automatic = actorUid === null;
   const eventReference = firestore.collection("events").doc(eventId);
   const paymentSessionReference = firestore
     .collection("paymentSessions")
@@ -73,7 +78,8 @@ export async function completeEventIfDue({
         return "not_active";
       }
 
-      if (!isCompletableStatus(status)) {
+      if (!isCompletableStatus(status) &&
+          !(status === "expired" && !automatic)) {
         return "not_active";
       }
 
@@ -84,7 +90,7 @@ export async function completeEventIfDue({
       const selectedPlayerIds = readStringList(data.selectedPlayerIds);
 
       if (
-        actorUid &&
+        actorUid && !adminConfirmed &&
       actorUid !== organizerId &&
       !selectedPlayerIds.includes(actorUid) &&
       !readStringList(data.katilanlar).includes(actorUid)
@@ -105,8 +111,21 @@ export async function completeEventIfDue({
         userReferences.map((reference) => transaction.get(reference)),
       );
 
+      const organizerIndex = countIds.indexOf(organizerId);
+      await syncEventQuotaInTransaction(
+        transaction,
+        firestore,
+        organizerId,
+        Date.now(),
+        isPlusMembershipActive(
+          organizerIndex >= 0 ? userSnapshots[organizerIndex].data() ?? {} : {},
+        ),
+        undefined,
+        eventId,
+      );
+
       const paymentStatus = normalizeStatus(data.paymentStatus);
-      const hasPaidEvent = isPaidStatus(paymentStatus);
+      const hasPaidEvent = !automatic && isPaidStatus(paymentStatus);
 
       if (hasPaidEvent) {
         await markEventPayoutEligibleInTransaction(
@@ -129,10 +148,14 @@ export async function completeEventIfDue({
 
       transaction.update(eventReference, {
         lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
-        durum: "tamamlandi",
-        status: "completed",
-        rosterStatus: "completed",
-        completedAt: FieldValue.serverTimestamp(),
+        durum: automatic ? "expired" : "tamamlandi",
+        status: automatic ? "expired" : "completed",
+        rosterStatus: automatic ? "expired" : "completed",
+        closureReason: automatic ? "time_elapsed" : "occurred_confirmed",
+        closureSource: automatic ? "scheduler" :
+          adminConfirmed ? "admin" : "member",
+        closedAt: FieldValue.serverTimestamp(),
+        ...(!automatic ? {completedAt: FieldValue.serverTimestamp()} : {}),
         updatedAt: FieldValue.serverTimestamp(),
         ...(hasPaidEvent ?
           {
@@ -160,9 +183,10 @@ export async function completeEventIfDue({
           eventReference.collection("applications").doc(playerId),
           {
             lifecycleVersion: APPLICATION_LIFECYCLE_VERSION,
-            status: applicationStatus.completed,
+            status: automatic ? "expired" : applicationStatus.completed,
             reservationStatus: reservationStatus.released,
-            completedAt: FieldValue.serverTimestamp(),
+            closedAt: FieldValue.serverTimestamp(),
+            ...(!automatic ? {completedAt: FieldValue.serverTimestamp()} : {}),
             updatedAt: FieldValue.serverTimestamp(),
           },
           {merge: true},
@@ -170,7 +194,7 @@ export async function completeEventIfDue({
       }
 
       userSnapshots.forEach((userSnapshot, index) => {
-        if (!userSnapshot.exists) {
+        if (!userSnapshot.exists || automatic) {
           return;
         }
 
@@ -195,10 +219,12 @@ export async function completeEventIfDue({
         userId,
         actorId: actorUid ?? organizerId,
         eventId,
-        type: "event_completed",
-        title: "Etkinlik tamamlandı",
+        type: automatic ? "event_expired" : "event_completed",
+        title: automatic ? "Etkinliğin süresi doldu" : "Etkinlik tamamlandı",
         message:
-          "Katıldığın etkinlik tamamlandı. Değerlendirme yapabilirsin.",
+          automatic ?
+            "Etkinliğin tarihi geçti. Bu, gerçekleştiği anlamına gelmez." :
+            "Katıldığın etkinlik tamamlandı. Değerlendirme yapabilirsin.",
         route: "event_detail",
         data: {
           eventId,
@@ -208,7 +234,7 @@ export async function completeEventIfDue({
   );
 
   await writeAuditLog({
-    action: "event_completed",
+    action: automatic ? "event_expired" : "event_completed",
     performedBy: actorUid ?? "system",
     metadata: {
       eventId,

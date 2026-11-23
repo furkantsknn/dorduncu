@@ -1,8 +1,10 @@
 import {setGlobalOptions} from "firebase-functions";
+export {adminCancelLegacyNotification} from "./admin/adminCancelLegacyNotification";
 
 import {setUserRole} from "./auth/setUserRole";
 
 import {createEvent} from "./events/createEvent";
+import {getEventCreationQuotaState} from "./events/getEventCreationQuotaState";
 import {updateEvent} from "./events/updateEvent";
 import {applyToEvent} from "./events/applyToEvent";
 import {acceptApplication} from "./events/acceptApplication";
@@ -20,6 +22,9 @@ import {leaveEvent} from "./events/leaveEvent";
 import {purchaseBadge} from "./market/purchaseBadge";
 import {purchasePlus} from "./market/purchasePlus";
 import {seedBadgeProducts} from "./market/seedBadgeProducts";
+import {
+  manageGooglePlayBadgeCatalog,
+} from "./commercial/googlePlayBadgeCatalog";
 
 import {requestWithdrawal} from "./wallet/requestWithdrawal";
 import {cancelWithdrawal} from "./wallet/cancelWithdrawal";
@@ -35,9 +40,13 @@ export {processVerification} from "./users/processVerification";
 export {submitVerification} from "./users/submitVerification";
 export {processAccountStatus} from "./users/processAccountStatus";
 export {processAccountDeletion} from "./users/processAccountDeletion";
+export {retryAccountDeletions} from "./users/processAccountDeletion";
 export {requestAccountDeletion} from "./users/requestAccountDeletion";
 export {syncPublicProfile} from "./users/syncPublicProfile";
 export {syncPublicMarketBadges} from "./users/syncPublicMarketBadges";
+export {
+  diagnoseGooglePlayAccess,
+} from "./commercial/diagnoseGooglePlayAccess";
 export {refreshAccountStatus} from "./users/refreshAccountStatus";
 export {recordLoginHistory} from "./users/recordLoginHistory";
 export {registerSession} from "./users/registerSession";
@@ -50,12 +59,27 @@ export {
 export {checkDeletedPhone} from "./users/checkDeletedPhone";
 
 export {adminAdjustWallet} from "./admin/adminAdjustWallet";
+export {
+  assignUserManagementNumber,
+} from "./admin/assignUserManagementNumber";
+export {adminManageUserBadge} from "./admin/adminManageUserBadge";
 export {adminUpdateMembership} from "./admin/adminUpdateMembership";
 export {
   adminSetGooglePlayProductId,
 } from "./admin/adminSetGooglePlayProductId";
+export {
+  adminSetAppleProductId,
+} from "./admin/adminSetAppleProductId";
+export {
+  authorizeBadgeOfferPurchase,
+} from "./market/authorizeBadgeOfferPurchase";
 export {adminUpdateEventStatus} from "./admin/adminUpdateEventStatus";
 export {adminCreateNotification} from "./admin/adminCreateNotification";
+export {adminResolveGiftReview} from "./admin/adminResolveGiftReview";
+export {
+  dispatchAdminNotification, processAdminNotifications,
+  adminRetryNotification, syncAdminNotificationResult,
+} from "./notifications/processAdminNotifications";
 export {adminSaveMarketProduct} from "./admin/adminSaveMarketProduct";
 export {adminDeleteMarketProduct} from "./admin/adminDeleteMarketProduct";
 export {adminUpdateSystemSettings} from "./admin/adminUpdateSystemSettings";
@@ -71,6 +95,7 @@ setGlobalOptions({
 
 export {
   createEvent,
+  getEventCreationQuotaState,
   updateEvent,
   applyToEvent,
   acceptApplication,
@@ -85,6 +110,7 @@ export {
   purchaseBadge,
   purchasePlus,
   seedBadgeProducts,
+  manageGooglePlayBadgeCatalog,
   requestWithdrawal,
   cancelWithdrawal,
   startPayment,
@@ -97,8 +123,13 @@ export {
 };
 
 export {adminUpdateSupportRequest} from "./support/adminUpdateSupportRequest";
+export {adminManageVersionPolicy} from "./admin/adminManageVersionPolicy";
 
 export {adminReplySupportRequest} from "./support/adminReplySupportRequest";
+
+export {
+  adminRemoveReportedContent,
+} from "./support/adminRemoveReportedContent";
 
 export {replySupportRequest} from "./support/replySupportRequest";
 
@@ -170,7 +201,28 @@ export {
 export {
   fulfillGooglePlayPurchase,
 } from "./market/fulfillGooglePlayPurchase";
+export {
+  probeGooglePlayOneTimeProductWrite,
+} from "./commercial/probeGooglePlayOneTimeProductWrite";
+
+export {
+  createGiftPurchaseIntent,
+} from "./market/createGiftPurchaseIntent";
+
+export {
+  adminSaveMarketCampaign,
+  adminPublishMarketCampaign,
+  adminStopMarketCampaign,
+  adminRetryMarketCampaignProduct,
+  processMarketCampaigns,
+} from "./admin/adminMarketCampaigns";
 
 export {
   processGooglePlayRtdn,
 } from "./commercial/googlePlayRtdn";
+export {
+  fulfillApplePurchase,
+} from "./market/fulfillApplePurchase";
+export {
+  processAppleAppStoreNotification,
+} from "./commercial/appleAppStoreNotifications";

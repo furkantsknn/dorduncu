@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 import {
   HttpsError,
   onCall,
@@ -35,6 +36,7 @@ export const processAccountStatus = onCall(
   },
   async (request) => {
     assertAdminPermission(request, "users.moderate");
+    await assertCurrentAdminSession(request);
     const adminRole = getAdminRole(request);
 
     const data =

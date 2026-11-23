@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/chat_service.dart';
+import '../widgets/profile_menu_tile.dart';
+import '../widgets/market_palette.dart';
 import 'event_chat_screen.dart';
 
 String _messagesText(
@@ -70,11 +72,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final User? currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: MarketPalette.of(context).background,
       appBar: AppBar(
         title: Text(
           AppLocalizations.of(context)!.messages,
-          style: const TextStyle(fontWeight: FontWeight.w900),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         centerTitle: true,
       ),
@@ -123,9 +125,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           if (snapshot.connectionState ==
                                   ConnectionState.waiting &&
                               !snapshot.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
+                            return const _MessagesLoadingState();
                           }
 
                           final List<
@@ -520,9 +520,10 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Material(
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 1,
+      color: palette.surface,
+      elevation: 0,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         child: TextField(
@@ -530,6 +531,8 @@ class _SearchField extends StatelessWidget {
           onChanged: onChanged,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
+            filled: true,
+            fillColor: palette.raised,
             hintText: _messagesText(
               context,
               tr: 'Etkinlik veya mesaj ara',
@@ -567,11 +570,13 @@ class _MessagesSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.line),
       ),
       child: Row(
         children: <Widget>[
@@ -600,7 +605,7 @@ class _MessagesSummary extends StatelessWidget {
                     en: '$conversationCount chats',
                     de: '$conversationCount Chats',
                   ),
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: profileMenuTitleStyle(context),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -659,9 +664,19 @@ class _ConversationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    final MarketPalette palette = MarketPalette.of(context);
 
     return Card(
       margin: EdgeInsets.zero,
+      elevation: 0,
+      color: palette.raised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: conversation.unread ? palette.accent : palette.line,
+          width: conversation.unread ? 1.5 : 1,
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -687,10 +702,10 @@ class _ConversationCard extends StatelessWidget {
                             conversation.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                            style: profileMenuTitleStyle(context).copyWith(
                               fontWeight: conversation.unread
-                                  ? FontWeight.w900
-                                  : FontWeight.w800,
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
                             ),
                           ),
                         ),
@@ -714,14 +729,6 @@ class _ConversationCard extends StatelessWidget {
                     const SizedBox(height: 5),
                     Row(
                       children: <Widget>[
-                        if (conversation.sentByCurrentUser) ...[
-                          Icon(
-                            Icons.done_all_rounded,
-                            size: 16,
-                            color: colors.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
                         Expanded(
                           child: Text(
                             conversation.lastMessage.isEmpty
@@ -741,25 +748,39 @@ class _ConversationCard extends StatelessWidget {
                                 : conversation.lastMessage,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                            style: profileMenuSubtitleStyle(context).copyWith(
                               color: conversation.unread
                                   ? colors.onSurface
-                                  : colors.onSurfaceVariant,
-                              fontSize: 13,
+                                  : null,
                               fontWeight: conversation.unread
-                                  ? FontWeight.w800
-                                  : FontWeight.w500,
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                             ),
                           ),
                         ),
                         if (conversation.unread) ...[
                           const SizedBox(width: 8),
                           Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              color: Color(0xffFF9800),
-                              shape: BoxShape.circle,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: palette.accent.withValues(alpha: .16),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              _messagesText(
+                                context,
+                                tr: 'YENİ',
+                                en: 'NEW',
+                                de: 'NEU',
+                              ),
+                              style: TextStyle(
+                                color: palette.accent,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                         ],
@@ -830,6 +851,28 @@ class _ConversationCard extends StatelessWidget {
     return '${value.day.toString().padLeft(2, '0')}.'
         '${value.month.toString().padLeft(2, '0')}.'
         '${value.year}';
+  }
+}
+
+class _MessagesLoadingState extends StatelessWidget {
+  const _MessagesLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (_, _) => Container(
+        height: 88,
+        decoration: BoxDecoration(
+          color: palette.raised,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: palette.line),
+        ),
+      ),
+    );
   }
 }
 
@@ -1008,6 +1051,45 @@ class _ConversationData {
       secondaryInfo: secondaryParts.join(' · '),
     );
   }
+}
+
+@visibleForTesting
+Widget buildMessagesDesignPreview() {
+  final DateTime now = DateTime.now();
+  return ListView(
+    padding: const EdgeInsets.all(16),
+    children: <Widget>[
+      const _MessagesSummary(conversationCount: 3, unreadCount: 2),
+      const SizedBox(height: 12),
+      _ConversationCard(
+        conversation: _ConversationData(
+          eventId: 'preview-1',
+          title: 'Uzun Etkinlik Adı ile Akşam Okey Buluşması',
+          lastMessage: 'Harika, saat sekizde masada buluşuyoruz.',
+          lastMessageAt: now,
+          sentByCurrentUser: false,
+          unread: true,
+          imageUrl: '',
+          secondaryInfo: 'Okey · Kadıköy',
+        ),
+        onTap: () {},
+      ),
+      const SizedBox(height: 10),
+      _ConversationCard(
+        conversation: _ConversationData(
+          eventId: 'preview-2',
+          title: 'Hafta sonu tenis',
+          lastMessage: 'Kort rezervasyonunu yaptım.',
+          lastMessageAt: now.subtract(const Duration(days: 1)),
+          sentByCurrentUser: true,
+          unread: false,
+          imageUrl: '',
+          secondaryInfo: 'Tenis · Beşiktaş',
+        ),
+        onTap: () {},
+      ),
+    ],
+  );
 }
 
 class _EmptyMessagesState extends StatelessWidget {

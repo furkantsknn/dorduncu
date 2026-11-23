@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/event_closure.dart';
+import 'package:flutter/services.dart';
 import 'admin_event_detail_screen.dart';
+import 'admin_user_number.dart';
 
 String _locText(
   BuildContext context, {
@@ -17,7 +20,6 @@ String _locText(
       return tr;
   }
 }
-
 
 class AdminEventsScreen extends StatefulWidget {
   const AdminEventsScreen({super.key});
@@ -48,195 +50,186 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('events')
-            .snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+        stream: FirebaseFirestore.instance.collection('events').snapshots(),
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Etkinlikler yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-          allDocuments = snapshot.data!.docs;
-
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>>
-          filteredDocuments = allDocuments.where((document) {
-            final Map<String, dynamic> data = document.data();
-
-            final String status = _eventStatus(data);
-
-            if (_selectedStatus != 'all' &&
-                status != _selectedStatus) {
-              return false;
-            }
-
-            if (_searchText.isEmpty) {
-              return true;
-            }
-
-            final String query = _searchText.toLowerCase();
-
-            final String title = _eventTitle(data).toLowerCase();
-
-            final String city = _stringValue(
-              data,
-              <String>['city', 'sehir', 'şehir'],
-            ).toLowerCase();
-
-            final String ownerId = _stringValue(
-              data,
-              <String>[
-                'ownerId',
-                'creatorId',
-                'userId',
-                'hostId',
-                'olusturanId',
-              ],
-            ).toLowerCase();
-
-            final String eventId = document.id.toLowerCase();
-
-            return title.contains(query) ||
-                city.contains(query) ||
-                ownerId.contains(query) ||
-                eventId.contains(query);
-          }).toList();
-
-          filteredDocuments.sort((a, b) {
-            final DateTime aDate =
-                _eventDate(a.data()) ?? DateTime(1970);
-
-            final DateTime bDate =
-                _eventDate(b.data()) ?? DateTime(1970);
-
-            return bDate.compareTo(aDate);
-          });
-
-          return Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                child: _buildStatistics(allDocuments),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (String value) {
-                    setState(() {
-                      _searchText = value.trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText:
-                    'Etkinlik, şehir, kullanıcı veya etkinlik no ara',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchText.isEmpty
-                        ? null
-                        : IconButton(
-                      tooltip: 'Aramayı temizle',
-                      onPressed: () {
-                        _searchController.clear();
-
-                        setState(() {
-                          _searchText = '';
-                        });
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 48,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  children: <Widget>[
-                    _buildFilter('all', 'Tümü'),
-                    _buildFilter('active', 'Aktif'),
-                    _buildFilter('completed', _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen')),
-                    _buildFilter('cancelled', 'İptal'),
-                    _buildFilter('hidden', 'Gizli'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: filteredDocuments.isEmpty
-                    ? const Center(
+              if (snapshot.hasError) {
+                return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: Text(
-                      'Bu filtreye uygun etkinlik bulunamadı.',
+                      'Etkinlikler yüklenirken bir hata oluştu.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              allDocuments = snapshot.data!.docs;
+
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              filteredDocuments = allDocuments.where((document) {
+                final Map<String, dynamic> data = document.data();
+
+                final String status = _eventStatus(data);
+
+                if (_selectedStatus != 'all' && status != _selectedStatus) {
+                  return false;
+                }
+
+                if (_searchText.isEmpty) {
+                  return true;
+                }
+
+                final String query = _searchText.toLowerCase();
+
+                final String title = _eventTitle(data).toLowerCase();
+
+                final String city = _stringValue(data, <String>[
+                  'city',
+                  'sehir',
+                  'şehir',
+                ]).toLowerCase();
+
+                final String ownerId = _stringValue(data, <String>[
+                  'ownerId',
+                  'creatorId',
+                  'userId',
+                  'hostId',
+                  'olusturanId',
+                ]).toLowerCase();
+
+                final String eventId = document.id.toLowerCase();
+
+                return title.contains(query) ||
+                    city.contains(query) ||
+                    ownerId.contains(query) ||
+                    eventId.contains(query);
+              }).toList();
+
+              filteredDocuments.sort((a, b) {
+                final DateTime aDate = _eventDate(a.data()) ?? DateTime(1970);
+
+                final DateTime bDate = _eventDate(b.data()) ?? DateTime(1970);
+
+                return bDate.compareTo(aDate);
+              });
+
+              return Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                    child: _buildStatistics(allDocuments),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (String value) {
+                        setState(() {
+                          _searchText = value.trim();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText:
+                            'Etkinlik, şehir, kullanıcı veya etkinlik no ara',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchText.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Aramayı temizle',
+                                onPressed: () {
+                                  _searchController.clear();
+
+                                  setState(() {
+                                    _searchText = '';
+                                  });
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
-                )
-                    : ListView.separated(
-                  padding:
-                  const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  itemCount: filteredDocuments.length,
-                  separatorBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    return const SizedBox(height: 10);
-                  },
-                  itemBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    final QueryDocumentSnapshot<
-                        Map<String, dynamic>> document =
-                    filteredDocuments[index];
+                  SizedBox(
+                    height: 48,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      children: <Widget>[
+                        _buildFilter('all', 'Tümü'),
+                        _buildFilter('active', 'Aktif'),
+                        _buildFilter(
+                          'completed',
+                          _locText(
+                            context,
+                            tr: 'Tamamlandı',
+                            en: 'Completed',
+                            de: 'Abgeschlossen',
+                          ),
+                        ),
+                        _buildFilter('cancelled', 'İptal'),
+                        _buildFilter('hidden', 'Gizli'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: filteredDocuments.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Bu filtreye uygun etkinlik bulunamadı.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                            itemCount: filteredDocuments.length,
+                            separatorBuilder:
+                                (BuildContext context, int index) {
+                                  return const SizedBox(height: 10);
+                                },
+                            itemBuilder: (BuildContext context, int index) {
+                              final QueryDocumentSnapshot<Map<String, dynamic>>
+                              document = filteredDocuments[index];
 
-                    return _buildEventCard(
-                      context,
-                      document,
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                              return _buildEventCard(context, document);
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
       ),
     );
   }
 
   Widget _buildStatistics(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
-      ) {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+  ) {
     int activeCount = 0;
     int completedCount = 0;
     int cancelledCount = 0;
     int hiddenCount = 0;
 
     for (final QueryDocumentSnapshot<Map<String, dynamic>> document
-    in documents) {
+        in documents) {
       switch (_eventStatus(document.data())) {
+        case 'expired':
+        case 'legacy_closed':
+          break;
         case 'completed':
           completedCount++;
           break;
@@ -304,138 +297,155 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
   }
 
   Widget _buildEventCard(
-      BuildContext context,
-      QueryDocumentSnapshot<Map<String, dynamic>> document,
-      ) {
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     final Map<String, dynamic> data = document.data();
 
     final String title = _eventTitle(data);
     final String status = _eventStatus(data);
 
-    final String city = _stringValue(
-      data,
-      <String>['city', 'sehir', 'şehir'],
-    );
+    final String city = _stringValue(data, <String>['city', 'sehir', 'şehir']);
 
-    final String ownerId = _stringValue(
-      data,
-      <String>[
-        'ownerId',
-        'creatorId',
-        'userId',
-        'hostId',
-        'olusturanId',
-      ],
-    );
+    final String ownerId = _stringValue(data, <String>[
+      'ownerId',
+      'creatorId',
+      'userId',
+      'hostId',
+      'olusturanId',
+    ]);
 
     final DateTime? eventDate = _eventDate(data);
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          Navigator.push<void>(
-            context,
-            MaterialPageRoute<void>(
-              builder: (BuildContext context) {
-                return AdminEventDetailScreen(
-                  eventId: document.id,
-                );
-              },
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              CircleAvatar(
-                radius: 27,
-                child: Icon(_statusIcon(status)),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 7,
+      child: Column(
+        children: <Widget>[
+          InkWell(
+            onTap: () {
+              Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (BuildContext context) {
+                    return AdminEventDetailScreen(eventId: document.id);
+                  },
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(15),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  CircleAvatar(radius: 27, child: Icon(_statusIcon(status))),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        _InfoLabel(
-                          text: _statusTitle(status),
-                          icon: _statusIcon(status),
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                        if (city.isNotEmpty)
-                          _InfoLabel(
-                            text: city,
-                            icon: Icons.location_on_outlined,
-                          ),
-                        if (eventDate != null)
-                          _InfoLabel(
-                            text: _formatDate(eventDate),
-                            icon: Icons.schedule_outlined,
-                          ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 7,
+                          children: <Widget>[
+                            _InfoLabel(
+                              text: _statusTitle(status),
+                              icon: _statusIcon(status),
+                            ),
+                            if (city.isNotEmpty)
+                              _InfoLabel(
+                                text: city,
+                                icon: Icons.location_on_outlined,
+                              ),
+                            if (eventDate != null)
+                              _InfoLabel(
+                                text: _formatDate(eventDate),
+                                icon: Icons.schedule_outlined,
+                              ),
+                          ],
+                        ),
+                        if (ownerId.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 8),
+                          AdminUserIdentity(uid: ownerId, compact: true),
+                        ],
                       ],
                     ),
-                    if (ownerId.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Oluşturan: $ownerId',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: 5),
-                    SelectableText(
-                      document.id,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right),
+                ],
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right),
+            ),
+          ),
+          const Divider(height: 1),
+          ExpansionTile(
+            key: PageStorageKey<String>('event-technical-${document.id}'),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 15),
+            childrenPadding: const EdgeInsets.fromLTRB(15, 0, 15, 14),
+            dense: true,
+            title: const Text('Teknik ayrıntılar'),
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(document.id, overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    tooltip: 'Etkinlik kimliğini kopyala',
+                    onPressed: () =>
+                        Clipboard.setData(ClipboardData(text: document.id)),
+                    icon: const Icon(Icons.copy_outlined),
+                  ),
+                ],
+              ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
 
   static String _eventTitle(Map<String, dynamic> data) {
-    final String title = _stringValue(
-      data,
-      <String>[
-        'title',
-        'baslik',
-        'başlık',
-        'eventTitle',
-        'name',
-        'etkinlikAdi',
-      ],
-    );
+    final String title = _stringValue(data, <String>[
+      'title',
+      'baslik',
+      'başlık',
+      'eventTitle',
+      'name',
+      'etkinlikAdi',
+    ]);
 
-    return title.isEmpty ? 'İsimsiz etkinlik' : title;
+    if (title.isNotEmpty) return title;
+    final String game = _stringValue(data, <String>[
+      'gameName',
+      'oyun',
+      'game',
+      'categoryName',
+    ]);
+    final String city = _stringValue(data, <String>['city', 'sehir', 'şehir']);
+    if (game.isNotEmpty && city.isNotEmpty) return '$game · $city';
+    if (game.isNotEmpty) return game;
+    if (city.isNotEmpty) return 'Etkinlik · $city';
+    return 'Başlıksız etkinlik';
   }
 
   static String _eventStatus(Map<String, dynamic> data) {
-    final String value = _stringValue(
-      data,
-      <String>['status', 'durum'],
-    ).toLowerCase();
+    final closure = eventClosure(data);
+    if (closure == EventClosure.expired) return 'expired';
+    if (closure == EventClosure.legacyClosed) return 'legacy_closed';
+    final String value = _stringValue(data, <String>[
+      'status',
+      'durum',
+    ]).toLowerCase();
 
     switch (value) {
       case 'completed':
@@ -488,10 +498,7 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
     return null;
   }
 
-  static String _stringValue(
-      Map<String, dynamic> data,
-      List<String> keys,
-      ) {
+  static String _stringValue(Map<String, dynamic> data, List<String> keys) {
     for (final String key in keys) {
       final dynamic value = data[key];
 
@@ -505,10 +512,34 @@ class _AdminEventsScreenState extends State<AdminEventsScreen> {
 
   String _statusTitle(String value) {
     switch (value) {
+      case 'expired':
+        return _locText(
+          context,
+          tr: 'Tarihi geçti',
+          en: 'Expired',
+          de: 'Abgelaufen',
+        );
+      case 'legacy_closed':
+        return _locText(
+          context,
+          tr: 'Geçmiş kayıt',
+          en: 'Past record',
+          de: 'Vergangener Eintrag',
+        );
       case 'completed':
-        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
+        return _locText(
+          context,
+          tr: 'Tamamlandı',
+          en: 'Completed',
+          de: 'Abgeschlossen',
+        );
       case 'cancelled':
-        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
+        return _locText(
+          context,
+          tr: 'İptal edildi',
+          en: 'Cancelled',
+          de: 'Abgesagt',
+        );
       case 'hidden':
         return 'Gizli';
       default:
@@ -556,20 +587,14 @@ class _StatisticCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 7,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
         child: Column(
           children: <Widget>[
             Icon(icon),
             const SizedBox(height: 5),
             Text(
               '$count',
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             Text(
               title,
@@ -584,10 +609,7 @@ class _StatisticCard extends StatelessWidget {
 }
 
 class _InfoLabel extends StatelessWidget {
-  const _InfoLabel({
-    required this.text,
-    required this.icon,
-  });
+  const _InfoLabel({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -595,10 +617,7 @@ class _InfoLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
@@ -610,10 +629,7 @@ class _InfoLabel extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
         ],
       ),

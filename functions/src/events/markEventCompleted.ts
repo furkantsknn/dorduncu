@@ -1,3 +1,4 @@
+import "../config/firebaseAdmin";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {
@@ -34,6 +35,13 @@ export const markEventCompleted = onCall(
       "eventId",
       "Etkinlik kimliği gereklidir.",
     );
+
+    if (request.data?.confirmedOccurred !== true) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Etkinliğin gerçekleştiğini açıkça onaylamalısın.",
+      );
+    }
 
     const result = await completeEventIfDue({
       eventId,

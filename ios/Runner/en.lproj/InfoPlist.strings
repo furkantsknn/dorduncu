@@ -1,0 +1,5 @@
+CFBundleDisplayName = "Dört.";
+NSCameraUsageDescription = "Camera access is required so you can take profile and verification photos.";
+NSPhotoLibraryUsageDescription = "Photo library access is required so you can select profile and verification images.";
+NSPhotoLibraryAddUsageDescription = "Permission is required to save selected or created images to your photo library.";
+NSLocationWhenInUseUsageDescription = "Location access is required to show nearby events and center the map on your area.";

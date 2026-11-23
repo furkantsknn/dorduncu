@@ -316,7 +316,8 @@
   "eventDurationMaxSixHours": "Etkinlik süresi en fazla 6 saat olabilir.",
   "eventDurationThirtyMinuteSteps": "Başlangıç ve bitiş saatleri 30 dakikalık aralıklarla seçilmelidir.",
   "plusRequiredForMultiplePlayers": "2 veya daha fazla oyuncu için Plus üyelik gerekir.",
-  "normalMembersTomorrowOnly": "Normal üyeler en fazla yarın için etkinlik oluşturabilir.",
+  "normalMembersTomorrowOnly": "Ücretsiz üyelikte etkinlik yalnızca bugün için açılabilir.",
+  "eventPlusSevenDayLimit": "Plus ile ileri tarihler için etkinlik oluşturabilirsin.",
   "sessionNotFoundPleaseLogin": "Oturum bulunamadı. Yeniden giriş yapmalısın.",
   "addressNotFoundOnMap": "Adres haritada bulunamadı. Mahalle, cadde veya mekan adını daha açık yaz ya da haritadan seç.",
   "eventCreateFailedWithCode": "Etkinlik oluşturulamadı ({code}): {message}",
@@ -347,8 +348,8 @@
   "basePricePerPlayer": "Kişi başı taban fiyat",
   "totalFee": "Toplam ücret",
   "durationRangeHint": "Süre 1 ile 6 saat arasında ve 30 dakikalık aralıklarla olmalıdır.",
-  "plusMemberBenefits": "Plus üye: Birden fazla oyuncu ve ileri tarih seçebilirsin.",
-  "normalMemberLimits": "Normal üye: 1 oyuncu ve en fazla yarın için etkinlik oluşturabilirsin.",
+  "plusMemberBenefits": "Plus: Aynı anda birden fazla etkinlik oluştur; açık etkinlik sayısı sınırı yok.",
+  "normalMemberLimits": "Ücretsiz: Aynı anda 2 açık etkinlik; yalnızca bugün ve 1 oyuncu.",
   "startTimeLabel": "Başlangıç {time}",
   "@startTimeLabel": {
     "placeholders": {
@@ -430,5 +431,37 @@
   "accountDeletionRequestCouldNotBeCreated": "Hesap silme talebi oluşturulamadı.",
   "legalTermsBody": "Dört., kullanıcıların oyun, spor ve sosyal etkinlikler için eksik oyuncu bulmasına yardımcı olur. Etkinlik oluşturma ve katılım ücretsizdir. Kullanıcılar verdikleri bilgilerin doğruluğundan, etkinliklerdeki davranışlarından ve yürürlükteki kurallara uymaktan sorumludur.",
   "privacyPolicyBody": "Profil, telefon doğrulama, etkinlik, konum, mesajlaşma, bildirim ve Google Play satın alma kayıtları hizmeti sunmak için işlenir. Kimlik ve doğrulama belgeleri doğrulama süreci için kullanılır. Hesap silme talebi uygulama içinden veya destek@dortapp.com üzerinden oluşturulabilir.",
-  "communityRulesBody": "Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir."
+  "communityRulesBody": "Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir.",
+  "eventServiceBusy": "Hizmet şu anda yoğun veya istek sınırına ulaşıldı. Bu hata Plus etkinlik kotası anlamına gelmez. Yeniden denemeden önce Etkinliklerim listesini kontrol et. ({code})",
+  "@eventServiceBusy": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "eventCreateUncertain": "Etkinlik işleminin sonucu doğrulanamadı. Yeniden oluşturmadan önce Etkinliklerim listesini kontrol et. ({code})",
+  "@eventCreateUncertain": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "eventVerificationFailed": "Oturum veya işlem yetkisi doğrulanamadı. Bağlantını ve oturumunu kontrol et. ({code})",
+  "@eventVerificationFailed": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "eventCreateSafeFailure": "Etkinlik oluşturulamadı. Yeniden denemeden önce Etkinliklerim listesini kontrol et. ({code})",
+  "@eventCreateSafeFailure": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  }
 }

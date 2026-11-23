@@ -6,11 +6,11 @@
 
 # 1. Product
 
-Digital badges are one-time digital products sold through Google Play. No physical item is shipped. A badge is an entitlement recorded on the relevant account after the purchase is verified.
+Digital badges are one-time digital products sold through the Apple App Store on iOS and Google Play on Android. No physical item is shipped. A badge is an entitlement recorded on the relevant account after the purchase is verified.
 
 # 2. Price and payment
 
-The price is the price Google Play shows on the purchase screen. Charging, refunds and cancellation run through Google Play. Dört. does not store card details and does not treat a refund as complete unless Play confirms it.
+The price is the price shown on the purchase screen by the applicable store (Apple App Store or Google Play). Charging, refunds and cancellation run through the applicable store. Dört. does not store card details and does not treat a refund as complete unless the store confirms it.
 
 # 3. Tied to the account
 
@@ -18,7 +18,7 @@ The badge entitlement applies to the account it was granted to. After purchase i
 
 # 4. Gifts
 
-The app may allow a badge to be gifted, at the time of purchase, to another selected user. The buyer pays. The entitlement is recorded on the recipient’s account. A gift is not a general right to transfer the badge later.
+Where supported, a gift uses a separate one-time store product from the personal product. It can be sent only to an available friend. You cannot gift yourself or a badge the recipient already owns. A gifted badge stays on the recipient. A Plus gift lasts 30 days, does not renew, and cannot start for a recipient with an active paid Plus subscription. A new gift extends the current gift period. The buyer pays. A refund affects only the right created by that gift.
 
 # 5. Refunds and removal
 

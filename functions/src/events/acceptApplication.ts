@@ -20,6 +20,8 @@ import {
 import {
   writeUserNotification,
 } from "../notifications/writeUserNotification";
+import {applicationNotificationId} from
+  "../notifications/applicationNotificationPolicy";
 
 const REGION = "europe-west1";
 
@@ -150,6 +152,9 @@ export const acceptApplication = onCall(
         const eventData = eventSnapshot.data() ?? {};
         const applicationData =
           applicationSnapshot.data() ?? {};
+        const applicationAttemptId = String(
+          applicationData.applicationAttemptId ?? "legacy",
+        ).trim() || "legacy";
 
         const eventOrganizerId = String(
           eventData.olusturanUid ?? "",
@@ -279,6 +284,7 @@ export const acceptApplication = onCall(
 
           return {
             freeEvent: true,
+            applicationAttemptId,
             rosterCompleted,
             selectedPlayerCount: updatedSelectedPlayerIds.length,
             requiredPlayerCount,
@@ -403,6 +409,7 @@ export const acceptApplication = onCall(
 
         return {
           freeEvent: false,
+          applicationAttemptId,
           rosterCompleted,
           selectedPlayerCount:
             updatedSelectedPlayerIds.length,
@@ -414,6 +421,12 @@ export const acceptApplication = onCall(
     await writeUserNotification(
       firestore,
       {
+        notificationId: applicationNotificationId(
+          "application_accepted",
+          eventId,
+          playerId,
+          result.applicationAttemptId,
+        ),
         userId: playerId,
         actorId: organizerId,
         eventId,
@@ -517,9 +530,8 @@ function readPlayerCount(
   const value = Number(rawValue);
 
   if (
-    !Number.isInteger(value) ||
-    value < 1 ||
-    value > 4
+    !Number.isSafeInteger(value) ||
+    value < 1
   ) {
     throw new HttpsError(
       "failed-precondition",

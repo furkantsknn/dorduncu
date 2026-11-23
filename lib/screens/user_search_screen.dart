@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/friend_service.dart';
+import '../widgets/plus_emblem.dart';
 import 'public_profile_screen.dart';
 
 String _userSearchText(
@@ -145,11 +146,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                                 ],
                                 if (user.plus) ...[
                                   const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.diamond_rounded,
-                                    size: 15,
-                                    color: Color(0xFFFF9800),
-                                  ),
+                                  const PlusMark(size: 15),
                                 ],
                               ],
                             ),

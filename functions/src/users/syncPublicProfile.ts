@@ -1,4 +1,4 @@
-/* eslint-disable require-jsdoc, valid-jsdoc */
+/* eslint-disable require-jsdoc, valid-jsdoc, max-len */
 import {
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
@@ -8,6 +8,8 @@ import {
 } from "firebase-admin/firestore";
 
 import {firestore} from "../config/firebaseAdmin";
+import {publicProfileWriteAllowed} from "./publicProfileWritePolicy";
+import {isPlusMembershipActive} from "./plusMembership";
 
 /**
  * Reads a trimmed string value from Firestore data.
@@ -131,15 +133,31 @@ export const syncPublicProfile = onDocumentWritten(
         .collection("public_profiles")
         .doc(uid);
 
-    const afterSnapshot = event.data?.after;
+    await syncCurrentPublicProfile(uid, publicProfileReference);
+  }
+);
 
-    if (!afterSnapshot?.exists) {
-      await publicProfileReference.delete();
+/** Reads current state transactionally; event.after is never authoritative. */
+export async function syncCurrentPublicProfile(
+  uid: string,
+  publicProfileReference = firestore.collection("public_profiles").doc(uid),
+): Promise<void> {
+  await firestore.runTransaction(async (transaction) => {
+    const userReference = firestore.collection("users").doc(uid);
+    const deletionReference = firestore.collection("accountDeletionRequests")
+      .doc(uid);
+    const [userSnapshot, deletionSnapshot, existingPublic] = await Promise.all([
+      transaction.get(userReference),
+      transaction.get(deletionReference),
+      transaction.get(publicProfileReference),
+    ]);
+    const data = userSnapshot.data() as Record<string, unknown>;
+    const deletion = deletionSnapshot.exists ?
+      deletionSnapshot.data() as Record<string, unknown> : null;
+    if (!publicProfileWriteAllowed(userSnapshot.exists ? data : null, deletion)) {
+      transaction.delete(publicProfileReference);
       return;
     }
-
-    const data =
-      afterSnapshot.data() as Record<string, unknown>;
 
     const activeCity =
       readString(data, "aktifSehir");
@@ -168,20 +186,16 @@ export const syncPublicProfile = onDocumentWritten(
         profileName :
         fallbackName;
 
-    const existingPublic =
-      await publicProfileReference.get();
     const existingMarketBadges =
       existingPublic.data()?.marketBadges;
 
     const plusExpiresAt =
       readTimestamp(data, "plusExpiresAt");
 
-    const plusActive =
-      readBool(data, "plus") &&
-      plusExpiresAt !== null &&
-      plusExpiresAt.toMillis() > Date.now();
+    const plusActive = isPlusMembershipActive(data);
 
-    await publicProfileReference.set(
+    transaction.set(
+      publicProfileReference,
       {
         uid,
         profilAdi:
@@ -203,9 +217,13 @@ export const syncPublicProfile = onDocumentWritten(
           readNumber(data, "completedEventCount"),
         plus: plusActive,
         isPlus: plusActive,
+        plusAdminGranted: readBool(data, "plusAdminGranted"),
         plusPlan:
           readString(data, "plusPlan"),
         plusExpiresAt,
+        plusSubscriptionExpiresAt: readTimestamp(data, "plusSubscriptionExpiresAt"),
+        plusGiftExpiresAt: readTimestamp(data, "plusGiftExpiresAt"),
+        plusSubscriptionState: readString(data, "plusSubscriptionState"),
         verified:
           readBool(data, "verified"),
         oyuncuRozeti:
@@ -228,5 +246,5 @@ export const syncPublicProfile = onDocumentWritten(
         merge: false,
       }
     );
-  }
-);
+  });
+}

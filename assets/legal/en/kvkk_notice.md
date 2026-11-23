@@ -1,8 +1,8 @@
 # KVKK Privacy Notice
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 
-**Effective:** 5 October 2026
+**Updated:** 19 October 2026
 
 This notice meets the information duty under Turkish Personal Data Protection Law No. 6698. The Privacy Policy is a separate document.
 
@@ -63,7 +63,7 @@ Personal data is not sold for independent advertising. Event and chat content ma
 
 Account data is kept while the account is open so the service can run.
 
-When deletion finishes, the login, profile, public profile, profile photos and verification documents are deleted. Identity fields in login and audit logs may be anonymized. A digest of the phone number may be kept to block registering again with the same number.
+When deletion finishes, the login, profile, public profile, profile photos and verification documents are deleted. Identity fields in login and audit logs may be replaced with hash-based pseudonyms; this does not make the records fully anonymous. A digest of the phone number may be kept to block registering again with the same number.
 
 Content in other users’ events and messages, and limited records needed for security, disputes or legal duties, may be kept.
 

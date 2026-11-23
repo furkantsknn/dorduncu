@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import '../services/firebase_auth_language.dart';
 
 import '../legal/legal_service.dart';
 import '../legal/login_legal_consent.dart';
@@ -14,6 +16,7 @@ import 'home_screen.dart';
 import '../services/user_service.dart';
 import 'verify_screen.dart';
 import 'legal_document_screen.dart';
+import 'legal_acceptance_screen.dart';
 import 'support_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -105,6 +108,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final String phoneNumber = "$selectedCountryCode$rawPhone";
     final int attempt = _phoneSession.startAttempt();
+    if (attempt == 0) {
+      _showMessage(
+        text.waitBeforeNewCode(_phoneSession.resendRemainingSeconds),
+      );
+      return;
+    }
 
     FocusScope.of(context).unfocus();
 
@@ -113,7 +122,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.setSettings(forceRecaptchaFlow: false);
+      await applyFirebaseAuthLanguage(
+        FirebaseAuth.instance,
+        Localizations.localeOf(context).languageCode,
+      );
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await FirebaseAuth.instance.setSettings(forceRecaptchaFlow: false);
+      }
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 60),
@@ -252,18 +267,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await UserService.registerSuccessfulLogin(user);
 
+      var acceptanceFailed = false;
       try {
         await LegalService.recordOnboardingAcceptances(
           userId: user.uid,
           locale: LanguageController.locale.value.languageCode,
         );
       } catch (error) {
+        acceptanceFailed = true;
         debugPrint('legal acceptance record failed: $error');
       }
 
-      final AuthDestination destination = await UserService.getAuthDestination(
-        user: user,
-      );
+      final AuthDestination destination = acceptanceFailed
+          ? const AuthDestination(
+              type: AuthDestinationType.legalAcceptanceRequired,
+            )
+          : await UserService.getAuthDestination(user: user);
 
       if (!_phoneSession.isCurrent(attempt) || !mounted) return;
 
@@ -295,6 +314,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return const LoginScreen();
       case AuthDestinationType.createProfile:
         return const CreateProfileScreen();
+      case AuthDestinationType.legalAcceptanceRequired:
+        return const LegalAcceptanceScreen();
       case AuthDestinationType.home:
         return HomeScreen(userName: destination.profileName);
       case AuthDestinationType.suspended:
@@ -352,8 +373,27 @@ class _LoginScreenState extends State<LoginScreen> {
         return text.missingClientIdentifier;
       case PhoneAuthFailureKind.invalidCode:
       case PhoneAuthFailureKind.sessionExpired:
-      case PhoneAuthFailureKind.generic:
         return text.phoneVerificationError;
+      case PhoneAuthFailureKind.generic:
+        // Closed-test diagnostic. Firebase may report code=unknown while
+        // the underlying cause is present only in the error message.
+        // Avoid exposing phone numbers, OTPs, or bearer/API credentials.
+        final String detail = (error.message ?? '')
+            .replaceAll(RegExp(r'\+?\d[\d\s().-]{8,}\d'), '[number hidden]')
+            .replaceAll(RegExp(r'\b\d{6}\b'), '[code hidden]')
+            .replaceAll(
+              RegExp(
+                r'(token|api[_ -]?key|authorization)\s*[:=]\s*\S+',
+                caseSensitive: false,
+              ),
+              '[credential hidden]',
+            )
+            .trim();
+        final String shortDetail = detail.length > 240
+            ? '${detail.substring(0, 240)}...'
+            : detail;
+        return '${text.phoneVerificationError} (${error.code})'
+            '${shortDetail.isEmpty ? '' : '\n$shortDetail'}';
     }
   }
 
@@ -432,9 +472,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   SizedBox(
-                                    width: 115,
+                                    width: 120,
                                     child: DropdownButtonFormField<String>(
                                       initialValue: selectedCountryCode,
+                                      isExpanded: true,
                                       dropdownColor: const Color(0xff23262D),
                                       iconEnabledColor: Colors.orange,
                                       style: const TextStyle(
@@ -446,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         fillColor: const Color(0xff171A20),
                                         contentPadding:
                                             const EdgeInsets.symmetric(
-                                              horizontal: 12,
+                                              horizontal: 10,
                                               vertical: 18,
                                             ),
                                         border: OutlineInputBorder(
@@ -460,11 +501,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                         return countries.map((country) {
                                           return Align(
                                             alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              country["code"] ==
-                                                      selectedCountryCode
-                                                  ? _selectedCountryLabel()
-                                                  : "",
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                country["code"] ==
+                                                        selectedCountryCode
+                                                    ? _selectedCountryLabel()
+                                                    : "",
+                                                maxLines: 1,
+                                                softWrap: false,
+                                              ),
                                             ),
                                           );
                                         }).toList();
@@ -476,6 +523,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             "${country["flag"]} "
                                             "${country["name"]} "
                                             "${country["code"]}",
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         );
                                       }).toList(),
@@ -496,6 +544,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       controller: phoneController,
                                       enabled: !loading,
                                       keyboardType: TextInputType.phone,
+                                      autofillHints: const <String>[
+                                        AutofillHints.telephoneNumber,
+                                      ],
                                       inputFormatters: [
                                         FilteringTextInputFormatter.digitsOnly,
                                         _PhoneNumberFormatter(
@@ -646,7 +697,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                Positioned(top: 48, right: 24, child: _languageSelector()),
+                Positioned(top: 12, right: 20, child: _languageSelector()),
               ],
             ),
           ),
@@ -848,6 +899,12 @@ class _LoginText {
         return de;
     }
   }
+
+  String waitBeforeNewCode(int seconds) => value(
+    tr: 'Yeni kod istemeden önce $seconds saniye bekle.',
+    en: 'Wait $seconds seconds before requesting another code.',
+    de: 'Warte $seconds Sekunden, bevor du einen neuen Code anforderst.',
+  );
 
   String get language => value(tr: 'Dil', en: 'Language', de: 'Sprache');
   String get slogan => value(

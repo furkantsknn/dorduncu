@@ -5,6 +5,7 @@ import {
   FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
+import {logger} from "firebase-functions";
 
 const REGION = "europe-west1";
 const TOKEN_MAX_LENGTH = 4096;
@@ -66,6 +67,13 @@ export const registerNotificationDevice = onCall(
     );
 
     await batch.commit();
+
+    logger.info("Notification device registered", {
+      duplicateOwnerCount: duplicateSnapshot.docs.filter(
+        (document) => document.ref.parent.parent?.id !== uid,
+      ).length,
+      platform,
+    });
 
     return {
       success: true,

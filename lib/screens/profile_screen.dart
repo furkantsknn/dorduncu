@@ -1,23 +1,35 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import '../models/market_badge_display.dart';
 import '../models/user_model.dart';
 import '../services/language_controller.dart';
+import '../services/notification_push_service.dart';
 import '../utils/verification_reason.dart';
 import '../services/user_service.dart';
+import '../services/digital_purchase_service.dart';
 import '../services/friend_service.dart';
 import 'edit_profile_screen.dart';
 import 'login_screen.dart';
 import 'market_screen.dart';
 import 'friends_screen.dart';
+import 'gift_history_screen.dart';
 import 'friend_requests_screen.dart';
 import 'user_search_screen.dart';
 import 'public_profile_screen.dart';
 import 'my_events_screen.dart';
 import 'settings_screen.dart';
 import 'verification_screen.dart';
+import '../utils/profile_completion.dart';
+import '../utils/game_experience.dart';
 import '../widgets/app_admin_menu_entry.dart';
 import '../widgets/market_badge_strip.dart';
+import '../widgets/market_palette.dart';
+import '../widgets/plus_emblem.dart';
+import '../widgets/plus_membership_label.dart';
+import '../widgets/plus_surface.dart';
+import '../widgets/profile_menu_tile.dart';
 import 'user_badges_screen.dart';
 
 String _profileText(
@@ -110,10 +122,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _openEditProfile() async {
+  Future<void> _openEditProfile([ProfileCompletionField? focus]) async {
     final bool? updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => EditProfileScreen(initialData: _profileData),
+        builder: (_) =>
+            EditProfileScreen(initialData: _profileData, focus: focus),
       ),
     );
 
@@ -181,21 +194,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    if (user.isPlusActive) {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (BuildContext sheetContext) {
-          return _PlusDetailsSheet(user: user);
-        },
-      );
-      return;
-    }
-
-    await Navigator.of(
-      context,
-    ).push<void>(MaterialPageRoute<void>(builder: (_) => const MarketScreen()));
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const MarketScreen(openPlusDetails: true),
+      ),
+    );
 
     if (mounted) {
       await _loadProfile();
@@ -285,6 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    await NotificationPushService.unregisterCurrentToken();
     await FirebaseAuth.instance.signOut();
 
     if (!mounted) {
@@ -332,10 +336,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final UserModel user = _user!;
 
+    return ProfileScreenView(
+      user: user,
+      onRefresh: _loadProfile,
+      onEdit: _openEditProfile,
+      onSettings: _openSettings,
+      onFriends: _openFriends,
+      onFriendRequests: _openFriendRequests,
+      onUserSearch: _openUserSearch,
+      onMarket: _openMarket,
+      onVerify: _openVerification,
+      onBadges: _openBadges,
+      onPublicProfile: _openPublicProfile,
+      onLogout: _logout,
+      onEditField: (ProfileCompletionField field) {
+        _openEditProfile(field);
+      },
+    );
+  }
+}
+
+class ProfileScreenView extends StatelessWidget {
+  const ProfileScreenView({
+    required this.user,
+    required this.onRefresh,
+    required this.onEdit,
+    required this.onSettings,
+    required this.onFriends,
+    required this.onFriendRequests,
+    required this.onUserSearch,
+    required this.onMarket,
+    required this.onVerify,
+    required this.onBadges,
+    required this.onPublicProfile,
+    required this.onLogout,
+    this.onEditField,
+    this.badges = const <MarketBadgeDisplay>[],
+    super.key,
+  });
+
+  final UserModel user;
+  final Future<void> Function() onRefresh;
+  final VoidCallback onEdit;
+  final VoidCallback onSettings;
+  final VoidCallback onFriends;
+  final VoidCallback onFriendRequests;
+  final VoidCallback onUserSearch;
+  final VoidCallback onMarket;
+  final VoidCallback onVerify;
+  final VoidCallback onBadges;
+  final VoidCallback onPublicProfile;
+  final VoidCallback onLogout;
+  final ValueChanged<ProfileCompletionField>? onEditField;
+  final List<MarketBadgeDisplay> badges;
+
+  @override
+  Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Scaffold(
-      backgroundColor: Theme.of(
-        context,
-      ).colorScheme.surface.withValues(alpha: 1.0),
+      backgroundColor: palette.background,
       appBar: AppBar(
         title: Text(
           _profileText(
@@ -344,7 +403,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             en: 'My Profile',
             de: 'Mein Profil',
           ),
-          style: const TextStyle(fontWeight: FontWeight.w900),
+          style: profileMenuTitleStyle(context),
         ),
         centerTitle: true,
         actions: <Widget>[
@@ -355,18 +414,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               en: 'Settings',
               de: 'Einstellungen',
             ),
-            onPressed: _openSettings,
+            onPressed: onSettings,
             icon: const Icon(Icons.settings_outlined),
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadProfile,
+        onRefresh: onRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: <Widget>[
-            _ProfileHeader(user: user, onEdit: _openEditProfile),
+            _ProfileHeader(user: user, onEdit: onEdit, badges: badges),
             const SizedBox(height: 10),
             _StatisticsRow(user: user),
             const SizedBox(height: 14),
@@ -386,42 +445,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     en: 'View your friends list',
                     de: 'Freundesliste anzeigen',
                   ),
-                  onTap: _openFriends,
+                  onTap: onFriends,
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.person_add_alt_1_rounded),
-                  title: Text(
-                    _profileText(
+                if (kGiftActionsEnabled) ...<Widget>[
+                  const _MenuDivider(),
+                  _ProfileMenuTile(
+                    icon: Icons.card_giftcard_outlined,
+                    title: _profileText(
                       context,
-                      tr: 'Arkadaşlık İstekleri',
-                      en: 'Friend Requests',
-                      de: 'Freundschaftsanfragen',
+                      tr: 'Hediyeler',
+                      en: 'Gifts',
+                      de: 'Geschenke',
                     ),
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: Text(
-                    _profileText(
+                    subtitle: _profileText(
                       context,
-                      tr: 'Bekleyen istekleri görüntüle',
-                      en: 'View pending requests',
-                      de: 'Ausstehende Anfragen anzeigen',
+                      tr: 'Gönderilen ve alınan hediyeler',
+                      en: 'Sent and received gifts',
+                      de: 'Gesendete und erhaltene Geschenke',
                     ),
-                  ),
-                  trailing: StreamBuilder<int>(
-                    stream: FriendService.instance.pendingRequestCount(),
-                    builder: (context, snapshot) {
-                      final count = snapshot.data ?? 0;
-                      if (count == 0) {
-                        return const Icon(Icons.chevron_right_rounded);
-                      }
-                      return Badge(
-                        label: Text('$count'),
-                        child: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const GiftHistoryScreen(),
+                        ),
                       );
                     },
                   ),
-                  onTap: _openFriendRequests,
+                ],
+                const _MenuDivider(),
+                _ProfileMenuTile(
+                  icon: Icons.person_add_alt_1_rounded,
+                  title: _profileText(
+                    context,
+                    tr: 'Arkadaşlık İstekleri',
+                    en: 'Friend Requests',
+                    de: 'Freundschaftsanfragen',
+                  ),
+                  subtitle: _profileText(
+                    context,
+                    tr: 'Bekleyen istekleri görüntüle',
+                    en: 'View pending requests',
+                    de: 'Ausstehende Anfragen anzeigen',
+                  ),
+                  trailing: Firebase.apps.isEmpty
+                      ? null
+                      : StreamBuilder<int>(
+                          stream: FriendService.instance.pendingRequestCount(),
+                          builder: (context, snapshot) {
+                            final int count = snapshot.data ?? 0;
+                            final MarketPalette palette = MarketPalette.of(
+                              context,
+                            );
+                            if (count == 0) {
+                              return Icon(
+                                Icons.chevron_right_rounded,
+                                color: palette.muted,
+                              );
+                            }
+                            return Badge(
+                              label: Text('$count'),
+                              child: Icon(
+                                Icons.chevron_right_rounded,
+                                color: palette.muted,
+                              ),
+                            );
+                          },
+                        ),
+                  onTap: onFriendRequests,
                 ),
               ],
             ),
@@ -457,11 +547,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            _PlusMembershipCard(user: user, onTap: _openMarket),
+            PlusMembershipCard(user: user, onTap: onMarket),
             const SizedBox(height: 14),
-            _MembershipCard(user: user, onVerify: _openVerification),
+            _MembershipCard(user: user, onVerify: onVerify),
             const SizedBox(height: 14),
-            _ProfileCompletionCard(user: user),
+            _ProfileCompletionCard(
+              user: user,
+              onEditField: (ProfileCompletionField field) {
+                if (onEditField != null) {
+                  onEditField!(field);
+                  return;
+                }
+                onEdit();
+              },
+            ),
             const SizedBox(height: 14),
             _ProfileSectionTitle(
               title: _profileText(
@@ -476,16 +575,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: <Widget>[
                 _ProfileMenuTile(
                   icon: Icons.search_rounded,
-                  title: 'Oyuncu Ara',
+                  title: _profileText(
+                    context,
+                    tr: 'Oyuncu Ara',
+                    en: 'Find a player',
+                    de: 'Spieler suchen',
+                  ),
                   subtitle: _profileText(
                     context,
                     tr: 'Kullanıcı adı ile oyuncu ara',
                     en: 'Search players by username',
                     de: 'Spieler nach Benutzernamen suchen',
                   ),
-                  onTap: _openUserSearch,
+                  onTap: onUserSearch,
                 ),
-                const Divider(height: 1),
+                const _MenuDivider(),
                 _ProfileMenuTile(
                   icon: Icons.workspace_premium_outlined,
                   title: _profileText(
@@ -500,9 +604,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     en: 'View your purchased game badges',
                     de: 'Sieh dir deine gekauften Spielabzeichen an',
                   ),
-                  onTap: _openBadges,
+                  onTap: onBadges,
                 ),
-                const Divider(height: 1),
+                const _MenuDivider(),
                 _ProfileMenuTile(
                   icon: Icons.public_outlined,
                   title: _profileText(
@@ -517,7 +621,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     en: 'View the profile other players can see',
                     de: 'Sieh dir dein Profil aus Sicht anderer Spieler an',
                   ),
-                  onTap: _openPublicProfile,
+                  onTap: onPublicProfile,
                 ),
               ],
             ),
@@ -535,10 +639,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            _GamesPreviewCard(user: user, onEdit: _openEditProfile),
+            _GamesPreviewCard(user: user, onEdit: onEdit),
             const SizedBox(height: 18),
             OutlinedButton.icon(
-              onPressed: _logout,
+              onPressed: onLogout,
               icon: const Icon(Icons.logout_rounded),
               label: Text(
                 _profileText(
@@ -566,14 +670,15 @@ class _ProfileSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Text(
         title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.9,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: palette.muted,
         ),
       ),
     );
@@ -581,22 +686,25 @@ class _ProfileSectionTitle extends StatelessWidget {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.user, required this.onEdit});
+  const _ProfileHeader({
+    required this.user,
+    required this.onEdit,
+    required this.badges,
+  });
 
   final UserModel user;
   final VoidCallback onEdit;
+  final List<MarketBadgeDisplay> badges;
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[const Color(0xff2B1B0B), const Color(0xff5A330C)],
-        ),
+        color: palette.surface,
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.line),
       ),
       child: Column(
         children: <Widget>[
@@ -614,6 +722,10 @@ class _ProfileHeader extends StatelessWidget {
                     en: 'Edit profile',
                     de: 'Profil bearbeiten',
                   ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: palette.accent,
+                    foregroundColor: palette.onAccent,
+                  ),
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_rounded, size: 18),
                 ),
@@ -621,12 +733,12 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 11),
-          Text(
-            user.displayName,
-            textAlign: TextAlign.center,
+          ProfileNameRow(
+            name: user.displayName,
+            plusActive: user.isPlusActive,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
+              color: palette.ink,
+              fontWeight: FontWeight.w700,
             ),
           ),
           if (user.fullName.isNotEmpty &&
@@ -635,10 +747,7 @@ class _ProfileHeader extends StatelessWidget {
             Text(
               user.fullName,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w600,
-              ),
+              style: profileMenuSubtitleStyle(context),
             ),
           ],
           if (user.sehir.trim().isNotEmpty) ...[
@@ -646,7 +755,11 @@ class _ProfileHeader extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Icon(Icons.location_on_outlined, size: 17, color: Colors.white),
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 17,
+                  color: palette.accent,
+                ),
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
@@ -654,10 +767,9 @@ class _ProfileHeader extends StatelessWidget {
                         ? user.sehir.trim()
                         : '${user.ilce.trim()}, ${user.sehir.trim()}',
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: profileMenuSubtitleStyle(
+                      context,
+                    ).copyWith(color: palette.ink),
                   ),
                 ),
               ],
@@ -679,11 +791,6 @@ class _ProfileHeader extends StatelessWidget {
                     de: 'Spieler',
                   ),
                 ),
-              if (user.isPlusActive)
-                const _HeaderChip(
-                  icon: Icons.workspace_premium_rounded,
-                  text: 'Plus',
-                ),
               if (user.verified)
                 _HeaderChip(
                   icon: Icons.verified_rounded,
@@ -696,7 +803,7 @@ class _ProfileHeader extends StatelessWidget {
                 ),
             ],
           ),
-          MarketBadgeStrip(userId: user.uid),
+          MarketBadgeStrip(userId: user.uid, projected: badges),
         ],
       ),
     );
@@ -720,7 +827,7 @@ class _ProfileAvatar extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Theme.of(context).colorScheme.surface,
+        color: MarketPalette.of(context).raised,
       ),
       child: ClipOval(
         child: imageUrl.isEmpty
@@ -776,20 +883,24 @@ class _HeaderChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
+        color: palette.raised,
         borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: palette.line),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
+          Icon(icon, size: 16, color: palette.accent),
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            style: profileMenuSubtitleStyle(
+              context,
+            ).copyWith(color: palette.ink),
           ),
         ],
       ),
@@ -894,6 +1005,7 @@ class _StatisticCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _PlusDetailsSheet extends StatelessWidget {
   const _PlusDetailsSheet({required this.user});
 
@@ -907,8 +1019,7 @@ class _PlusDetailsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DateTime? expiry = user.plusExpiresAt;
-    const Color plusColor = Color(0xffF59E0B);
+    final DateTime? expiry = user.effectivePlusExpiresAt;
 
     return SafeArea(
       top: false,
@@ -925,19 +1036,10 @@ class _PlusDetailsSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Center(
-                child: Container(
+                child: SizedBox(
                   width: 68,
                   height: 68,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: plusColor.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_rounded,
-                    size: 38,
-                    color: plusColor,
-                  ),
+                  child: const Center(child: PlusMark(size: 40)),
                 ),
               ),
               const SizedBox(height: 14),
@@ -1030,31 +1132,72 @@ class _PlusDetailsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 22),
               Text(
-                'Plus ayrıcalıkların',
+                _profileText(
+                  context,
+                  tr: 'Plus ayrıcalıkların',
+                  en: 'Your Plus benefits',
+                  de: 'Deine Plus-Vorteile',
+                ),
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
-              const _PlusBenefitTile(
+              _PlusBenefitTile(
                 icon: Icons.event_available_rounded,
-                title: 'Etkinlikleri ileri tarihe planla',
-                subtitle:
-                    'Etkinliklerini daha ileri tarihler için oluşturup planlayabilirsin.',
+                title: _profileText(
+                  context,
+                  tr: 'Planını önceden yap',
+                  en: 'Plan ahead',
+                  de: 'Plane voraus',
+                ),
+                subtitle: _profileText(
+                  context,
+                  tr: 'Aktif Plus, bugün ile 7 takvim günü sonrası dahil etkinlik açabilir.',
+                  en: 'Active Plus can open an event from today through 7 calendar days later, including both days.',
+                  de: 'Aktives Plus kann ein Event von heute bis einschließlich 7 Kalendertage später öffnen.',
+                ),
               ),
               const SizedBox(height: 10),
-              const _PlusBenefitTile(
+              _PlusBenefitTile(
                 icon: Icons.groups_rounded,
-                title: 'Birden fazla oyuncu için etkinlik oluştur',
-                subtitle:
-                    'Daha geniş katılımlı etkinlikler oluşturmak için Plus ayrıcalıklarını kullanabilirsin.',
+                title: _profileText(
+                  context,
+                  tr: 'Birden fazla oyuncuyla etkinlik oluştur',
+                  en: 'Create events with multiple players',
+                  de: 'Erstelle Events mit mehreren Spielern',
+                ),
+                subtitle: _profileText(
+                  context,
+                  tr: 'Aranan sayı etkinlik sahibini içermez.',
+                  en: 'The number sought does not include the host.',
+                  de: 'Die gesuchte Zahl enthält den Gastgeber nicht.',
+                ),
               ),
               const SizedBox(height: 10),
-              const _PlusBenefitTile(
+              _PlusBenefitTile(
                 icon: Icons.workspace_premium_rounded,
-                title: 'Profilinde Plus ayrıcalığını göster',
-                subtitle:
-                    'Plus üyeliğin kendi profilinde ve diğer oyuncuların gördüğü profilde görünür.',
+                title: _profileText(
+                  context,
+                  tr: 'Profilinde Plus rozeti',
+                  en: 'Plus badge on your profile',
+                  de: 'Plus-Abzeichen im Profil',
+                ),
+                subtitle: _profileText(
+                  context,
+                  tr: 'Aktif Plus, herkese açık profilde Plus rozeti olarak görünür.',
+                  en: 'Active Plus appears as a Plus badge on the public profile.',
+                  de: 'Aktives Plus erscheint als Plus-Abzeichen im öffentlichen Profil.',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _profileText(
+                  context,
+                  tr: 'Ücretsiz: yalnızca bugün ve 1 oyuncu.',
+                  en: 'Free: today only and 1 player.',
+                  de: 'Kostenlos: nur heute und 1 Spieler.',
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -1139,8 +1282,12 @@ class _PlusBenefitTile extends StatelessWidget {
   }
 }
 
-class _PlusMembershipCard extends StatelessWidget {
-  const _PlusMembershipCard({required this.user, required this.onTap});
+class PlusMembershipCard extends StatelessWidget {
+  const PlusMembershipCard({
+    super.key,
+    required this.user,
+    required this.onTap,
+  });
 
   final UserModel user;
   final VoidCallback onTap;
@@ -1154,117 +1301,165 @@ class _PlusMembershipCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool active = user.isPlusActive;
-    final DateTime? expiry = user.plusExpiresAt;
-    const Color plusColor = Color(0xffF59E0B);
+    final DateTime? expiry = user.effectivePlusExpiresAt;
+    final MarketPalette palette = MarketPalette.of(context);
+    final bool roomy = MediaQuery.textScalerOf(context).scale(1) >= 1.3;
+    final bool canceled =
+        user.plusSubscriptionState == 'SUBSCRIPTION_STATE_CANCELED';
+    final String activeDateText = expiry == null
+        ? _profileText(
+            context,
+            tr: 'Plus üyeliğin aktif',
+            en: 'Your Plus membership is active',
+            de: 'Deine Plus-Mitgliedschaft ist aktiv',
+          )
+        : canceled
+        ? _profileText(
+            context,
+            tr: 'Şu tarihe kadar aktif: ${_dateText(expiry)}',
+            en: 'Active until: ${_dateText(expiry)}',
+            de: 'Aktiv bis: ${_dateText(expiry)}',
+          )
+        : _profileText(
+            context,
+            tr: 'Geçerlilik: ${_dateText(expiry)}',
+            en: 'Valid through: ${_dateText(expiry)}',
+            de: 'Gültig bis: ${_dateText(expiry)}',
+          );
+    final Widget statusPill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? palette.owned.withValues(alpha: 0.16) : palette.raised,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        _profileText(
+          context,
+          tr: 'Plus üyeliğin aktif',
+          en: 'Plus membership active',
+          de: 'Plus-Mitgliedschaft aktiv',
+        ),
+        style: profileMenuSubtitleStyle(context).copyWith(
+          color: active ? palette.owned : palette.muted,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
 
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            gradient: active
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[Color(0xff23180B), Color(0xff4A2C0A)],
-                  )
-                : null,
-          ),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 50,
-                height: 50,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: active
-                      ? plusColor.withValues(alpha: 0.18)
-                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(16),
+    return PlusSurface(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(17),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(child: PlusMark(size: 30)),
                 ),
-                child: Icon(
-                  Icons.workspace_premium_rounded,
-                  color: active
-                      ? plusColor
-                      : Theme.of(context).colorScheme.primary,
-                  size: 29,
-                ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            active ? user.plusPlanLabel : 'Dört. Plus',
-                            style: TextStyle(
-                              color: active ? Colors.white : null,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (roomy)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'Dört. Plus',
+                              style: profileMenuTitleStyle(
+                                context,
+                              ).copyWith(color: PlusSurface.ink),
                             ),
-                          ),
+                            if (active) ...<Widget>[
+                              const SizedBox(height: 6),
+                              statusPill,
+                            ],
+                          ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(
+                              child: Text(
+                                'Dört. Plus',
+                                style: profileMenuTitleStyle(
+                                  context,
+                                ).copyWith(color: PlusSurface.ink),
+                              ),
+                            ),
+                            if (active) ...<Widget>[
+                              const SizedBox(width: 8),
+                              statusPill,
+                            ],
+                          ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
+                      const SizedBox(height: 6),
+                      Text(
+                        active
+                            ? activeDateText
+                            : _profileText(
+                                context,
+                                tr: 'Oyuna daha çok yer aç.',
+                                en: 'Make more room for play.',
+                                de: 'Schaffe mehr Raum fürs Spiel.',
+                              ),
+                        style: profileMenuSubtitleStyle(
+                          context,
+                        ).copyWith(color: PlusSurface.muted),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        active
+                            ? _profileText(
+                                context,
+                                tr: 'Üyeliği yönet',
+                                en: 'Manage membership',
+                                de: 'Mitgliedschaft verwalten',
+                              )
+                            : _profileText(
+                                context,
+                                tr: 'Birden fazla oyuncu · ileri tarih planı',
+                                en: 'Multiple players · plan future dates',
+                                de: 'Mehrere Spieler · zukünftige Termine',
+                              ),
+                        style: profileMenuSubtitleStyle(context).copyWith(
+                          color: PlusSurface.accent,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (!active) ...<Widget>[
+                        const SizedBox(height: 10),
+                        Text(
+                          _profileText(
+                            context,
+                            tr: "Plus'ı keşfet",
+                            en: 'Explore Plus',
+                            de: 'Plus entdecken',
                           ),
-                          decoration: BoxDecoration(
-                            color: active
-                                ? const Color(
-                                    0xff22C55E,
-                                  ).withValues(alpha: 0.18)
-                                : Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            active ? 'AKTİF' : 'AKTİF DEĞİL',
-                            style: TextStyle(
-                              color: active
-                                  ? const Color(0xff86EFAC)
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                            ),
+                          style: const TextStyle(
+                            color: PlusSurface.accent,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      active && expiry != null
-                          ? 'Bitiş: ${_dateText(expiry)} · '
-                                '${user.plusRemainingDays} gün kaldı'
-                          : 'Plus ayrıcalıklarını incele ve üyeliğini başlat.',
-                      style: TextStyle(
-                        color: active
-                            ? Colors.white70
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                        height: 1.3,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: active ? Colors.white70 : null,
-              ),
-            ],
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: PlusSurface.muted,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1363,14 +1558,21 @@ class _MembershipCard extends StatelessWidget {
       color = Theme.of(context).colorScheme.primary;
     }
 
+    final MarketPalette palette = MarketPalette.of(context);
     return Card(
       margin: EdgeInsets.zero,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: palette.line),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: onVerify,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
                 width: 46,
@@ -1387,22 +1589,13 @@ class _MembershipCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
+                    Text(title, style: profileMenuTitleStyle(context)),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: profileMenuSubtitleStyle(context)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded),
+              Icon(Icons.chevron_right_rounded, color: palette.muted),
             ],
           ),
         ),
@@ -1412,37 +1605,81 @@ class _MembershipCard extends StatelessWidget {
 }
 
 class _ProfileCompletionCard extends StatelessWidget {
-  const _ProfileCompletionCard({required this.user});
+  const _ProfileCompletionCard({required this.user, required this.onEditField});
 
   final UserModel user;
+  final ValueChanged<ProfileCompletionField> onEditField;
+
+  String _label(BuildContext context, ProfileCompletionField field) {
+    return switch (field) {
+      ProfileCompletionField.name => _profileText(
+        context,
+        tr: 'İsim',
+        en: 'Name',
+        de: 'Name',
+      ),
+      ProfileCompletionField.photo => _profileText(
+        context,
+        tr: 'Profil fotoğrafı',
+        en: 'Profile photo',
+        de: 'Profilfoto',
+      ),
+      ProfileCompletionField.about => _profileText(
+        context,
+        tr: 'Hakkımda',
+        en: 'About me',
+        de: 'Über mich',
+      ),
+      ProfileCompletionField.city => _profileText(
+        context,
+        tr: 'Şehir',
+        en: 'City',
+        de: 'Stadt',
+      ),
+      ProfileCompletionField.games => _profileText(
+        context,
+        tr: 'Oyunlar',
+        en: 'Games',
+        de: 'Spiele',
+      ),
+    };
+  }
+
+  IconData _icon(ProfileCompletionField field) {
+    return switch (field) {
+      ProfileCompletionField.name => Icons.person_outline_rounded,
+      ProfileCompletionField.photo => Icons.photo_camera_outlined,
+      ProfileCompletionField.about => Icons.notes_rounded,
+      ProfileCompletionField.city => Icons.location_city_outlined,
+      ProfileCompletionField.games => Icons.sports_esports_outlined,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final List<bool> checks = <bool>[
-      user.displayName.trim().isNotEmpty,
-      user.profilFotografi.trim().isNotEmpty,
-      user.hakkimda.trim().isNotEmpty,
-      user.resolvedCity.trim().isNotEmpty,
-      user.gameSkills.isNotEmpty,
-      user.oyuncuRozeti,
-    ];
-
-    final int completed = checks.where((bool value) => value).length;
-    final double progress = completed / checks.length;
-    final int percent = (progress * 100).round();
+    final ProfileCompletion completion = profileCompletionOf(user);
+    final MarketPalette palette = MarketPalette.of(context);
+    final List<ProfileCompletionField> missing = completion.missingActions;
 
     return Card(
       margin: EdgeInsets.zero,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: palette.line),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Icon(
+                Icon(
                   Icons.account_circle_outlined,
-                  color: Color(0xffFF9800),
+                  color: palette.accent,
+                  size: 22,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1453,12 +1690,15 @@ class _ProfileCompletionCard extends StatelessWidget {
                       en: 'Profile completion',
                       de: 'Profilfortschritt',
                     ),
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                    style: profileMenuTitleStyle(context),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
-                  '%$percent',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  '%${completion.percent}',
+                  style: profileMenuTitleStyle(
+                    context,
+                  ).copyWith(color: palette.accent),
                 ),
               ],
             ),
@@ -1466,13 +1706,28 @@ class _ProfileCompletionCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 9,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
+                value: completion.percent / 100,
+                minHeight: 6,
+                color: palette.accent,
+                backgroundColor: palette.raised,
               ),
             ),
+            if (missing.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              for (final ProfileCompletionField field in missing)
+                ProfileMenuTile(
+                  icon: _icon(field),
+                  title: _label(context, field),
+                  subtitle: _profileText(
+                    context,
+                    tr: 'Profili düzenle',
+                    en: 'Edit profile',
+                    de: 'Profil bearbeiten',
+                  ),
+                  onTap: () => onEditField(field),
+                ),
+            ] else
+              const SizedBox(height: 8),
           ],
         ),
       ),
@@ -1487,9 +1742,15 @@ class _ProfileMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Card(
       margin: EdgeInsets.zero,
+      color: palette.surface,
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: palette.line),
+      ),
       child: Column(children: children),
     );
   }
@@ -1501,23 +1762,36 @@ class _ProfileMenuTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return ProfileMenuTile(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
       onTap: onTap,
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      leading: Icon(icon),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: trailing,
+    );
+  }
+}
+
+class _MenuDivider extends StatelessWidget {
+  const _MenuDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: MarketPalette.of(context).line,
     );
   }
 }
@@ -1529,30 +1803,27 @@ class _AboutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
     return Card(
       margin: EdgeInsets.zero,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: palette.line),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                const Icon(
-                  Icons.person_outline_rounded,
-                  color: Color(0xffFF9800),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _profileText(
-                    context,
-                    tr: 'Hakkımda',
-                    en: 'About me',
-                    de: 'Über mich',
-                  ),
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ],
+            ProfileHeading(
+              icon: Icons.person_outline_rounded,
+              title: _profileText(
+                context,
+                tr: 'Hakkımda',
+                en: 'About me',
+                de: 'Über mich',
+              ),
             ),
             const SizedBox(height: 10),
             Text(text, style: const TextStyle(height: 1.45)),
@@ -1572,9 +1843,15 @@ class _GamesPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<UserGameSkill> skills = user.sortedGameSkills;
+    final MarketPalette palette = MarketPalette.of(context);
 
     return Card(
       margin: EdgeInsets.zero,
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: palette.line),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1582,20 +1859,15 @@ class _GamesPreviewCard extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(
-                  Icons.sports_esports_outlined,
-                  color: Color(0xffFF9800),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    _profileText(
+                  child: ProfileHeading(
+                    icon: Icons.sports_esports_outlined,
+                    title: _profileText(
                       context,
                       tr: 'Oyunlarım',
                       en: 'My games',
                       de: 'Meine Spiele',
                     ),
-                    style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
                 TextButton(
@@ -1645,14 +1917,20 @@ class _GamesPreviewCard extends StatelessWidget {
                           ).colorScheme.secondaryContainer,
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: Text(
-                          '${skill.levelLabel} · %${skill.level}',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSecondaryContainer,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                        child: Tooltip(
+                          message: selfDeclaredExperienceText(
+                            context,
+                            skill.level,
+                          ),
+                          child: Text(
+                            gameExperienceLabel(context, skill.level),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSecondaryContainer,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ),

@@ -1,5 +1,6 @@
 /* eslint-disable require-jsdoc */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
+import {randomUUID} from "node:crypto";
 import {
   FieldValue,
   getFirestore,
@@ -17,6 +18,9 @@ import {isPlusMembershipActive} from "../users/plusMembership";
 import {
   writeUserNotification,
 } from "../notifications/writeUserNotification";
+import {applicationNotificationId} from
+  "../notifications/applicationNotificationPolicy";
+import {applicationGameSnapshot} from "./applicationGamePolicy";
 
 const REGION = "europe-west1";
 
@@ -62,6 +66,7 @@ export const applyToEvent = onCall(
     let organizerId = "";
     let playerProfileName = "";
     let eventTitle = "";
+    const applicationAttemptId = randomUUID();
 
     await firestore.runTransaction(
       async (transaction) => {
@@ -111,6 +116,22 @@ export const applyToEvent = onCall(
 
         const eventData = eventSnapshot.data() ?? {};
         const playerData = playerSnapshot.data() ?? {};
+
+        const gameSnapshot = applicationGameSnapshot(
+          playerData,
+          eventData.gameId,
+        );
+
+        if (!gameSnapshot) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Bu etkinliğin oyununu önce profiline eklemelisin.",
+            {
+              reason: "game_not_in_profile",
+              gameId: String(eventData.gameId ?? ""),
+            },
+          );
+        }
 
         organizerId = String(
           eventData.olusturanUid ?? "",
@@ -206,9 +227,8 @@ export const applyToEvent = onCall(
         );
 
         if (
-          !Number.isInteger(requiredPlayerCount) ||
-          requiredPlayerCount < 1 ||
-          requiredPlayerCount > 4
+          !Number.isSafeInteger(requiredPlayerCount) ||
+          requiredPlayerCount < 1
         ) {
           throw new HttpsError(
             "failed-precondition",
@@ -301,6 +321,7 @@ export const applyToEvent = onCall(
           applicationReference,
           {
             applicationId: playerId,
+            applicationAttemptId,
             eventId,
             organizerId,
             playerId,
@@ -312,6 +333,10 @@ export const applyToEvent = onCall(
             playerVerified:
               playerData.verified === true ||
               playerData.verificationStatus === "approved",
+            gameId: gameSnapshot.gameId,
+            applicantGameExperienceLevel: gameSnapshot.level,
+            applicantGameExperienceKey: gameSnapshot.levelKey,
+            applicantGameExperienceSource: "profile_snapshot",
             note,
             lifecycleVersion:
               APPLICATION_LIFECYCLE_VERSION,
@@ -348,6 +373,12 @@ export const applyToEvent = onCall(
     await writeUserNotification(
       firestore,
       {
+        notificationId: applicationNotificationId(
+          "application_received",
+          eventId,
+          playerId,
+          applicationAttemptId,
+        ),
         userId: organizerId,
         actorId: playerId,
         eventId,

@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable max-len */
 import {
   FieldPath,
@@ -29,6 +30,7 @@ export const adminSanitizeEventChatPreviews = onCall(
   },
   async (request) => {
     assertAdminPermission(request, "events.moderate");
+    await assertCurrentAdminSession(request);
 
     const adminUid = request.auth.uid;
     const adminRole = getAdminRole(request);

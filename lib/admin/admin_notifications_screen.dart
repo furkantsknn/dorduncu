@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'legacy_notification_cancel_action.dart';
 
 String _adminNotificationsText(
   BuildContext context, {
@@ -17,7 +18,6 @@ String _adminNotificationsText(
       return tr;
   }
 }
-
 
 class AdminNotificationsScreen extends StatefulWidget {
   const AdminNotificationsScreen({super.key});
@@ -38,6 +38,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   String _selectedPriority = 'normal';
 
   bool _saving = false;
+  String? _requestId;
 
   @override
   void dispose() {
@@ -83,7 +84,14 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Text(_adminNotificationsText(context, tr: 'Bildirimi Oluştur', en: 'Create Notification', de: 'Benachrichtigung erstellen')),
+          title: Text(
+            _adminNotificationsText(
+              context,
+              tr: 'Bildirimi Oluştur',
+              en: 'Create Notification',
+              de: 'Benachrichtigung erstellen',
+            ),
+          ),
           content: Text(
             'Hedef: ${_targetTitle(_selectedTarget)}\n\n'
             'Başlık: $title\n\n'
@@ -94,13 +102,27 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_adminNotificationsText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _adminNotificationsText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
-              child: Text(_adminNotificationsText(context, tr: 'Oluştur', en: 'Create', de: 'Erstellen')),
+              child: Text(
+                _adminNotificationsText(
+                  context,
+                  tr: 'Oluştur',
+                  en: 'Create',
+                  de: 'Erstellen',
+                ),
+              ),
             ),
           ],
         );
@@ -116,11 +138,13 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
     });
 
     try {
+      _requestId ??= DateTime.now().microsecondsSinceEpoch.toString();
       final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('adminCreateNotification');
 
       await callable.call(<String, dynamic>{
+        'requestId': _requestId,
         'title': title,
         'message': message,
         'targetType': _selectedTarget,
@@ -133,6 +157,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       }
 
       _titleController.clear();
+      _requestId = null;
       _messageController.clear();
       _targetValueController.clear();
 
@@ -172,11 +197,21 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
       case 'player':
         return 'Oyuncu rozetli kullanıcılar';
       case 'city':
-        return _adminNotificationsText(context, tr: 'Şehir', en: 'City', de: 'Stadt');
+        return _adminNotificationsText(
+          context,
+          tr: 'Şehir',
+          en: 'City',
+          de: 'Stadt',
+        );
       case 'user':
         return 'Belirli kullanıcı';
       default:
-        return _adminNotificationsText(context, tr: 'Tüm kullanıcılar', en: 'All users', de: 'Alle Nutzer');
+        return _adminNotificationsText(
+          context,
+          tr: 'Tüm kullanıcılar',
+          en: 'All users',
+          de: 'Alle Nutzer',
+        );
     }
   }
 
@@ -224,7 +259,14 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     items: <DropdownMenuItem<String>>[
                       DropdownMenuItem<String>(
                         value: 'all',
-                        child: Text(_adminNotificationsText(context, tr: 'Tüm kullanıcılar', en: 'All users', de: 'Alle Nutzer')),
+                        child: Text(
+                          _adminNotificationsText(
+                            context,
+                            tr: 'Tüm kullanıcılar',
+                            en: 'All users',
+                            de: 'Alle Nutzer',
+                          ),
+                        ),
                       ),
                       DropdownMenuItem<String>(
                         value: 'plus',
@@ -263,7 +305,12 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                       enabled: !_saving,
                       decoration: InputDecoration(
                         labelText: _selectedTarget == 'city'
-                            ? _adminNotificationsText(context, tr: 'Şehir', en: 'City', de: 'Stadt')
+                            ? _adminNotificationsText(
+                                context,
+                                tr: 'Şehir',
+                                en: 'City',
+                                de: 'Stadt',
+                              )
                             : 'Kullanıcı kimliği',
                         border: const OutlineInputBorder(),
                       ),
@@ -273,7 +320,12 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _selectedPriority,
                     decoration: InputDecoration(
-                      labelText: _adminNotificationsText(context, tr: 'Öncelik', en: 'Priority', de: 'Priorität'),
+                      labelText: _adminNotificationsText(
+                        context,
+                        tr: 'Öncelik',
+                        en: 'Priority',
+                        de: 'Priorität',
+                      ),
                       border: OutlineInputBorder(),
                     ),
                     items: <DropdownMenuItem<String>>[
@@ -308,7 +360,12 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     enabled: !_saving,
                     maxLength: 80,
                     decoration: InputDecoration(
-                      labelText: _adminNotificationsText(context, tr: 'Bildirim başlığı', en: 'Notification title', de: 'Benachrichtigungstitel'),
+                      labelText: _adminNotificationsText(
+                        context,
+                        tr: 'Bildirim başlığı',
+                        en: 'Notification title',
+                        de: 'Benachrichtigungstitel',
+                      ),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -320,7 +377,12 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                     maxLines: 7,
                     maxLength: 500,
                     decoration: InputDecoration(
-                      labelText: _adminNotificationsText(context, tr: 'Bildirim mesajı', en: 'Notification message', de: 'Benachrichtigungstext'),
+                      labelText: _adminNotificationsText(
+                        context,
+                        tr: 'Bildirim mesajı',
+                        en: 'Notification message',
+                        de: 'Benachrichtigungstext',
+                      ),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -378,7 +440,12 @@ class _NotificationHistory extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              _adminNotificationsText(context, tr: 'Bildirim Geçmişi', en: 'Notification History', de: 'Benachrichtigungsverlauf'),
+              _adminNotificationsText(
+                context,
+                tr: 'Bildirim Geçmişi',
+                en: 'Notification History',
+                de: 'Benachrichtigungsverlauf',
+              ),
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
@@ -417,6 +484,7 @@ class _NotificationHistory extends StatelessWidget {
                         ) ...<Widget>[
                           if (index > 0) const Divider(height: 26),
                           _NotificationRow(
+                            notificationId: documents[index].id,
                             data: documents[index].data(),
                             targetTitle: targetTitle,
                             priorityTitle: priorityTitle,
@@ -435,12 +503,14 @@ class _NotificationHistory extends StatelessWidget {
 
 class _NotificationRow extends StatelessWidget {
   const _NotificationRow({
+    required this.notificationId,
     required this.data,
     required this.targetTitle,
     required this.priorityTitle,
   });
 
   final Map<String, dynamic> data;
+  final String notificationId;
   final String Function(String value) targetTitle;
   final String Function(String value) priorityTitle;
 
@@ -472,6 +542,103 @@ class _NotificationRow extends StatelessWidget {
           Text(message, maxLines: 3, overflow: TextOverflow.ellipsis),
         ],
         const SizedBox(height: 9),
+        Text(
+          _adminNotificationsText(
+            context,
+            tr: 'Hedef: ${data['recipientCount'] ?? 0} • Uygulama içi: ${data['inAppCount'] ?? 0}\nFCM kabulü: ${data['fcmAcceptedCount'] ?? 0} • Hatalı: ${data['failureCount'] ?? 0} • Atlanan: ${data['skippedCount'] ?? 0}',
+            en: 'Targets: ${data['recipientCount'] ?? 0} • In-app: ${data['inAppCount'] ?? 0}\nFCM accepted: ${data['fcmAcceptedCount'] ?? 0} • Failed: ${data['failureCount'] ?? 0} • Skipped: ${data['skippedCount'] ?? 0}',
+            de: 'Ziele: ${data['recipientCount'] ?? 0} • In-App: ${data['inAppCount'] ?? 0}\nFCM akzeptiert: ${data['fcmAcceptedCount'] ?? 0} • Fehler: ${data['failureCount'] ?? 0} • Übersprungen: ${data['skippedCount'] ?? 0}',
+          ),
+        ),
+        if (data['pushMode'] == 'simulation')
+          Text(
+            _adminNotificationsText(
+              context,
+              tr: 'Dev simülasyonu — gerçek push gönderilmez',
+              en: 'Dev simulation — no real push',
+              de: 'Dev-Simulation — kein echter Push',
+            ),
+          ),
+        if (data['failureReason'] != null)
+          Text(
+            _adminNotificationsText(
+              context,
+              tr: 'Dağıtım kesildi. Kalan hedefler güvenle yeniden denenebilir.',
+              en: 'Distribution interrupted. Remaining targets can be retried safely.',
+              de: 'Verteilung unterbrochen. Verbleibende Ziele können sicher wiederholt werden.',
+            ),
+          ),
+        LegacyNotificationCancelAction(
+          notificationId: notificationId,
+          data: data,
+        ),
+        if (status == 'failed' &&
+            data['dispatchVersion'] == 1 &&
+            data['distributionComplete'] != true)
+          OutlinedButton(
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(
+                    _adminNotificationsText(
+                      context,
+                      tr: 'Kalan dağıtıma devam et?',
+                      en: 'Resume remaining distribution?',
+                      de: 'Verbleibende Verteilung fortsetzen?',
+                    ),
+                  ),
+                  content: Text('${targetTitle(targetType)}\n$title\n$message'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(
+                        _adminNotificationsText(
+                          context,
+                          tr: 'Vazgeç',
+                          en: 'Cancel',
+                          de: 'Abbrechen',
+                        ),
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(
+                        _adminNotificationsText(
+                          context,
+                          tr: 'Devam et',
+                          en: 'Continue',
+                          de: 'Fortsetzen',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true || !context.mounted) return;
+              try {
+                await FirebaseFunctions.instanceFor(region: 'europe-west1')
+                    .httpsCallable('adminRetryNotification')
+                    .call({'notificationId': notificationId});
+              } on FirebaseFunctionsException catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(error.message ?? 'İşlem tamamlanamadı.'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: Text(
+              _adminNotificationsText(
+                context,
+                tr: 'Güvenli yeniden dene',
+                en: 'Retry safely',
+                de: 'Sicher wiederholen',
+              ),
+            ),
+          ),
         Wrap(
           spacing: 7,
           runSpacing: 7,
@@ -481,7 +648,10 @@ class _NotificationRow extends StatelessWidget {
               text: priorityTitle(priority),
               icon: Icons.priority_high_outlined,
             ),
-            _Label(text: _statusTitle(context, status), icon: Icons.info_outline),
+            _Label(
+              text: _statusTitle(context, status),
+              icon: Icons.info_outline,
+            ),
             if (createdAt != null)
               _Label(
                 text: _formatDate(createdAt.toDate()),
@@ -495,14 +665,43 @@ class _NotificationRow extends StatelessWidget {
 
   String _statusTitle(BuildContext context, String value) {
     switch (value) {
+      case 'completed':
+        return _adminNotificationsText(
+          context,
+          tr: 'Tamamlandı',
+          en: 'Completed',
+          de: 'Abgeschlossen',
+        );
+      case 'partial':
+        return _adminNotificationsText(
+          context,
+          tr: 'Kısmen tamamlandı',
+          en: 'Partially completed',
+          de: 'Teilweise abgeschlossen',
+        );
       case 'processing':
         return 'Gönderiliyor';
       case 'sent':
-        return _adminNotificationsText(context, tr: 'Gönderildi', en: 'Sent', de: 'Gesendet');
+        return _adminNotificationsText(
+          context,
+          tr: 'Gönderildi',
+          en: 'Sent',
+          de: 'Gesendet',
+        );
       case 'failed':
-        return _adminNotificationsText(context, tr: 'Başarısız', en: 'Failed', de: 'Fehlgeschlagen');
+        return _adminNotificationsText(
+          context,
+          tr: 'Başarısız',
+          en: 'Failed',
+          de: 'Fehlgeschlagen',
+        );
       case 'cancelled':
-        return _adminNotificationsText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgebrochen');
+        return _adminNotificationsText(
+          context,
+          tr: 'İptal edildi',
+          en: 'Cancelled',
+          de: 'Abgebrochen',
+        );
       default:
         return 'Bekliyor';
     }

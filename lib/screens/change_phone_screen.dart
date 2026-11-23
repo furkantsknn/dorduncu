@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/firebase_auth_language.dart';
+import '../services/phone_verification_session.dart';
 
 String _changePhoneText(
   BuildContext context, {
@@ -45,8 +47,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
 
   int _remainingSeconds = 0;
   Timer? _timer;
-
-  static const int _resendWaitSeconds = 60;
+  final ResendCooldown _resendCooldown = ResendCooldown.shared;
 
   final List<_CountryOption> _countries = const <_CountryOption>[
     _CountryOption(name: 'Türkiye', flag: '🇹🇷', code: '+90'),
@@ -158,12 +159,18 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     return fullNumber;
   }
 
-  void _startTimer() {
+  void _startTimer({bool start = false}) {
     _timer?.cancel();
 
+    if (start) {
+      _resendCooldown.start();
+    }
+
     setState(() {
-      _remainingSeconds = _resendWaitSeconds;
+      _remainingSeconds = _resendCooldown.remainingSeconds;
     });
+
+    if (_remainingSeconds == 0) return;
 
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
       if (!mounted) {
@@ -171,7 +178,8 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
         return;
       }
 
-      if (_remainingSeconds <= 1) {
+      final int current = _resendCooldown.remainingSeconds;
+      if (current == 0) {
         timer.cancel();
         setState(() {
           _remainingSeconds = 0;
@@ -180,7 +188,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
       }
 
       setState(() {
-        _remainingSeconds--;
+        _remainingSeconds = current;
       });
     });
   }
@@ -191,6 +199,19 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     }
 
     if (forceResend && _remainingSeconds > 0) {
+      return;
+    }
+
+    if (!_resendCooldown.canSend) {
+      _startTimer();
+      _showMessage(
+        _changePhoneText(
+          context,
+          tr: 'Yeni kod istemeden önce $_remainingSeconds saniye bekle.',
+          en: 'Wait $_remainingSeconds seconds before requesting another code.',
+          de: 'Warte $_remainingSeconds Sekunden, bevor du einen neuen Code anforderst.',
+        ),
+      );
       return;
     }
 
@@ -214,6 +235,12 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
         _sendingCode = true;
       });
 
+      _startTimer(start: true);
+
+      await applyFirebaseAuthLanguage(
+        _auth,
+        Localizations.localeOf(context).languageCode,
+      );
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         forceResendingToken: forceResend ? _resendToken : null,
@@ -254,7 +281,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
             _codeController.clear();
           });
 
-          _startTimer();
+          _startTimer(start: true);
           _showMessage(
             _changePhoneText(
               context,
@@ -724,6 +751,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                 controller: _phoneController,
                 enabled: !_sendingCode,
                 keyboardType: TextInputType.phone,
+                autofillHints: const <String>[AutofillHints.telephoneNumber],
                 textInputAction: TextInputAction.done,
                 inputFormatters: <TextInputFormatter>[
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9\s\-\(\)]')),
@@ -810,6 +838,7 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                 enabled: !_verifyingCode,
                 autofocus: true,
                 keyboardType: TextInputType.number,
+                autofillHints: const <String>[AutofillHints.oneTimeCode],
                 textInputAction: TextInputAction.done,
                 maxLength: 6,
                 inputFormatters: <TextInputFormatter>[

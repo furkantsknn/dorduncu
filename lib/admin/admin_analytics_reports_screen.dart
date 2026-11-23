@@ -6,7 +6,6 @@ import 'admin_market_orders_screen.dart';
 import 'admin_statistics_screen.dart';
 import 'admin_support_list_screen.dart';
 import 'admin_users_screen.dart';
-import 'admin_wallet_management_screen.dart';
 import 'admin_audit_logs_screen.dart';
 
 class AdminAnalyticsReportsScreen extends StatelessWidget {
@@ -97,8 +96,7 @@ class AdminAnalyticsReportsScreen extends StatelessWidget {
                     _ReportTile(
                       icon: Icons.shield_outlined,
                       title: 'Audit ve Operasyon Kayıtları',
-                      subtitle:
-                          'Kritik yönetim ve sistem hareketlerini incele',
+                      subtitle: 'Kritik yönetim ve sistem hareketlerini incele',
                       onTap: () {
                         Navigator.push<void>(
                           context,
@@ -137,22 +135,6 @@ class AdminAnalyticsReportsScreen extends StatelessWidget {
                           MaterialPageRoute<void>(
                             builder: (BuildContext context) {
                               return const AdminEventsScreen();
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  if (canManageFinance)
-                    _ReportTile(
-                      icon: Icons.account_balance_wallet_outlined,
-                      title: 'Cüzdan Detayları',
-                      subtitle: 'Finans yetkisi gerektiren cüzdan kayıtları',
-                      onTap: () {
-                        Navigator.push<void>(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (BuildContext context) {
-                              return const AdminWalletManagementScreen();
                             },
                           ),
                         );

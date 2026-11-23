@@ -18,7 +18,6 @@ String _adminSettingsText(
   }
 }
 
-
 class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({super.key});
 
@@ -48,7 +47,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   bool _eventCreationEnabled = true;
   bool _eventApplicationsEnabled = true;
   bool _supportEnabled = true;
-  bool _paymentsEnabled = true;
+  // V1'de düzenlenmez; eski istemcilerin alanını değiştirmeden geri gönderilir.
+  bool _legacyPaymentsEnabled = true;
   bool _marketEnabled = true;
 
   bool _loading = true;
@@ -108,7 +108,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         _eventCreationEnabled = data['eventCreationEnabled'] != false;
         _eventApplicationsEnabled = data['eventApplicationsEnabled'] != false;
         _supportEnabled = data['supportEnabled'] != false;
-        _paymentsEnabled = data['paymentsEnabled'] != false;
+        _legacyPaymentsEnabled = data['paymentsEnabled'] != false;
         _marketEnabled = data['marketEnabled'] != false;
         _loading = false;
       });
@@ -158,7 +158,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         'eventCreationEnabled': _eventCreationEnabled,
         'eventApplicationsEnabled': _eventApplicationsEnabled,
         'supportEnabled': _supportEnabled,
-        'paymentsEnabled': _paymentsEnabled,
+        'paymentsEnabled': _legacyPaymentsEnabled,
         'marketEnabled': _marketEnabled,
         'supportEmail': supportEmail,
         'termsUrl': _termsUrlController.text.trim(),
@@ -193,7 +193,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: Text(_adminSettingsText(context, tr: 'Sistem Ayarları', en: 'System Settings', de: 'Systemeinstellungen'))),
+        appBar: AppBar(
+          title: Text(
+            _adminSettingsText(
+              context,
+              tr: 'Sistem Ayarları',
+              en: 'System Settings',
+              de: 'Systemeinstellungen',
+            ),
+          ),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -201,7 +210,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _adminSettingsText(context, tr: 'Sistem Ayarları', en: 'System Settings', de: 'Systemeinstellungen'),
+          _adminSettingsText(
+            context,
+            tr: 'Sistem Ayarları',
+            en: 'System Settings',
+            de: 'Systemeinstellungen',
+          ),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -214,7 +228,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             children: <Widget>[
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Bakım modu', en: 'Maintenance mode', de: 'Wartungsmodus')),
+                title: Text(
+                  _adminSettingsText(
+                    context,
+                    tr: 'Bakım modu',
+                    en: 'Maintenance mode',
+                    de: 'Wartungsmodus',
+                  ),
+                ),
                 subtitle: Text(
                   'Uygulamanın kullanıcı erişimini geçici olarak sınırlar.',
                 ),
@@ -235,7 +256,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   minLines: 3,
                   maxLines: 5,
                   decoration: InputDecoration(
-                    labelText: _adminSettingsText(context, tr: 'Bakım mesajı', en: 'Maintenance message', de: 'Wartungsmeldung'),
+                    labelText: _adminSettingsText(
+                      context,
+                      tr: 'Bakım mesajı',
+                      en: 'Maintenance message',
+                      de: 'Wartungsmeldung',
+                    ),
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -243,7 +269,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               const Divider(height: 28),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Yeni kayıtlar açık', en: 'New registrations enabled', de: 'Neue Registrierungen aktiviert')),
+                title: Text(
+                  _adminSettingsText(
+                    context,
+                    tr: 'Yeni kayıtlar açık',
+                    en: 'New registrations enabled',
+                    de: 'Neue Registrierungen aktiviert',
+                  ),
+                ),
                 value: _registrationEnabled,
                 onChanged: _saving
                     ? null
@@ -255,7 +288,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Etkinlik oluşturma açık', en: 'Event creation enabled', de: 'Veranstaltungserstellung aktiviert')),
+                title: Text(
+                  _adminSettingsText(
+                    context,
+                    tr: 'Etkinlik oluşturma açık',
+                    en: 'Event creation enabled',
+                    de: 'Veranstaltungserstellung aktiviert',
+                  ),
+                ),
                 value: _eventCreationEnabled,
                 onChanged: _saving
                     ? null
@@ -267,7 +307,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Etkinlik başvuruları açık', en: 'Event applications enabled', de: 'Veranstaltungsbewerbungen aktiviert')),
+                title: Text(
+                  _adminSettingsText(
+                    context,
+                    tr: 'Etkinlik başvuruları açık',
+                    en: 'Event applications enabled',
+                    de: 'Veranstaltungsbewerbungen aktiviert',
+                  ),
+                ),
                 value: _eventApplicationsEnabled,
                 onChanged: _saving
                     ? null
@@ -279,7 +326,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Destek sistemi açık', en: 'Support system enabled', de: 'Support-System aktiviert')),
+                title: Text(
+                  _adminSettingsText(
+                    context,
+                    tr: 'Destek sistemi açık',
+                    en: 'Support system enabled',
+                    de: 'Support-System aktiviert',
+                  ),
+                ),
                 value: _supportEnabled,
                 onChanged: _saving
                     ? null
@@ -291,19 +345,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Ödemeler açık', en: 'Payments enabled', de: 'Zahlungen aktiviert')),
-                value: _paymentsEnabled,
-                onChanged: _saving
-                    ? null
-                    : (bool value) {
-                        setState(() {
-                          _paymentsEnabled = value;
-                        });
-                      },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Market açık', en: 'Market enabled', de: 'Markt aktiviert')),
+                title: Text(
+                  _adminSettingsText(
+                    context,
+                    tr: 'Market açık',
+                    en: 'Market enabled',
+                    de: 'Markt aktiviert',
+                  ),
+                ),
                 value: _marketEnabled,
                 onChanged: _saving
                     ? null
@@ -317,46 +366,12 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           ),
           const SizedBox(height: 14),
           _SettingsCard(
-            title: _adminSettingsText(context, tr: 'Uygulama Sürümü', en: 'App Version', de: 'App-Version'),
-            icon: Icons.system_update_outlined,
-            children: <Widget>[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(_adminSettingsText(context, tr: 'Zorunlu güncelleme', en: 'Force update', de: 'Erzwungenes Update')),
-                value: _forceUpdateEnabled,
-                onChanged: _saving
-                    ? null
-                    : (bool value) {
-                        setState(() {
-                          _forceUpdateEnabled = value;
-                        });
-                      },
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _minimumVersionController,
-                enabled: !_saving,
-                decoration: InputDecoration(
-                  labelText: _adminSettingsText(context, tr: 'Minimum sürüm', en: 'Minimum version', de: 'Mindestversion'),
-                  hintText: 'Örnek: 1.2.0',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _latestVersionController,
-                enabled: !_saving,
-                decoration: InputDecoration(
-                  labelText: _adminSettingsText(context, tr: 'Güncel sürüm', en: 'Current version', de: 'Aktuelle Version'),
-                  hintText: 'Örnek: 1.4.0',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _SettingsCard(
-            title: _adminSettingsText(context, tr: 'İletişim ve Yasal Bağlantılar', en: 'Contact and Legal Links', de: 'Kontakt- und Rechtslinks'),
+            title: _adminSettingsText(
+              context,
+              tr: 'İletişim ve Yasal Bağlantılar',
+              en: 'Contact and Legal Links',
+              de: 'Kontakt- und Rechtslinks',
+            ),
             icon: Icons.policy_outlined,
             children: <Widget>[
               TextField(
@@ -404,7 +419,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   : const Icon(Icons.save_outlined),
               label: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                child: Text(_saving ? 'Kaydediliyor...' : _adminSettingsText(context, tr: 'Ayarları Kaydet', en: 'Save Settings', de: 'Einstellungen speichern')),
+                child: Text(
+                  _saving
+                      ? 'Kaydediliyor...'
+                      : _adminSettingsText(
+                          context,
+                          tr: 'Ayarları Kaydet',
+                          en: 'Save Settings',
+                          de: 'Einstellungen speichern',
+                        ),
+                ),
               ),
             ),
           ),

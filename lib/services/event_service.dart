@@ -3,6 +3,56 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/event_model.dart';
+import 'event_operation_failure.dart';
+
+const plusPlayerLimitErrorCode = 'plus_required_for_multiple_players';
+const eventFreeTodayErrorCode = 'event_free_today_only';
+const openEventQuotaErrorCode = 'free_open_event_quota_reached';
+
+class OpenEventQuotaException implements Exception {
+  const OpenEventQuotaException();
+}
+
+class EventCreationQuotaState {
+  const EventCreationQuotaState({
+    required this.openEventCount,
+    required this.plusActive,
+    required this.limit,
+    required this.canCreate,
+  });
+
+  final int openEventCount;
+  final bool plusActive;
+  final int? limit;
+  final bool canCreate;
+}
+
+class PlusPlayerLimitException implements Exception {
+  const PlusPlayerLimitException();
+}
+
+class EventScheduleException implements Exception {
+  const EventScheduleException(this.code);
+
+  final String code;
+}
+
+bool isEventScheduleFailure({Object? details}) {
+  if (details is! Map) {
+    return false;
+  }
+  final Object? code = details['code'];
+  return code == eventFreeTodayErrorCode;
+}
+
+bool isPlusPlayerLimitFailure({Object? details, String? message}) {
+  if (details is Map && details['code'] == plusPlayerLimitErrorCode) {
+    return true;
+  }
+
+  return message?.trim() ==
+      '2 veya daha fazla oyuncu için Plus üyelik gerekir.';
+}
 
 class EventService {
   EventService({
@@ -20,6 +70,20 @@ class EventService {
 
   CollectionReference<Map<String, dynamic>> get _events {
     return _firestore.collection('events');
+  }
+
+  Future<EventCreationQuotaState> getCreationQuotaState({String? uid}) async {
+    final HttpsCallableResult<dynamic> result = await _functions
+        .httpsCallable('getEventCreationQuotaState')
+        .call(<String, dynamic>{'uid': ?uid});
+    final dynamic data = result.data;
+    if (data is! Map) throw StateError('Etkinlik kota bilgisi okunamadı.');
+    return EventCreationQuotaState(
+      openEventCount: (data['openEventCount'] as num?)?.toInt() ?? 0,
+      plusActive: data['plusActive'] == true,
+      limit: (data['limit'] as num?)?.toInt(),
+      canCreate: data['canCreate'] == true,
+    );
   }
 
   String get currentUserId {
@@ -227,7 +291,7 @@ class EventService {
     return EventModel.fromDocument(snapshot);
   }
 
-  Future<String> createEvent(EventModel event) async {
+  Future<String> createEvent(EventModel event, {String? requestId}) async {
     final User? firebaseUser = _auth.currentUser;
 
     if (firebaseUser == null) {
@@ -238,10 +302,10 @@ class EventService {
 
     try {
       idToken = await firebaseUser.getIdToken(true);
-    } on FirebaseAuthException catch (error) {
-      throw StateError(
-        error.message ??
-            'Oturum doğrulanamadı. Lütfen çıkış yapıp yeniden giriş yapın.',
+    } on FirebaseAuthException catch (error, stack) {
+      Error.throwWithStackTrace(
+        EventOperationFailure(code: error.code, stage: 'auth-token'),
+        stack,
       );
     }
 
@@ -257,8 +321,8 @@ class EventService {
       throw StateError('Etkinlik sahibi oturum açan kullanıcıyla eşleşmiyor.');
     }
 
-    if (event.playerCount < 1 || event.playerCount > 4) {
-      throw ArgumentError('Oyuncu sayısı 1 ile 4 arasında olmalıdır.');
+    if (event.playerCount < 1) {
+      throw ArgumentError('Oyuncu sayısı pozitif bir tam sayı olmalıdır.');
     }
 
     if (event.resolvedGameId.trim().isEmpty) {
@@ -303,6 +367,7 @@ class EventService {
 
       final HttpsCallableResult<dynamic> result = await callable
           .call(<String, dynamic>{
+            'requestId': ?requestId,
             'gameId': event.resolvedGameId,
             'playerCount': event.playerCount,
             'memberPreference': event.memberPreference,
@@ -332,20 +397,37 @@ class EventService {
       }
 
       return eventId;
-    } on FirebaseFunctionsException catch (error) {
-      final String message = error.message?.trim() ?? '';
-
-      if (message.isNotEmpty) {
-        throw StateError(message);
+    } on FirebaseFunctionsException catch (error, stack) {
+      if (error.details is Map &&
+          (error.details as Map)['code'] == openEventQuotaErrorCode) {
+        throw const OpenEventQuotaException();
+      }
+      if (isPlusPlayerLimitFailure(
+        details: error.details,
+        message: error.message,
+      )) {
+        throw const PlusPlayerLimitException();
       }
 
-      throw StateError('Etkinlik oluşturulurken sunucu hatası oluştu.');
+      if (isEventScheduleFailure(details: error.details)) {
+        final Object? code = error.details is Map
+            ? (error.details as Map)['code']
+            : null;
+        throw EventScheduleException(
+          code?.toString() ?? eventFreeTodayErrorCode,
+        );
+      }
+
+      Error.throwWithStackTrace(
+        EventOperationFailure(code: error.code, stage: 'create-callable'),
+        stack,
+      );
     }
   }
 
   Future<void> updateEvent({
     required String eventId,
-    String? game,
+    String? gameId,
     int? playerCount,
     String? memberPreference,
     String? description,
@@ -362,7 +444,7 @@ class EventService {
 
       await callable.call(<String, dynamic>{
         'eventId': eventId,
-        'game': ?game?.trim(),
+        'gameId': ?gameId?.trim(),
         'playerCount': ?playerCount,
         if (memberPreference != null)
           'memberPreference': memberPreference.trim(),
@@ -376,6 +458,22 @@ class EventService {
         'longitude': ?longitude,
       });
     } on FirebaseFunctionsException catch (error) {
+      if (isPlusPlayerLimitFailure(
+        details: error.details,
+        message: error.message,
+      )) {
+        throw const PlusPlayerLimitException();
+      }
+
+      if (isEventScheduleFailure(details: error.details)) {
+        final Object? code = error.details is Map
+            ? (error.details as Map)['code']
+            : null;
+        throw EventScheduleException(
+          code?.toString() ?? eventFreeTodayErrorCode,
+        );
+      }
+
       final String message = error.message?.trim() ?? '';
 
       if (message.isNotEmpty) {
@@ -602,7 +700,10 @@ class EventService {
         'markEventCompleted',
       );
 
-      await callable.call(<String, dynamic>{'eventId': eventId});
+      await callable.call(<String, dynamic>{
+        'eventId': eventId,
+        'confirmedOccurred': true,
+      });
     } on FirebaseFunctionsException catch (error) {
       final String message = error.message?.trim() ?? '';
 

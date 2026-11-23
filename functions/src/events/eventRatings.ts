@@ -478,6 +478,7 @@ function readOptionalComment(data: unknown): string {
 function isCompletedEvent(
   data: FirebaseFirestore.DocumentData,
 ): boolean {
+  if (data.closureReason !== "occurred_confirmed") return false;
   const status = String(
     data.status ?? data.durum ?? "",
   )

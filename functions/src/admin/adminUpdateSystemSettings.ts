@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
@@ -12,6 +13,7 @@ export const adminUpdateSystemSettings = onCall(
   {region: "europe-west1", enforceAppCheck: true},
   async (request) => {
     assertAdminPermission(request, "settings.manage");
+    await assertCurrentAdminSession(request);
 
     const data = request.data as Record<string, unknown>;
     const adminId = request.auth.uid;

@@ -3,10 +3,16 @@ import {
   FieldValue,
   Firestore,
   Timestamp,
+  Transaction,
 } from "firebase-admin/firestore";
 import {
   getMessaging,
 } from "firebase-admin/messaging";
+import {logger} from "firebase-functions";
+import {createHash} from "crypto";
+
+// Created by MainActivity; app builds without it fall back to the FCM channel.
+export const ANDROID_NOTIFICATION_CHANNEL_ID = "dort_default";
 
 const MAX_RETRY_ATTEMPTS = 5;
 const RETRY_DELAYS_MINUTES = [5, 15, 60, 180, 360];
@@ -89,34 +95,26 @@ export function evaluateNotificationPreferences(
   };
 }
 
-/**
- * Delivers a notification to registered device tokens.
- *
- * @param {Firestore} firestore Firestore instance.
- * @param {NotificationDeliveryInput} input Notification payload.
- * @param {string[]|null} targetTokenHashes Optional retry token hashes.
- * @return {Promise<{delivered: number, retryTokenHashes: string[]}>} Result.
- */
-export async function deliverPushNotification(
-  firestore: Firestore,
-  input: NotificationDeliveryInput,
-  targetTokenHashes: string[] | null = null,
-): Promise<{
-  delivered: number;
-  retryTokenHashes: string[];
-}> {
-  const devicesSnapshot = await firestore
+/* eslint-disable require-jsdoc */
+export interface PreparedPushDevice {
+  reference: FirebaseFirestore.DocumentReference;
+  token: string;
+  tokenHash: string;
+}
+
+export async function preparePushDevices(firestore: Firestore, userId: string, targetTokenHashes: string[] | null = null, transaction?: Transaction): Promise<PreparedPushDevice[]> {
+  const query = firestore
     .collection("users")
-    .doc(input.userId)
+    .doc(userId)
     .collection("notification_devices")
-    .where("enabled", "==", true)
-    .get();
+    .where("enabled", "==", true);
+  const devicesSnapshot = transaction ? await transaction.get(query) : await query.get();
 
   const targetHashSet = targetTokenHashes ?
     new Set(targetTokenHashes) :
     null;
 
-  const devices = devicesSnapshot.docs
+  return devicesSnapshot.docs
     .map((document) => {
       const data = document.data();
 
@@ -133,20 +131,57 @@ export async function deliverPushNotification(
 
       return targetHashSet === null || targetHashSet.has(device.tokenHash);
     });
+}
+
+/**
+ * Delivers a notification to registered device tokens.
+ *
+ * @param {Firestore} firestore Firestore instance.
+ * @param {NotificationDeliveryInput} input Notification payload.
+ * @param {string[]|null} targetTokenHashes Optional retry token hashes.
+ * @param {PreparedPushDevice[]} preparedDevices Prepared device snapshot.
+ * @param {Function} beforeSend Atomic external-attempt boundary.
+ * @return {Promise<{delivered: number, retryTokenHashes: string[]}>} Result.
+ */
+export async function deliverPushNotification(
+  firestore: Firestore,
+  input: NotificationDeliveryInput,
+  targetTokenHashes: string[] | null = null,
+  preparedDevices?: PreparedPushDevice[],
+  beforeSend?: () => Promise<void>,
+): Promise<{
+  delivered: number;
+  retryTokenHashes: string[];
+  failed: number;
+}> {
+  const devices = preparedDevices ?? await preparePushDevices(firestore, input.userId, targetTokenHashes);
 
   if (devices.length === 0) {
     return {
       delivered: 0,
       retryTokenHashes: [],
+      failed: 0,
     };
   }
 
   let delivered = 0;
+  let failed = 0;
   const retryTokenHashes: string[] = [];
 
+  let started = false;
   for (let offset = 0; offset < devices.length; offset += 500) {
     const slice = devices.slice(offset, offset + 500);
-    const response = await getMessaging().sendEachForMulticast({
+    // The emulator must never obtain ADC or send a real push, even with copied tokens.
+    if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.FIRESTORE_EMULATOR_HOST) {
+      for (const device of slice) {
+        if (device.token.startsWith("dev-retry:")) retryTokenHashes.push(device.tokenHash);
+        else if (device.token.startsWith("dev-fail:")) failed += 1;
+        else if (!device.token.startsWith("dev-fail:")) delivered += 1;
+      }
+      continue;
+    }
+    const messaging = getMessaging();
+    const payload = {
       tokens: slice.map((device) => device.token),
       notification: {
         title: input.title,
@@ -161,9 +196,29 @@ export async function deliverPushNotification(
         ...(input.data ?? {}),
       }),
       android: {
-        priority: "high",
+        priority: "high" as const,
+        notification: {
+          channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
+          tag: input.notificationId,
+        },
       },
-    });
+      apns: {
+        headers: {
+          "apns-priority": "10",
+          "apns-collapse-id": input.notificationId,
+        },
+        payload: {
+          aps: {
+            sound: "default",
+            mutableContent: true,
+          },
+        },
+      },
+    };
+
+    if (!started && beforeSend) await beforeSend();
+    started = true;
+    const response = await messaging.sendEachForMulticast(payload);
 
     delivered += response.successCount;
 
@@ -178,17 +233,39 @@ export async function deliverPushNotification(
       const errorCode = String(sendResponse.error?.code ?? "");
 
       if (isInvalidTokenError(errorCode)) {
+        failed += 1;
         await device.reference.delete();
         continue;
       }
 
       retryTokenHashes.push(device.tokenHash);
     }
+
+    const errorCounts = response.responses.reduce<Record<string, number>>(
+      (counts, sendResponse) => {
+        if (sendResponse.success) {
+          return counts;
+        }
+        const code = String(sendResponse.error?.code ?? "unknown");
+        counts[code] = (counts[code] ?? 0) + 1;
+        return counts;
+      },
+      {},
+    );
+
+    logger.info("FCM multicast completed", {
+      notificationId: input.notificationId,
+      requestedCount: slice.length,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      errorCounts,
+    });
   }
 
   return {
     delivered,
     retryTokenHashes,
+    failed,
   };
 }
 
@@ -200,7 +277,7 @@ export async function deliverPushNotification(
  * @param {Date} deliverAfter Earliest delivery time.
  * @param {number} attemptCount Existing retry count.
  * @param {string[]} targetTokenHashes Optional failed-token hashes.
- * @return {Promise<void>} Completes after queue write.
+ * @return {Promise<FirebaseFirestore.DocumentReference>} Existing or new job.
  */
 export async function queuePushDelivery(
   firestore: Firestore,
@@ -208,30 +285,22 @@ export async function queuePushDelivery(
   deliverAfter: Date,
   attemptCount = 0,
   targetTokenHashes: string[] = [],
-): Promise<void> {
-  await firestore
-    .collection("notification_delivery_queue")
-    .doc(input.notificationId)
-    .set(
-      {
-        notificationId: input.notificationId,
-        userId: input.userId,
-        type: input.type,
-        title: input.title,
-        message: input.message,
-        route: input.route ?? null,
-        eventId: input.eventId ?? null,
-        eventTitle: input.eventTitle ?? null,
-        data: input.data ?? {},
-        targetTokenHashes,
-        status: "pending",
-        attemptCount,
-        deliverAfter: Timestamp.fromDate(deliverAfter),
-        updatedAt: FieldValue.serverTimestamp(),
-        createdAt: FieldValue.serverTimestamp(),
-      },
-      {merge: true},
-    );
+): Promise<FirebaseFirestore.DocumentReference> {
+  const ref = firestore.collection("notification_delivery_queue").doc(createHash("sha256").update(`${input.userId}:${input.notificationId}`).digest("hex"));
+  return firestore.runTransaction(async (tx) => {
+    const legacyRef = firestore.collection("notification_delivery_queue").doc(input.notificationId);
+    const [existing, legacy] = await Promise.all([tx.get(ref), tx.get(legacyRef)]);
+    if (legacy.exists && legacy.get("userId") === input.userId) return legacyRef;
+    if (existing.exists) return ref;
+    tx.create(ref, {
+      ...input, route: input.route ?? null, eventId: input.eventId ?? null,
+      eventTitle: input.eventTitle ?? null, data: input.data ?? {},
+      targetTokenHashes, status: "pending", attemptCount,
+      deliverAfter: Timestamp.fromDate(deliverAfter),
+      updatedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(),
+    });
+    return ref;
+  });
 }
 
 /**
@@ -265,8 +334,19 @@ export function nextRetryDate(
  * @param {string} type Notification type.
  * @return {string} Preference field.
  */
-function preferenceKeyForType(type: string): string {
+export function preferenceKeyForType(type: string): string {
   const normalized = type.trim().toLowerCase();
+
+  // A decision received by the applicant is an event lifecycle update, not
+  // an organizer's incoming-application alert. Keeping both under
+  // `basvurular` can suppress an acceptance push while its in-app record is
+  // still visible.
+  if (
+    normalized.includes("application_accepted") ||
+    normalized.includes("application_rejected")
+  ) {
+    return "etkinlikler";
+  }
 
   if (
     normalized.includes("message") ||

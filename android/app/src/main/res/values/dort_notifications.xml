@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dort_notification_channel_id" translatable="false">dort_default</string>
+    <string name="dort_notification_channel_name">Dört. bildirimleri</string>
+    <string name="dort_notification_channel_description">Mesaj, başvuru ve etkinlik bildirimleri</string>
+</resources>

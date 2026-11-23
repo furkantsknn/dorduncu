@@ -6,11 +6,11 @@
 
 # 1. Produkt
 
-Digitale Abzeichen sind einmalige digitale Produkte, die über Google Play verkauft werden. Es wird kein physischer Gegenstand versendet. Ein Abzeichen ist ein Recht, das nach bestätigtem Kauf auf dem jeweiligen Konto gespeichert wird.
+Digitale Abzeichen sind einmalige digitale Produkte, die auf iOS über den Apple App Store und auf Android über Google Play verkauft werden. Es wird kein physischer Gegenstand versendet. Ein Abzeichen ist ein Recht, das nach bestätigtem Kauf auf dem jeweiligen Konto gespeichert wird.
 
 # 2. Preis und Zahlung
 
-Der Preis ist der Preis, den Google Play auf dem Kaufbildschirm anzeigt. Zahlung, Erstattung und Kündigung laufen über Google Play. Dört. speichert keine Kartendaten und behandelt eine Erstattung nicht als abgeschlossen, solange Play sie nicht bestätigt.
+Der Preis ist der Preis, den der jeweilige Store (Apple App Store oder Google Play) auf dem Kaufbildschirm anzeigt. Zahlung, Erstattung und Kündigung laufen über den jeweiligen Store. Dört. speichert keine Kartendaten und behandelt eine Erstattung nicht als abgeschlossen, solange der Store sie nicht bestätigt.
 
 # 3. Bindung an das Konto
 
@@ -18,7 +18,7 @@ Das Abzeichenrecht gilt für das Konto, dem es gewährt wurde. Nach dem Kauf kan
 
 # 4. Geschenk
 
-Die App kann erlauben, ein Abzeichen beim Kauf an einen anderen ausgewählten Nutzer zu verschenken. Der Käufer zahlt. Das Recht wird auf dem Konto des Empfängers gespeichert. Ein Geschenk ist kein allgemeines Recht, das Abzeichen später zu übertragen.
+Wo unterstützt, nutzt ein Geschenk ein separates einmaliges Store-Produkt. Es kann nur an einen verfügbaren Freund gesendet werden. Sich selbst oder ein bereits vorhandenes Abzeichen kann nicht beschenkt werden. Ein geschenktes Abzeichen bleibt beim Empfänger. Plus-Geschenk gilt 30 Tage, verlängert sich nicht automatisch und startet nicht für Empfänger mit aktivem kostenpflichtigem Plus-Abo. Ein neues Geschenk verlängert die laufende Geschenkzeit. Der Käufer zahlt. Eine Erstattung betrifft nur das Recht aus diesem Geschenk.
 
 # 5. Erstattung und Entzug
 

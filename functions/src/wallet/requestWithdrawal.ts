@@ -1,6 +1,7 @@
 import {FieldValue} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/https";
 import {firestore} from "../config/firebaseAdmin";
+import {assertV1WalletMutationAllowed} from "../policy/v1WalletPolicy";
 
 interface RequestWithdrawalData {
   amountKurus: number;
@@ -21,6 +22,8 @@ export const requestWithdrawal = onCall(
       );
     }
 
+    const uid = request.auth.uid;
+    assertV1WalletMutationAllowed();
     const data = request.data as RequestWithdrawalData;
 
     if (
@@ -47,8 +50,6 @@ export const requestWithdrawal = onCall(
         "Invalid account holder name."
       );
     }
-
-    const uid = request.auth.uid;
 
     const iban = data.iban
       .replace(/\s/g, "")

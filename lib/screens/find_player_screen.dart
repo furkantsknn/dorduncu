@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/player_service.dart';
 import '../utils/game_catalog.dart';
+import '../utils/game_experience.dart';
 import '../widgets/game_badge_emblem.dart';
-import '../widgets/game_visuals.dart';
+import '../widgets/game_catalog_icon.dart';
 import 'public_profile_screen.dart';
 
 String _findPlayerText(
@@ -301,9 +302,17 @@ class _SearchHeader extends StatelessWidget {
                     ) {
                       return DropdownMenuItem<String>(
                         value: category.id,
-                        child: Text(
-                          '${category.emoji} ${category.name}',
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: <Widget>[
+                            GameCatalogIcon(categoryId: category.id, size: 20),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                category.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }).toList(),
@@ -416,7 +425,9 @@ class _SearchHeader extends StatelessWidget {
                           SkillLevelDefinition level,
                         ) {
                           return ChoiceChip(
-                            label: Text('${level.label} · %${level.value}'),
+                            label: Text(
+                              gameExperienceLabel(context, level.value),
+                            ),
                             selected: minimumSkillLevel == level.value,
                             onSelected: (_) {
                               onSkillChanged(level.value);
@@ -486,8 +497,9 @@ class _ResultSummary extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
           child: GameBadgeEmblem(
-            emoji: GameVisuals.emoji(game.id),
+            emoji: '',
             imageUrl: '',
+            gameId: game.id,
             gameName: game.name,
             size: 36,
           ),
@@ -608,7 +620,12 @@ class _PlayerCard extends StatelessWidget {
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
-                                '${player.completedEventCount} tamamlanan etkinlik',
+                                _findPlayerText(
+                                  context,
+                                  tr: '${player.completedEventCount} geçmiş etkinlik',
+                                  en: '${player.completedEventCount} past events',
+                                  de: '${player.completedEventCount} vergangene Veranstaltungen',
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -754,14 +771,7 @@ class _SkillPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int level = skill?.level ?? 30;
-    final String label =
-        skill?.levelLabel ??
-        _findPlayerText(
-          context,
-          tr: 'Başlangıç',
-          en: 'Beginner',
-          de: 'Anfänger',
-        );
+    final String label = gameExperienceLabel(context, skill?.level);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -770,7 +780,7 @@ class _SkillPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        '$label · %$level',
+        '$label (${_findPlayerText(context, tr: 'kullanıcı beyanı', en: 'self-declared', de: 'Selbstauskunft')})',
         style: TextStyle(
           color: _foreground(level),
           fontSize: 12,
@@ -820,7 +830,7 @@ class _PlayersEmpty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(selectedGame.emoji, style: const TextStyle(fontSize: 56)),
+            GameCatalogIcon(gameIdOrName: selectedGame.id, size: 56),
             const SizedBox(height: 12),
             Text(
               '${selectedGame.name} için oyuncu bulunamadı',

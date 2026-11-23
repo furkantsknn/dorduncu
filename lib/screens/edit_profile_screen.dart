@@ -7,7 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/user_model.dart';
+import '../utils/game_experience.dart';
 import '../utils/game_catalog.dart';
+import '../utils/profile_completion.dart';
+import '../utils/turkey_location_service.dart';
+import '../widgets/game_catalog_icon.dart';
 import 'avatar_picker_sheet.dart';
 
 String _editProfileText(
@@ -114,57 +118,34 @@ String _editProfileGameName(BuildContext context, GameDefinition game) {
 }
 
 String _editProfileGameDisplayName(BuildContext context, GameDefinition game) {
-  return '${game.emoji} ${_editProfileGameName(context, game)}';
-}
-
-String _skillLevelText(BuildContext context, String value) {
-  switch (value.trim().toLowerCase()) {
-    case 'başlangıç':
-    case 'baslangic':
-      return _editProfileText(
-        context,
-        tr: 'Başlangıç',
-        en: 'Beginner',
-        de: 'Anfänger',
-      );
-    case 'orta':
-      return _editProfileText(
-        context,
-        tr: 'Orta',
-        en: 'Intermediate',
-        de: 'Mittelstufe',
-      );
-    case 'iyi':
-      return _editProfileText(
-        context,
-        tr: 'İyi',
-        en: 'Advanced',
-        de: 'Fortgeschritten',
-      );
-    case 'uzman':
-    case 'profesyonel':
-      return _editProfileText(context, tr: value, en: 'Expert', de: 'Experte');
-    default:
-      return value;
-  }
+  return _editProfileGameName(context, game);
 }
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key, required this.initialData});
+  const EditProfileScreen({super.key, required this.initialData, this.focus});
 
   final Map<String, dynamic> initialData;
+  final ProfileCompletionField? focus;
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
+  late final TextEditingController nameController;
   late final TextEditingController aboutController;
 
   final Map<String, UserGameSkill> selectedSkills = <String, UserGameSkill>{};
+  final GlobalKey nameKey = GlobalKey();
+  final GlobalKey photoKey = GlobalKey();
+  final GlobalKey aboutKey = GlobalKey();
+  final GlobalKey cityKey = GlobalKey();
+  final GlobalKey gamesKey = GlobalKey();
 
   String photoUrl = '';
   String avatarUrl = '';
+  String city = '';
+  String initialCity = '';
   XFile? pickedPhoto;
   bool saving = false;
 
@@ -172,19 +153,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
 
+    final userModel = UserModel.fromMap(widget.initialData);
+    nameController = TextEditingController(
+      text: userModel.profilAdi.trim().isNotEmpty
+          ? userModel.profilAdi.trim()
+          : userModel.fullName,
+    );
     aboutController = TextEditingController(
       text: widget.initialData['hakkimda']?.toString() ?? '',
     );
 
     photoUrl = widget.initialData['profilFotografi']?.toString() ?? '';
     avatarUrl = widget.initialData['avatarUrl']?.toString() ?? '';
-
-    final userModel = UserModel.fromMap(widget.initialData);
+    city = userModel.sehir.trim();
+    initialCity = city;
     selectedSkills.addAll(userModel.gameSkills);
+
+    final ProfileCompletionField? focus = widget.focus;
+    if (focus != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final GlobalKey key = switch (focus) {
+          ProfileCompletionField.name => nameKey,
+          ProfileCompletionField.photo => photoKey,
+          ProfileCompletionField.about => aboutKey,
+          ProfileCompletionField.city => cityKey,
+          ProfileCompletionField.games => gamesKey,
+        };
+        final BuildContext? target = key.currentContext;
+        if (target != null) {
+          Scrollable.ensureVisible(
+            target,
+            alignment: 0.05,
+            duration: const Duration(milliseconds: 250),
+          );
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    nameController.dispose();
     aboutController.dispose();
     super.dispose();
   }
@@ -245,6 +254,61 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         photoUrl = '';
       });
     }
+  }
+
+  Future<void> _selectCity() async {
+    final List<String> cities = await TurkeyLocationService.cities();
+    if (!mounted) return;
+    if (cities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _editProfileText(
+              context,
+              tr: 'Şehir listesi yüklenemedi. Lütfen tekrar dene.',
+              en: 'The city list could not be loaded. Please try again.',
+              de: 'Die Städteliste konnte nicht geladen werden. Bitte versuche es erneut.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final String? selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.78,
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+              itemCount: cities.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, int index) {
+                final String item = cities[index];
+                return ListTile(
+                  title: Text(item),
+                  leading: const Icon(Icons.location_city_outlined),
+                  trailing: item == city
+                      ? Icon(
+                          Icons.check_circle,
+                          color: Theme.of(sheetContext).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, item),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted) return;
+    setState(() => city = selected);
   }
 
   Future<void> _photoMenu() async {
@@ -411,21 +475,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .toSet()
           .toList();
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-        <String, dynamic>{
-          'profilFotografi': uploadedUrl,
-          'avatarUrl': uploadedUrl.isNotEmpty ? '' : avatarUrl,
-          'oyunlar': gameNames,
-          'gameIds': gameIds,
-          'gameSkills': <String, dynamic>{
-            for (final skill in sortedSkills) skill.gameId: skill.toMap(),
-          },
-          'hakkimda': aboutController.text.trim(),
-
-          'guncellemeTarihi': FieldValue.serverTimestamp(),
+      final Map<String, dynamic> patch = profileEditorPatch(
+        name: nameController.text,
+        city: city,
+        previousCity: initialCity,
+        photoUrl: uploadedUrl,
+        avatarUrl: uploadedUrl.isNotEmpty ? '' : avatarUrl,
+        about: aboutController.text,
+        gameNames: gameNames,
+        gameIds: gameIds,
+        gameSkills: <String, dynamic>{
+          for (final skill in sortedSkills) skill.gameId: skill.toMap(),
         },
-        SetOptions(merge: true),
       );
+      patch['guncellemeTarihi'] = FieldValue.serverTimestamp();
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(patch, SetOptions(merge: true));
 
       if (!mounted) {
         return;
@@ -498,11 +566,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
         children: [
-          _buildProfilePhoto(),
+          KeyedSubtree(key: photoKey, child: _buildProfilePhoto()),
           const SizedBox(height: 28),
-          _buildGameSelection(),
-          const SizedBox(height: 26),
           TextField(
+            key: nameKey,
+            controller: nameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: _editProfileText(
+                context,
+                tr: 'İsim',
+                en: 'Name',
+                de: 'Name',
+              ),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 22),
+          ListTile(
+            key: cityKey,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.location_city_outlined),
+            title: Text(
+              _editProfileText(context, tr: 'Şehir', en: 'City', de: 'Stadt'),
+            ),
+            subtitle: Text(
+              city.isEmpty
+                  ? _editProfileText(
+                      context,
+                      tr: 'Profil şehrini seç',
+                      en: 'Choose your profile city',
+                      de: 'Wähle deine Profilstadt',
+                    )
+                  : city,
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: saving ? null : _selectCity,
+          ),
+          const SizedBox(height: 22),
+          TextField(
+            key: aboutKey,
             controller: aboutController,
             minLines: 3,
             maxLines: 6,
@@ -522,6 +625,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               border: const OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 26),
+          KeyedSubtree(key: gamesKey, child: _buildGameSelection()),
           const SizedBox(height: 22),
           FilledButton.icon(
             onPressed: saving ? null : _save,
@@ -643,7 +748,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         initiallyExpanded: selectedInCategory > 0,
-        leading: Text(category.emoji, style: const TextStyle(fontSize: 24)),
+        leading: GameCatalogIcon(categoryId: category.id),
         title: Text(
           _editProfileCategoryName(context, category),
           style: const TextStyle(fontWeight: FontWeight.w800),
@@ -700,7 +805,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             subtitle: Text(
               selected
-                  ? '${_skillLevelText(context, skill.levelLabel)} · %${skill.level}'
+                  ? gameExperienceLabel(context, skill.level)
                   : _editProfileText(
                       context,
                       tr: 'Profiline eklemek için seç',
@@ -723,7 +828,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ButtonSegment<int>(
                     value: level.value,
                     label: Text(
-                      '%${level.value}\n${_skillLevelText(context, level.label)}',
+                      gameExperienceLabel(context, level.value),
                       textAlign: TextAlign.center,
                     ),
                   ),

@@ -34,6 +34,58 @@ class SessionMetadata {
   final DateTime? lastSeenAt;
 }
 
+@immutable
+class AuthSessionBinding {
+  const AuthSessionBinding({
+    required this.userId,
+    required this.sessionId,
+    required this.authGeneration,
+  });
+
+  final String userId;
+  final String sessionId;
+  final int authGeneration;
+
+  String get key => '$userId:$sessionId:$authGeneration';
+}
+
+@visibleForTesting
+class AuthSessionTracker {
+  String? _observedUserId;
+  var _generation = 0;
+
+  int get generation => _generation;
+
+  void observeUserId(String? userId) {
+    if (userId == _observedUserId) return;
+    _observedUserId = userId;
+    _generation++;
+  }
+
+  AuthSessionBinding capture({
+    required String userId,
+    required String sessionId,
+  }) {
+    observeUserId(userId);
+    return AuthSessionBinding(
+      userId: userId,
+      sessionId: sessionId,
+      authGeneration: _generation,
+    );
+  }
+
+  bool matches(
+    AuthSessionBinding binding, {
+    required String? currentUserId,
+    required String currentSessionId,
+  }) {
+    observeUserId(currentUserId);
+    return currentUserId == binding.userId &&
+        currentSessionId == binding.sessionId &&
+        _generation == binding.authGeneration;
+  }
+}
+
 class SessionService {
   SessionService();
 
@@ -43,11 +95,91 @@ class SessionService {
 
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'europe-west1');
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'europe-west1',
+  );
+  static final AuthSessionTracker _authSessionTracker = AuthSessionTracker();
+  static StreamSubscription<String?>? _authBindingSubscription;
+  static String? Function() _currentAuthUserId = () => _auth.currentUser?.uid;
+  static Stream<String?> Function() _authUserIdChanges = () =>
+      _auth.authStateChanges().map((User? user) => user?.uid);
+  static Future<String> Function() _authSessionIdReader = getCurrentSessionId;
 
   static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _sessionSubscription;
+
+  static void _ensureAuthBindingTracking() {
+    if (_authBindingSubscription != null) return;
+    _authSessionTracker.observeUserId(_currentAuthUserId());
+    _authBindingSubscription = _authUserIdChanges().listen(
+      _authSessionTracker.observeUserId,
+    );
+  }
+
+  @visibleForTesting
+  static Future<void> configureAuthSessionTesting({
+    required String? Function() currentUserId,
+    required Stream<String?> Function() authStateChanges,
+    required Future<String> Function() readSessionId,
+  }) async {
+    await _authBindingSubscription?.cancel();
+    _authBindingSubscription = null;
+    _currentAuthUserId = currentUserId;
+    _authUserIdChanges = authStateChanges;
+    _authSessionIdReader = readSessionId;
+    _authSessionTracker.observeUserId(null);
+  }
+
+  @visibleForTesting
+  static Future<void> resetAuthSessionTesting() async {
+    await _authBindingSubscription?.cancel();
+    _authBindingSubscription = null;
+    _currentAuthUserId = () => _auth.currentUser?.uid;
+    _authUserIdChanges = () =>
+        _auth.authStateChanges().map((User? user) => user?.uid);
+    _authSessionIdReader = getCurrentSessionId;
+    _authSessionTracker.observeUserId(null);
+  }
+
+  static Future<AuthSessionBinding?> captureAuthSession({User? user}) async {
+    return captureAuthSessionForUserId((user ?? _auth.currentUser)?.uid);
+  }
+
+  @visibleForTesting
+  static Future<AuthSessionBinding?> captureAuthSessionForUserId(
+    String? requestedUserId,
+  ) async {
+    _ensureAuthBindingTracking();
+    final String? initialUserId = _currentAuthUserId();
+    final int initialGeneration = _authSessionTracker.generation;
+    if (requestedUserId == null || initialUserId != requestedUserId) {
+      return null;
+    }
+    final String sessionId = await _authSessionIdReader();
+    if (sessionId.isEmpty ||
+        _currentAuthUserId() != initialUserId ||
+        _authSessionTracker.generation != initialGeneration) {
+      return null;
+    }
+    return AuthSessionBinding(
+      userId: initialUserId!,
+      sessionId: sessionId,
+      authGeneration: initialGeneration,
+    );
+  }
+
+  static Future<bool> isAuthSessionCurrent(AuthSessionBinding binding) async {
+    _ensureAuthBindingTracking();
+    final int initialGeneration = _authSessionTracker.generation;
+    final String sessionId = await _authSessionIdReader();
+    final String? currentUserId = _currentAuthUserId();
+    if (_authSessionTracker.generation != initialGeneration) return false;
+    return _authSessionTracker.matches(
+      binding,
+      currentUserId: currentUserId,
+      currentSessionId: sessionId,
+    );
+  }
 
   static String _generateId() {
     final Random random = Random.secure();
@@ -55,15 +187,14 @@ class SessionService {
 
     final String randomPart = List<String>.generate(
       32,
-          (_) => random.nextInt(16).toRadixString(16),
+      (_) => random.nextInt(16).toRadixString(16),
     ).join();
 
     return '$timestamp-$randomPart';
   }
 
   static Future<String> _getOrCreateDeviceId() async {
-    final SharedPreferences preferences =
-    await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
 
     final String savedDeviceId =
         preferences.getString(_deviceIdKey)?.trim() ?? '';
@@ -107,8 +238,7 @@ class SessionService {
   }
 
   static Future<String> _getAppVersion() async {
-    final SharedPreferences preferences =
-    await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
 
     final String appVersion =
         preferences.getString(_appVersionKey)?.trim() ?? '';
@@ -123,8 +253,7 @@ class SessionService {
       return;
     }
 
-    final SharedPreferences preferences =
-    await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
 
     await preferences.setString(_appVersionKey, normalizedVersion);
 
@@ -135,18 +264,15 @@ class SessionService {
       return;
     }
 
-    await _functions.httpsCallable('registerSession').call(
-      <String, dynamic>{
-        'action': 'updateAppVersion',
-        'sessionId': sessionId,
-        'appVersion': normalizedVersion,
-      },
-    );
+    await _functions.httpsCallable('registerSession').call(<String, dynamic>{
+      'action': 'updateAppVersion',
+      'sessionId': sessionId,
+      'appVersion': normalizedVersion,
+    });
   }
 
   static Future<String> getCurrentSessionId() async {
-    final SharedPreferences preferences =
-    await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
 
     return preferences.getString(_sessionIdKey)?.trim() ?? '';
   }
@@ -165,8 +291,7 @@ class SessionService {
       appVersion: await _getAppVersion(),
     );
 
-    final SharedPreferences preferences =
-    await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
 
     await preferences.setString(_sessionIdKey, session.sessionId);
 
@@ -180,15 +305,13 @@ class SessionService {
       return;
     }
 
-    await _functions.httpsCallable('registerSession').call(
-      <String, dynamic>{
-        'action': 'register',
-        'sessionId': session.sessionId,
-        'deviceId': session.deviceId,
-        'platform': session.platform,
-        'appVersion': session.appVersion,
-      },
-    );
+    await _functions.httpsCallable('registerSession').call(<String, dynamic>{
+      'action': 'register',
+      'sessionId': session.sessionId,
+      'deviceId': session.deviceId,
+      'platform': session.platform,
+      'appVersion': session.appVersion,
+    });
   }
 
   static Future<SessionInfo> getOrCreateCurrentSession() async {
@@ -215,32 +338,31 @@ class SessionService {
 
     final SessionInfo localSession = await getOrCreateCurrentSession();
 
-    final DocumentSnapshot<Map<String, dynamic>> snapshot =
-    await _firestore.collection('sessions').doc(user.uid).get();
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('sessions')
+        .doc(user.uid)
+        .get();
 
     final Map<String, dynamic>? data = snapshot.data();
 
-    final String remoteSessionId =
-        data?['sessionId']?.toString().trim() ?? '';
+    final String remoteSessionId = data?['sessionId']?.toString().trim() ?? '';
     final bool sameSession =
         remoteSessionId.isEmpty || remoteSessionId == localSession.sessionId;
 
     final SessionInfo session = sameSession
         ? SessionInfo(
-      sessionId: localSession.sessionId,
-      deviceId:
-      data?['deviceId']?.toString().trim().isNotEmpty == true
-          ? data!['deviceId'].toString().trim()
-          : localSession.deviceId,
-      platform:
-      data?['platform']?.toString().trim().isNotEmpty == true
-          ? data!['platform'].toString().trim()
-          : localSession.platform,
-      appVersion:
-      data?['appVersion']?.toString().trim().isNotEmpty == true
-          ? data!['appVersion'].toString().trim()
-          : localSession.appVersion,
-    )
+            sessionId: localSession.sessionId,
+            deviceId: data?['deviceId']?.toString().trim().isNotEmpty == true
+                ? data!['deviceId'].toString().trim()
+                : localSession.deviceId,
+            platform: data?['platform']?.toString().trim().isNotEmpty == true
+                ? data!['platform'].toString().trim()
+                : localSession.platform,
+            appVersion:
+                data?['appVersion']?.toString().trim().isNotEmpty == true
+                ? data!['appVersion'].toString().trim()
+                : localSession.appVersion,
+          )
         : localSession;
 
     return SessionMetadata(
@@ -265,15 +387,13 @@ class SessionService {
 
     final SessionInfo newSession = await createNewSession();
 
-    await _functions.httpsCallable('registerSession').call(
-      <String, dynamic>{
-        'action': 'register',
-        'sessionId': newSession.sessionId,
-        'deviceId': newSession.deviceId,
-        'platform': newSession.platform,
-        'appVersion': newSession.appVersion,
-      },
-    );
+    await _functions.httpsCallable('registerSession').call(<String, dynamic>{
+      'action': 'register',
+      'sessionId': newSession.sessionId,
+      'deviceId': newSession.deviceId,
+      'platform': newSession.platform,
+      'appVersion': newSession.appVersion,
+    });
 
     return newSession;
   }
@@ -291,8 +411,10 @@ class SessionService {
       return false;
     }
 
-    final DocumentSnapshot<Map<String, dynamic>> userDocument =
-    await _firestore.collection('users').doc(user.uid).get();
+    final DocumentSnapshot<Map<String, dynamic>> userDocument = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .get();
 
     final String remoteSessionId =
         userDocument.data()?['activeSessionId']?.toString().trim() ?? '';
@@ -309,12 +431,10 @@ class SessionService {
     }
 
     try {
-      await _functions.httpsCallable('registerSession').call(
-        <String, dynamic>{
-          'action': 'heartbeat',
-          'sessionId': sessionId,
-        },
-      );
+      await _functions.httpsCallable('registerSession').call(<String, dynamic>{
+        'action': 'heartbeat',
+        'sessionId': sessionId,
+      });
     } on FirebaseFunctionsException catch (error) {
       if (error.code == 'failed-precondition') {
         return;
@@ -342,22 +462,22 @@ class SessionService {
         .doc(user.uid)
         .snapshots()
         .listen((DocumentSnapshot<Map<String, dynamic>> snapshot) async {
-      if (callbackTriggered || !snapshot.exists) {
-        return;
-      }
+          if (callbackTriggered || !snapshot.exists) {
+            return;
+          }
 
-      final String remoteSessionId =
-          snapshot.data()?['activeSessionId']?.toString().trim() ?? '';
+          final String remoteSessionId =
+              snapshot.data()?['activeSessionId']?.toString().trim() ?? '';
 
-      if (remoteSessionId.isEmpty || remoteSessionId == localSessionId) {
-        return;
-      }
+          if (remoteSessionId.isEmpty || remoteSessionId == localSessionId) {
+            return;
+          }
 
-      callbackTriggered = true;
-      await stopListening();
-      await clearLocalSession();
-      onSessionExpired();
-    });
+          callbackTriggered = true;
+          await stopListening();
+          await clearLocalSession();
+          onSessionExpired();
+        });
   }
 
   static Future<void> stopListening() async {
@@ -366,8 +486,7 @@ class SessionService {
   }
 
   static Future<void> clearLocalSession() async {
-    final SharedPreferences preferences =
-    await SharedPreferences.getInstance();
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
 
     await preferences.remove(_sessionIdKey);
   }

@@ -1,8 +1,8 @@
 # KVKK-Hinweis
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 
-**Inkrafttreten:** 5. Oktober 2026
+**Aktualisiert:** 19. Oktober 2026
 
 Dieser Hinweis erfüllt die Informationspflicht nach dem türkischen Datenschutzgesetz Nr. 6698. Die Datenschutzerklärung ist ein separates Dokument.
 
@@ -63,7 +63,7 @@ Personenbezogene Daten werden nicht für unabhängige Werbung verkauft. Veransta
 
 Kontodaten werden aufbewahrt, solange das Konto offen ist.
 
-Nach Abschluss der Löschung werden Anmeldung, Profil, öffentliches Profil, Profilfotos und Verifizierungsdokumente gelöscht. Identitätsfelder in Anmelde- und Prüfprotokollen können anonymisiert werden. Eine Zusammenfassung der Telefonnummer kann gespeichert werden, um eine erneute Registrierung mit derselben Nummer zu verhindern.
+Nach Abschluss der Löschung werden Anmeldung, Profil, öffentliches Profil, Profilfotos und Verifizierungsdokumente gelöscht. Identitätsfelder in Anmelde- und Prüfprotokollen können durch hashbasierte Pseudonyme ersetzt werden; dadurch werden die Aufzeichnungen nicht vollständig anonym. Eine Zusammenfassung der Telefonnummer kann gespeichert werden, um eine erneute Registrierung mit derselben Nummer zu verhindern.
 
 Inhalte in Veranstaltungen und Nachrichten anderer Nutzer sowie begrenzte Aufzeichnungen für Sicherheit, Streitfälle oder Rechtspflichten können erhalten bleiben.
 

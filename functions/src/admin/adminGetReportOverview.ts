@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 import {onCall} from "firebase-functions/v2/https";
@@ -7,11 +8,14 @@ import {
   getAdminRole,
 } from "../security/adminAuthorization";
 import {writeAuditLog} from "../audit/writeAuditLog";
+import {isPlusMembershipActive} from "../users/plusMembership";
+import {eventHasEnded} from "../events/eventLifecycle";
 
 export const adminGetReportOverview = onCall(
   {region: "europe-west1", enforceAppCheck: true},
   async (request) => {
     assertAdminPermission(request, "reports.read");
+    await assertCurrentAdminSession(request);
 
     const adminId = request.auth.uid;
     const adminRole = getAdminRole(request);
@@ -26,7 +30,6 @@ export const adminGetReportOverview = onCall(
       usersSnapshot,
       eventsSnapshot,
       supportSnapshot,
-      paymentSessionsSnapshot,
       withdrawalsSnapshot,
       verificationSnapshot,
       maskedCallsSnapshot,
@@ -34,6 +37,8 @@ export const adminGetReportOverview = onCall(
     ] = await Promise.all([
       db.collection("users").select(
         "plus",
+        "isPlus", "plusAdminGranted", "plusExpiresAt", "subscriptionExpiresAt",
+        "plusSubscriptionExpiresAt", "plusSubscriptionState", "plusGiftExpiresAt",
         "oyuncuRozeti",
         "verified",
         "verificationStatus",
@@ -43,15 +48,8 @@ export const adminGetReportOverview = onCall(
         "createdAt",
         "kayitTarihi",
       ).get(),
-      db.collection("events").select("status", "durum").get(),
+      db.collection("events").select("status", "durum", "closureReason", "endAt", "startAt", "tarih", "durationMinutes").get(),
       db.collection("support_requests").select("status", "urgency").get(),
-      db.collection("paymentSessions").select(
-        "status",
-        "gatewayStatus",
-        "providerState",
-        "updatedAt",
-        "createdAt",
-      ).get(),
       db.collection("withdrawals").select(
         "status",
         "updatedAt",
@@ -92,7 +90,7 @@ export const adminGetReportOverview = onCall(
     for (const document of usersSnapshot.docs) {
       const data = document.data();
 
-      if (data.plus === true) {
+      if (isPlusMembershipActive(data)) {
         plusUsers++;
       }
 
@@ -143,16 +141,21 @@ export const adminGetReportOverview = onCall(
     let completedEvents = 0;
     let cancelledEvents = 0;
     let hiddenEvents = 0;
+    let expiredEvents = 0;
+    let legacyClosedEvents = 0;
 
     for (const document of eventsSnapshot.docs) {
       const status = normalizeEventStatus(document.data());
 
       if (status === "completed") {
-        completedEvents++;
+        if (document.get("closureReason") === "occurred_confirmed") completedEvents++;
+        else legacyClosedEvents++;
       } else if (status === "cancelled") {
         cancelledEvents++;
       } else if (status === "hidden") {
         hiddenEvents++;
+      } else if (status === "expired" || eventHasEnded(document.data())) {
+        expiredEvents++;
       } else {
         activeEvents++;
       }
@@ -181,42 +184,6 @@ export const adminGetReportOverview = onCall(
 
       if (urgency === "critical") {
         criticalSupport++;
-      }
-    }
-
-    let pendingPayments = 0;
-    let paidPayments = 0;
-    let failedPayments = 0;
-    let stalePendingPayments = 0;
-
-    for (const document of paymentSessionsSnapshot.docs) {
-      const data = document.data();
-      const status = lowerString(
-        data.status ??
-        data.gatewayStatus ??
-        data.providerState,
-      );
-
-      if (["paid", "completed", "success", "succeeded"].includes(status)) {
-        paidPayments++;
-      } else if ([
-        "failed",
-        "cancelled",
-        "canceled",
-        "expired",
-      ].includes(status)) {
-        failedPayments++;
-      } else {
-        pendingPayments++;
-
-        const pendingSince = readDate(
-          data.updatedAt ??
-          data.createdAt,
-        );
-
-        if (pendingSince && pendingSince < staleThreshold) {
-          stalePendingPayments++;
-        }
       }
     }
 
@@ -270,8 +237,6 @@ export const adminGetReportOverview = onCall(
     }
 
     const attentionRequired =
-      failedPayments +
-      stalePendingPayments +
       stalePendingWithdrawals +
       stalePendingVerifications +
       criticalSupport;
@@ -300,6 +265,8 @@ export const adminGetReportOverview = onCall(
         completed: completedEvents,
         cancelled: cancelledEvents,
         hidden: hiddenEvents,
+        expired: expiredEvents,
+        legacyClosed: legacyClosedEvents,
       },
       support: {
         total: supportSnapshot.size,
@@ -310,11 +277,6 @@ export const adminGetReportOverview = onCall(
         critical: criticalSupport,
       },
       operations: {
-        paymentSessions: paymentSessionsSnapshot.size,
-        pendingPayments,
-        paidPayments,
-        failedPayments,
-        stalePendingPayments,
         pendingWithdrawals,
         stalePendingWithdrawals,
         pendingVerifications,
@@ -358,7 +320,7 @@ function readDate(value: unknown): Date | null {
 
 function normalizeEventStatus(
   data: DocumentData,
-): "active" | "completed" | "cancelled" | "hidden" {
+): "active" | "completed" | "cancelled" | "hidden" | "expired" {
   let raw = "";
 
   if (typeof data.status === "string") {
@@ -368,6 +330,7 @@ function normalizeEventStatus(
   }
 
   const value = raw.toLowerCase();
+  if (value === "expired") return "expired";
 
   if (
     value === "completed" ||

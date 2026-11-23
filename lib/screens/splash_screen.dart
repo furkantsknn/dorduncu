@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../services/language_controller.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -106,10 +107,16 @@ class _SplashScreenState extends State<SplashScreen>
                     opacity: _sloganOpacity,
                     child: SlideTransition(
                       position: _sloganSlide,
-                      child: const Text(
-                        'Oyunun Eksik Oyuncusunu Bul',
+                      child: Text(
+                        switch (LanguageController.language.value) {
+                          AppLanguage.turkish => 'Oyunun Eksik Oyuncusunu Bul',
+                          AppLanguage.english =>
+                            'Find the Missing Player for Your Game',
+                          AppLanguage.german =>
+                            'Finde den fehlenden Spieler für dein Spiel',
+                        },
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,

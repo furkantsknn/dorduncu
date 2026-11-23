@@ -50,6 +50,17 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("production") {
+            dimension = "environment"
+        }
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
@@ -61,4 +72,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("com.android.billingclient:billing:8.0.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 }

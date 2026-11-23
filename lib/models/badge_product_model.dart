@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class BadgeProductModel {
   const BadgeProductModel({
@@ -14,6 +15,12 @@ class BadgeProductModel {
     required this.createdAt,
     this.imageUrl = '',
     this.googlePlayProductId = '',
+    this.googlePlayPurchaseOptionId = '',
+    this.appleProductId = '',
+    this.giftGooglePlayProductId = '',
+    this.giftGooglePlayPurchaseOptionId = '',
+    this.plusGooglePlayOfferId = '',
+    this.plusPriceKurus = 39900,
   });
 
   final String id;
@@ -24,14 +31,27 @@ class BadgeProductModel {
   final String emoji;
   final String imageUrl;
   final String googlePlayProductId;
+  final String googlePlayPurchaseOptionId;
+  final String appleProductId;
+  final String giftGooglePlayProductId;
+  final String giftGooglePlayPurchaseOptionId;
+  final String plusGooglePlayOfferId;
+  final int plusPriceKurus;
   final int priceKurus;
   final bool active;
   final int sortOrder;
   final DateTime? createdAt;
 
+  String storeProductIdFor(TargetPlatform platform) {
+    if (platform == TargetPlatform.iOS) {
+      return appleProductId.trim();
+    }
+    return googlePlayProductId.trim();
+  }
+
   factory BadgeProductModel.fromDocument(
-      DocumentSnapshot<Map<String, dynamic>> document,
-      ) {
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     final Map<String, dynamic> data =
         document.data() ?? const <String, dynamic>{};
 
@@ -43,8 +63,19 @@ class BadgeProductModel {
       description: data['description']?.toString().trim() ?? '',
       emoji: data['emoji']?.toString().trim() ?? '🏅',
       imageUrl: data['imageUrl']?.toString().trim() ?? '',
-      googlePlayProductId:
-          data['googlePlayProductId']?.toString().trim() ?? '',
+      googlePlayProductId: data['googlePlayProductId']?.toString().trim() ?? '',
+      googlePlayPurchaseOptionId:
+          data['googlePlayPurchaseOptionId']?.toString().trim() ?? '',
+      appleProductId: data['appleProductId']?.toString().trim() ?? '',
+      giftGooglePlayProductId:
+          data['giftGooglePlayProductId']?.toString().trim() ?? '',
+      giftGooglePlayPurchaseOptionId:
+          data['giftGooglePlayPurchaseOptionId']?.toString().trim() ?? '',
+      plusGooglePlayOfferId:
+          data['plusGooglePlayOfferId']?.toString().trim() ?? '',
+      plusPriceKurus: _toInt(data['plusPriceKurus']) == 0
+          ? 39900
+          : _toInt(data['plusPriceKurus']),
       priceKurus: _toInt(data['priceKurus']),
       active: data['active'] != false,
       sortOrder: _toInt(data['sortOrder']),

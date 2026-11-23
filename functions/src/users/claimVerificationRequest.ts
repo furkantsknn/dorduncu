@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 import {
   HttpsError,
   onCall,
@@ -25,6 +26,7 @@ export const claimVerificationRequest =
     },
     async (request) => {
       assertAdminPermission(request, "verification.review");
+      await assertCurrentAdminSession(request);
 
       const data =
         request.data as

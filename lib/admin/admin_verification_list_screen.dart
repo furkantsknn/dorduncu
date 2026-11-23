@@ -1,8 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'admin_user_number.dart';
+import 'admin_verification_detail_screen.dart';
 
 class AdminVerificationListScreen extends StatefulWidget {
-  const AdminVerificationListScreen({super.key});
+  const AdminVerificationListScreen({
+    super.key,
+    this.initialStatus = 'all',
+    this.embedded = false,
+  });
+  final String initialStatus;
+  final bool embedded;
 
   @override
   State<AdminVerificationListScreen> createState() =>
@@ -13,8 +21,15 @@ class _AdminVerificationListScreenState
     extends State<AdminVerificationListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  String _selectedStatus = 'all';
+  late String _selectedStatus;
   String _searchText = '';
+  String? _managementUid;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStatus = widget.initialStatus;
+  }
 
   @override
   void dispose() {
@@ -25,12 +40,14 @@ class _AdminVerificationListScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Oyuncu Başvuruları',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text(
+                'Oyuncu Başvuruları',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('verification_requests')
@@ -76,6 +93,10 @@ class _AdminVerificationListScreenState
                   return true;
                 }
 
+                if (_searchText.toUpperCase().startsWith('U-')) {
+                  return document.id == _managementUid;
+                }
+
                 final String query = _searchText.toLowerCase();
 
                 final String name = data['ad']?.toString().toLowerCase() ?? '';
@@ -110,9 +131,18 @@ class _AdminVerificationListScreenState
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (String value) {
+                        onChanged: (String value) async {
+                          final normalized = value.trim();
+                          final uid = await findUidByManagementNumber(
+                            normalized,
+                          );
+                          if (!mounted ||
+                              _searchController.text.trim() != normalized) {
+                            return;
+                          }
                           setState(() {
-                            _searchText = value.trim();
+                            _searchText = normalized;
+                            _managementUid = uid;
                           });
                         },
                         decoration: InputDecoration(
@@ -326,13 +356,10 @@ class _AdminVerificationListScreenState
   }) {
     final Map<String, dynamic> data = document.data();
 
-    final String name = data['ad']?.toString().trim() ?? '';
-
-    final String surname = data['soyad']?.toString().trim() ?? '';
-
-    final String fullName = '$name $surname'.trim();
-
-    final String phone = data['telefon']?.toString().trim() ?? '';
+    final String userId =
+        data['uid']?.toString().trim() ??
+        data['userId']?.toString().trim() ??
+        document.id;
 
     final String status = data['status']?.toString() ?? 'pending';
 
@@ -347,15 +374,12 @@ class _AdminVerificationListScreenState
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Başvuru detay ekranını sonraki adımda bağlayacağız.',
-                ),
-              ),
-            );
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  AdminVerificationDetailScreen(requestId: document.id),
+            ),
+          );
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -365,41 +389,7 @@ class _AdminVerificationListScreenState
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  CircleAvatar(
-                    radius: 25,
-                    backgroundColor: statusColor.withValues(alpha: 0.14),
-                    child: Icon(
-                      Icons.person_outline_rounded,
-                      color: statusColor,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          fullName.isEmpty ? 'İsimsiz kullanıcı' : fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          phone.isEmpty ? 'Telefon bilgisi yok' : phone,
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: AdminUserIdentity(uid: userId)),
                   const SizedBox(width: 8),
                   const Icon(Icons.chevron_right),
                 ],
@@ -410,22 +400,6 @@ class _AdminVerificationListScreenState
                 runSpacing: 8,
                 children: <Widget>[
                   _StatusLabel(label: _statusTitle(status), color: statusColor),
-                  const _DocumentLabel(
-                    icon: Icons.credit_card,
-                    label: 'Kimlik ön',
-                  ),
-                  const _DocumentLabel(
-                    icon: Icons.credit_card,
-                    label: 'Kimlik arka',
-                  ),
-                  const _DocumentLabel(
-                    icon: Icons.description_outlined,
-                    label: 'Adli sicil',
-                  ),
-                  const _DocumentLabel(
-                    icon: Icons.camera_alt_outlined,
-                    label: 'Selfie',
-                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -433,7 +407,7 @@ class _AdminVerificationListScreenState
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      'Kullanıcı: ${document.id}',
+                      'Belge ve iletişim ayrıntıları detay ekranında',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -598,41 +572,6 @@ class _StatusLabel extends StatelessWidget {
               color: color,
               fontSize: 11,
               fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DocumentLabel extends StatelessWidget {
-  const _DocumentLabel({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color color = Theme.of(context).colorScheme.primary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
             ),
           ),
         ],

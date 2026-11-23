@@ -8,9 +8,10 @@ import {
   onCall,
 } from "firebase-functions/v2/https";
 import {
-  hasFreeMembershipAccess,
-  isFreeAccessEvent,
-} from "../events/eventLifecycle";
+  hasEventChatAccess,
+  isEventChatMember,
+  isEventOrganizer,
+} from "./eventChatAccessPolicy";
 
 const REGION = "europe-west1";
 const MAX_MESSAGE_LENGTH = 2000;
@@ -76,7 +77,7 @@ export const sendEventMessage = onCall(
           freshData,
         );
 
-      if (!isChatMember(uid, freshData, applicationData)) {
+      if (!isEventChatMember(uid, freshData, applicationData)) {
         throw new HttpsError(
           "permission-denied",
           "Sohbet ödeme tamamlandıktan sonra açılır.",
@@ -180,7 +181,7 @@ export const editEventMessage = onCall(
           eventData,
         );
 
-      if (!isChatMember(uid, eventData, applicationData)) {
+      if (!isEventChatMember(uid, eventData, applicationData)) {
         throw new HttpsError(
           "permission-denied",
           "Sohbet ödeme tamamlandıktan sonra açılır.",
@@ -290,7 +291,7 @@ export const deleteEventMessage = onCall(
           eventData,
         );
 
-      if (!isChatMember(uid, eventData, applicationData)) {
+      if (!isEventChatMember(uid, eventData, applicationData)) {
         throw new HttpsError(
           "permission-denied",
           "Sohbet ödeme tamamlandıktan sonra açılır.",
@@ -343,45 +344,17 @@ async function requireChatAccess(
   uid: string,
   eventId: string,
 ): Promise<EventChatContext> {
-  const eventReference = getFirestore()
-    .collection("events")
-    .doc(eventId);
-
-  const eventSnapshot = await eventReference.get();
-
-  if (!eventSnapshot.exists) {
-    throw new HttpsError(
-      "not-found",
-      "Etkinlik bulunamadı.",
-    );
-  }
-
-  const eventData = eventSnapshot.data() ?? {};
-  let applicationData:
-    FirebaseFirestore.DocumentData | undefined;
-
-  if (!isOrganizer(uid, eventData)) {
-    const applicationSnapshot = await eventReference
-      .collection("applications")
-      .doc(uid)
-      .get();
-
-    applicationData = applicationSnapshot.exists ?
-      applicationSnapshot.data() :
-      undefined;
-  }
-
-  if (!isChatMember(uid, eventData, applicationData)) {
+  const access = await hasEventChatAccess(getFirestore(), uid, eventId);
+  if (!access) {
     throw new HttpsError(
       "permission-denied",
       "Sohbet ödeme tamamlandıktan sonra açılır.",
     );
   }
-
   return {
     eventId,
-    eventReference,
-    eventData,
+    eventReference: access.eventReference,
+    eventData: access.eventData,
   };
 }
 
@@ -543,45 +516,6 @@ async function refreshLastMessage(
  * Canonical application data.
  * @return {boolean} True when the user belongs to the chat.
  */
-function isChatMember(
-  uid: string,
-  eventData: FirebaseFirestore.DocumentData,
-  applicationData?: FirebaseFirestore.DocumentData,
-): boolean {
-  if (isFreeAccessEvent(eventData)) {
-    if (isOrganizer(uid, eventData)) {
-      return true;
-    }
-
-    return stringList(eventData.selectedPlayerIds).includes(uid) &&
-      hasFreeMembershipAccess(applicationData);
-  }
-
-  if (!hasCompletedEventPayment(eventData)) {
-    return false;
-  }
-
-  if (isOrganizer(uid, eventData)) {
-    return true;
-  }
-
-  const memberIds = new Set<string>([
-    ...stringList(eventData.selectedPlayerIds),
-    ...stringList(eventData.katilanlar),
-    ...stringList(eventData.participantIds),
-    ...stringList(eventData.participantUids),
-    ...stringList(eventData.acceptedUserUids),
-    ...stringList(eventData.chatMemberUids),
-    ...stringList(eventData.memberUids),
-  ]);
-
-  if (!memberIds.has(uid)) {
-    return false;
-  }
-
-  return hasPaidCanonicalChatAccess(applicationData);
-}
-
 /**
  * Reads the participant application inside an event transaction.
  *
@@ -597,7 +531,7 @@ async function readApplicationInTransaction(
   uid: string,
   eventData: FirebaseFirestore.DocumentData,
 ): Promise<FirebaseFirestore.DocumentData | undefined> {
-  if (isOrganizer(uid, eventData)) {
+  if (isEventOrganizer(uid, eventData)) {
     return undefined;
   }
 
@@ -616,59 +550,6 @@ async function readApplicationInTransaction(
  * @param {FirebaseFirestore.DocumentData} eventData Event data.
  * @return {boolean} True when the event payment is complete.
  */
-function hasCompletedEventPayment(
-  eventData: FirebaseFirestore.DocumentData,
-): boolean {
-  const paymentStatus = String(
-    eventData.paymentStatus ?? "",
-  )
-    .trim()
-    .toLowerCase();
-
-  return new Set([
-    "paid",
-    "completed",
-    "success",
-    "succeeded",
-    "escrowheld",
-    "escrow_held",
-  ]).has(paymentStatus);
-}
-
-/**
- * Checks canonical paid chat access.
- *
- * @param {FirebaseFirestore.DocumentData|undefined} applicationData App data.
- * @return {boolean} True when payment and address state allow chat.
- */
-function hasPaidCanonicalChatAccess(
-  applicationData?: FirebaseFirestore.DocumentData,
-): boolean {
-  if (!applicationData) {
-    return false;
-  }
-
-  const paymentStatus = String(
-    applicationData.paymentStatus ?? "",
-  )
-    .trim()
-    .toLowerCase();
-
-  const addressStatus = String(
-    applicationData.addressAccessStatus ?? "",
-  )
-    .trim()
-    .toLowerCase();
-
-  return (
-    addressStatus === "unlocked" &&
-    (
-      paymentStatus === "paid" ||
-      paymentStatus === "completed"
-    )
-  );
-}
-
 /**
  * Checks lifecycle version.
  *
@@ -682,21 +563,6 @@ function hasPaidCanonicalChatAccess(
  * @param {FirebaseFirestore.DocumentData} eventData Event data.
  * @return {boolean} True for organizer.
  */
-function isOrganizer(
-  uid: string,
-  eventData: FirebaseFirestore.DocumentData,
-): boolean {
-  return firstString(
-    eventData,
-    [
-      "olusturanUid",
-      "creatorUid",
-      "ownerUid",
-      "hostUid",
-    ],
-  ) === uid;
-}
-
 /**
  * Reads a required string from callable data.
  *
@@ -797,20 +663,4 @@ function firstString(
   }
 
   return "";
-}
-
-/**
- * Reads a safe string list.
- *
- * @param {unknown} value Raw value.
- * @return {string[]} String list.
- */
-function stringList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => String(item).trim())
-    .filter((item) => item.length > 0);
 }

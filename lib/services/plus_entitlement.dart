@@ -17,24 +17,41 @@ class PlusEntitlement {
       return false;
     }
 
-    final bool flagged = data['plus'] == true || data['isPlus'] == true;
-    if (!flagged) {
-      return false;
-    }
-
-    final DateTime? expiry = _date(
-      data['plusExpiresAt'] ?? data['subscriptionExpiresAt'],
-    );
-    if (expiry == null || !expiry.isAfter(now ?? DateTime.now())) {
-      return false;
-    }
-
-    final String state = data['plusSubscriptionState']?.toString().trim() ?? '';
-    if (state.isEmpty) {
+    if (data['plusAdminGranted'] == true) {
       return true;
     }
 
-    return entitledStates.contains(state);
+    return expiresAt(data, now: now) != null;
+  }
+
+  /// Effective dated sources; an admin grant has no subscription expiry.
+  static DateTime? expiresAt(Map<String, dynamic>? data, {DateTime? now}) {
+    if (data == null || data['plusAdminGranted'] == true) return null;
+    final DateTime clock = now ?? DateTime.now();
+    final DateTime? giftExpiry = _date(data['plusGiftExpiresAt']);
+    final DateTime? activeGift = giftExpiry != null && giftExpiry.isAfter(clock)
+        ? giftExpiry
+        : null;
+
+    final bool flagged = data['plus'] == true || data['isPlus'] == true;
+    if (!flagged) {
+      return activeGift;
+    }
+
+    final DateTime? expiry =
+        _date(data['plusSubscriptionExpiresAt']) ??
+        (giftExpiry == null
+            ? _date(data['plusExpiresAt'] ?? data['subscriptionExpiresAt'])
+            : null);
+    if (expiry == null || !expiry.isAfter(clock)) {
+      return activeGift;
+    }
+
+    final String state = data['plusSubscriptionState']?.toString().trim() ?? '';
+    if (state.isNotEmpty && !entitledStates.contains(state)) return activeGift;
+    return activeGift != null && activeGift.isAfter(expiry)
+        ? activeGift
+        : expiry;
   }
 
   static DateTime? _date(dynamic value) {

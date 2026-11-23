@@ -1,6 +1,7 @@
 import {FieldValue} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/https";
 import {firestore} from "../config/firebaseAdmin";
+import {assertV1WalletMutationAllowed} from "../policy/v1WalletPolicy";
 
 interface CancelWithdrawalData {
   withdrawalId: string;
@@ -19,6 +20,8 @@ export const cancelWithdrawal = onCall(
       );
     }
 
+    const uid = request.auth.uid;
+    assertV1WalletMutationAllowed();
     const data = request.data as CancelWithdrawalData;
 
     if (
@@ -31,7 +34,6 @@ export const cancelWithdrawal = onCall(
       );
     }
 
-    const uid = request.auth.uid;
     const withdrawalId = data.withdrawalId.trim();
 
     if (withdrawalId.length === 0) {

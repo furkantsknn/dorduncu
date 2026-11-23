@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 
 import '../screens/event_chat_screen.dart';
 import '../screens/event_detail_screen.dart';
+import '../screens/notification_center_screen.dart';
+import 'language_controller.dart';
 import 'notification_service.dart';
 
 class NotificationPushService {
@@ -23,6 +25,25 @@ class NotificationPushService {
   static RemoteMessage? _pendingNavigationMessage;
   static bool _initialized = false;
   static bool _navigationBusy = false;
+  static bool _homeReady = false;
+  static String _visibleChatEventId = '';
+  static final Set<String> _handledForegroundIds = <String>{};
+
+  static void setVisibleChat(String? eventId) {
+    _visibleChatEventId = eventId?.trim() ?? '';
+  }
+
+  /// Splash `pushReplacement` ile üstteki rotayı değiştirir; bildirim rotası
+  /// ancak gerçek kabuk (`HomeScreen`) açıldıktan sonra itilir.
+  static void markHomeReady() {
+    _homeReady = true;
+    ensurePermissionAndRegister();
+    flushPendingNavigation();
+  }
+
+  static void markHomeClosed() {
+    _homeReady = false;
+  }
 
   static Future<void> initialize({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -34,6 +55,18 @@ class NotificationPushService {
 
     _initialized = true;
     _navigatorKey = navigatorKey;
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        await _messaging.setForegroundNotificationPresentationOptions(
+          alert: false,
+          badge: true,
+          sound: false,
+        );
+      } catch (error) {
+        debugPrint('APNs foreground presentation options failed: $error');
+      }
+    }
 
     _messaging.onTokenRefresh.listen(
       (String token) async {
@@ -61,11 +94,17 @@ class NotificationPushService {
           return;
         }
 
-        await ensurePermissionAndRegister();
         await flushPendingNavigation();
       },
       onError: (Object error, StackTrace stackTrace) {
         debugPrint('FCM auth listener failed: $error');
+      },
+    );
+
+    FirebaseMessaging.onMessage.listen(
+      _showForegroundMessage,
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('FCM foreground listener failed: $error');
       },
     );
 
@@ -94,7 +133,10 @@ class NotificationPushService {
     final RemoteMessage? message = _pendingNavigationMessage;
     final NavigatorState? navigator = _navigatorKey?.currentState;
 
-    if (message == null || navigator == null || _auth.currentUser == null) {
+    if (message == null ||
+        navigator == null ||
+        !_homeReady ||
+        _auth.currentUser == null) {
       return;
     }
 
@@ -114,6 +156,59 @@ class NotificationPushService {
     } finally {
       _navigationBusy = false;
     }
+  }
+
+  /// Uygulama açıkken Android sistem bildirimi göstermez. Sessiz bir uygulama
+  /// içi uyarı gösterilir; ses ve titreşim yalnız sistem kanalındadır.
+  static void _showForegroundMessage(RemoteMessage message) {
+    final BuildContext? context = _navigatorKey?.currentContext;
+    if (!_homeReady || context == null || _auth.currentUser == null) {
+      return;
+    }
+    final String notificationId = _text(message.data['notificationId']);
+    if (notificationId.isNotEmpty &&
+        !_handledForegroundIds.add(notificationId)) {
+      return;
+    }
+    final String route = _text(message.data['route']).toLowerCase();
+    final String eventId = _text(message.data['eventId']);
+    if ((route == 'event_chat' || route == 'eventchat') &&
+        eventId.isNotEmpty &&
+        eventId == _visibleChatEventId) {
+      return;
+    }
+    final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(
+      context,
+    );
+    final String title = _text(message.notification?.title);
+    final String body = _text(message.notification?.body);
+    if (messenger == null || (title.isEmpty && body.isEmpty)) {
+      return;
+    }
+    final String open = switch (LanguageController.language.value) {
+      AppLanguage.turkish => 'Aç',
+      AppLanguage.english => 'Open',
+      AppLanguage.german => 'Öffnen',
+    };
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            title.isEmpty || body.isEmpty ? '$title$body' : '$title\n$body',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: open,
+            onPressed: () {
+              _pendingNavigationMessage = message;
+              flushPendingNavigation();
+            },
+          ),
+        ),
+      );
   }
 
   static Future<bool> ensurePermissionAndRegister() async {
@@ -147,6 +242,15 @@ class NotificationPushService {
         return false;
       }
 
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        final String? apnsToken = await _waitForApnsToken();
+        if (apnsToken == null || apnsToken.trim().isEmpty) {
+          // APNs token may arrive asynchronously after launch; onTokenRefresh
+          // will register the FCM token as soon as APNs completes.
+          return false;
+        }
+      }
+
       final String? token = await _messaging.getToken();
 
       if (token == null || token.trim().isEmpty) {
@@ -170,6 +274,13 @@ class NotificationPushService {
     }
 
     try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        final String? apnsToken = await _messaging.getAPNSToken();
+        if (apnsToken == null || apnsToken.trim().isEmpty) {
+          return;
+        }
+      }
+
       final String? token = await _messaging.getToken();
 
       if (token == null || token.trim().isEmpty) {
@@ -199,7 +310,12 @@ class NotificationPushService {
     final String notificationId = _text(data['notificationId']);
 
     if (eventId.isEmpty) {
-      return false;
+      await navigator.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => const NotificationCenterScreen(),
+        ),
+      );
+      return true;
     }
 
     if (route == 'event_chat' || route == 'eventchat') {
@@ -228,30 +344,24 @@ class NotificationPushService {
       return true;
     }
 
-    if (route == 'event_detail' ||
-        route == 'eventdetail' ||
-        route == 'payment') {
-      final DocumentSnapshot<Map<String, dynamic>> eventSnapshot =
-          await _firestore.collection('events').doc(eventId).get();
+    final DocumentSnapshot<Map<String, dynamic>> eventSnapshot =
+        await _firestore.collection('events').doc(eventId).get();
 
-      final Map<String, dynamic>? eventData = eventSnapshot.data();
+    final Map<String, dynamic>? eventData = eventSnapshot.data();
 
-      if (!eventSnapshot.exists || eventData == null) {
-        return false;
-      }
-
-      await navigator.push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              EventDetailScreen(eventId: eventId, initialData: eventData),
-        ),
-      );
-
-      await _markNotificationRead(notificationId);
-      return true;
+    if (!eventSnapshot.exists || eventData == null) {
+      return false;
     }
 
-    return false;
+    await navigator.push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            EventDetailScreen(eventId: eventId, initialData: eventData),
+      ),
+    );
+
+    await _markNotificationRead(notificationId);
+    return true;
   }
 
   static Future<void> _markNotificationRead(String notificationId) async {
@@ -286,6 +396,19 @@ class NotificationPushService {
 
   static String _text(dynamic value) {
     return value?.toString().trim() ?? '';
+  }
+
+  static Future<String?> _waitForApnsToken() async {
+    for (int attempt = 0; attempt < 4; attempt++) {
+      final String? apnsToken = await _messaging.getAPNSToken();
+      if (apnsToken != null && apnsToken.trim().isNotEmpty) {
+        return apnsToken;
+      }
+      if (attempt < 3) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    }
+    return null;
   }
 
   static Future<void> _registerToken(String token) async {

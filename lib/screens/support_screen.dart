@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/support_service.dart';
+import '../utils/support_categories.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({
@@ -17,6 +18,8 @@ class SupportScreen extends StatefulWidget {
 }
 
 class _SupportScreenState extends State<SupportScreen> {
+  late final String _clientRequestId =
+      '${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
   final TextEditingController messageController = TextEditingController();
 
   static const List<String> _categoryValues = [
@@ -117,16 +120,13 @@ class _SupportScreenState extends State<SupportScreen> {
     setState(() => sending = true);
 
     try {
-      await FirebaseFirestore.instance.collection('support_requests').add({
-        'userId': user.uid,
-        'phoneNumber': user.phoneNumber ?? '',
-        'category': selectedCategory,
-        'message': message,
-        'accountStatus': widget.accountStatus,
-        'status': 'open',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await SupportService.createRequest(
+        clientRequestId: _clientRequestId,
+        category: SupportCategory.accountAppeal,
+        subject: _categoryLabel(selectedCategory),
+        description: message,
+        urgency: SupportUrgency.normal,
+      );
 
       if (!mounted) return;
 

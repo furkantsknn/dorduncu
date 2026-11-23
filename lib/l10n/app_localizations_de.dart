@@ -797,7 +797,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get normalMembersTomorrowOnly =>
-      'Normale Mitglieder können Events höchstens für morgen erstellen.';
+      'Mit der kostenlosen Mitgliedschaft kannst du ein Event nur für heute erstellen.';
+
+  @override
+  String get eventPlusSevenDayLimit =>
+      'Mit Plus kannst du Events für zukünftige Termine erstellen.';
 
   @override
   String get sessionNotFoundPleaseLogin =>
@@ -847,11 +851,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get plusMemberBenefits =>
-      'Plus-Mitglied: Du kannst mehrere Spieler und zukünftige Termine wählen.';
+      'Plus: Erstelle mehrere Events gleichzeitig; die Zahl offener Events ist unbegrenzt.';
 
   @override
   String get normalMemberLimits =>
-      'Normales Mitglied: Du kannst ein Event für 1 Spieler und höchstens morgen erstellen.';
+      'Kostenlos: gleichzeitig 2 offene Events; nur heute und 1 Spieler.';
 
   @override
   String startTimeLabel(String time) {
@@ -987,4 +991,24 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get communityRulesBody =>
       'Sei respektvoll. Belästigung, Drohungen, Diskriminierung, Betrug und irreführende Veranstaltungen sind verboten. Bewirb dich nicht für Veranstaltungen, an denen du nicht teilnehmen kannst; informiere den Veranstalter rechtzeitig, wenn du absagen musst. Melde Nutzer, die ein Sicherheitsrisiko darstellen, über den Support-Kanal.';
+
+  @override
+  String eventServiceBusy(String code) {
+    return 'Der Dienst ist ausgelastet oder ein Anfragelimit wurde erreicht. Dies bedeutet kein Plus-Eventlimit. Prüfe Meine Events, bevor du es erneut versuchst. ($code)';
+  }
+
+  @override
+  String eventCreateUncertain(String code) {
+    return 'Das Ergebnis konnte nicht bestätigt werden. Prüfe Meine Events, bevor du das Event erneut erstellst. ($code)';
+  }
+
+  @override
+  String eventVerificationFailed(String code) {
+    return 'Sitzung oder Berechtigung konnte nicht bestätigt werden. Prüfe Verbindung und Anmeldung. ($code)';
+  }
+
+  @override
+  String eventCreateSafeFailure(String code) {
+    return 'Das Event konnte nicht erstellt werden. Prüfe Meine Events, bevor du es erneut versuchst. ($code)';
+  }
 }

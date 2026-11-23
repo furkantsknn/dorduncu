@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import '../services/plus_entitlement.dart';
+
 String _adminMembershipText(
   BuildContext context, {
   required String tr,
@@ -272,7 +274,8 @@ class _AdminMembershipManagementScreenState
             final Map<String, dynamic> data =
                 snapshot.data?.data() ?? <String, dynamic>{};
 
-            final bool isPlus = data['plus'] == true;
+            final bool isPlus = PlusEntitlement.isActive(data);
+            final bool adminGranted = data['plusAdminGranted'] == true;
 
             final bool isPlayer =
                 data['oyuncuRozeti'] == true || data['verified'] == true;
@@ -391,7 +394,7 @@ class _AdminMembershipManagementScreenState
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: _saving || isPlus
+                              onPressed: _saving || adminGranted
                                   ? null
                                   : () {
                                       _updatePlus(enabled: true);
@@ -416,7 +419,7 @@ class _AdminMembershipManagementScreenState
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: _saving || !isPlus
+                              onPressed: _saving || !adminGranted
                                   ? null
                                   : () {
                                       _updatePlus(enabled: false);

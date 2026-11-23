@@ -24,11 +24,16 @@ import {
   verifyGooglePlayProduct,
   verifyGooglePlaySubscription,
 } from "../commercial/googlePlayVerification";
+import {assertPurchaseAccount} from "../commercial/purchaseAccountBinding";
+import {isPlusMembershipActive} from "../users/plusMembership";
+import {fulfillGiftPurchase} from "./fulfillGiftPurchase";
+import {badgeRecordedPrice} from "../commercial/playCatalogPrice";
 
 interface FulfillGooglePlayPurchaseRequest {
   googlePlayProductId?: unknown;
   purchaseToken?: unknown;
   recipientUid?: unknown;
+  giftIntentId?: unknown;
 }
 
 type DigitalPurchaseKind =
@@ -85,18 +90,29 @@ export const fulfillGooglePlayPurchase = onCall(
       data.recipientUid ?? "",
     ).trim();
     const recipientUid = requestedRecipient || uid;
+    const giftIntentId = String(data.giftIntentId ?? "").trim();
+    const gift = await resolveGiftCatalog(googlePlayProductId);
+
+    if (gift) {
+      return fulfillGiftPurchase({
+        buyerUid: uid,
+        googlePlayProductId,
+        purchaseToken,
+        giftIntentId,
+        clientRecipientUid: requestedRecipient,
+        internalProductId: gift.productId,
+        kind: gift.kind,
+      });
+    }
 
     const resolved = await resolveCatalogByGooglePlayId(
       googlePlayProductId,
     );
 
-    if (
-      resolved.kind === "plus_subscription" &&
-      recipientUid !== uid
-    ) {
+    if (recipientUid !== uid) {
       throw new HttpsError(
         "failed-precondition",
-        "Plus aboneliği hediye edilemez.",
+        "Hediye için ayrı Play ürünü ve sunucu hediye kaydı gerekir.",
       );
     }
 
@@ -142,12 +158,21 @@ async function fulfillPlusPurchase(
     );
   }
 
+  const acceptedOfferIds = new Set(
+    Array.isArray(catalog.data.acceptedGooglePlayOfferIds) ?
+      catalog.data.acceptedGooglePlayOfferIds
+        .map((value) => String(value ?? "").trim())
+        .filter((value) => value.length > 0) :
+      [],
+  );
   const verified =
     await verifyGooglePlaySubscription(
       catalog.googlePlayProductId,
       purchaseToken,
       catalog.googlePlayBasePlanId,
+      acceptedOfferIds,
     );
+  assertPurchaseAccount(verified.obfuscatedExternalAccountId, uid);
 
   const idempotencyKey =
     `${purchaseToken}:${verified.expiryTime.toISOString()}`;
@@ -300,6 +325,8 @@ async function fulfillPlusPurchase(
             verified.googlePlayProductId,
           plusSubscriptionState:
             verified.subscriptionState,
+          plusSubscriptionExpiresAt:
+            Timestamp.fromDate(verifiedExpiry),
           plusExpiresAt:
             Timestamp.fromDate(finalExpiry),
           plusUpdatedAt:
@@ -533,6 +560,7 @@ async function fulfillBadgePurchase(
       catalog.googlePlayProductId,
       purchaseToken,
     );
+  assertPurchaseAccount(verified.obfuscatedExternalAccountId, uid);
 
   const result = await firestore.runTransaction(
     async (transaction) => {
@@ -619,6 +647,65 @@ async function fulfillBadgePurchase(
         "badge_non_consumable",
       );
 
+      if (ownedBadgeSnapshot.data()?.adminBlocked === true) {
+        throw new HttpsError(
+          "permission-denied",
+          "This badge is blocked by an administrator.",
+        );
+      }
+
+      if (verified.consumed) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Kişisel rozet satın alması tüketilmiş olamaz.",
+        );
+      }
+      const plusOfferId = String(
+        currentProduct.data.plusGooglePlayOfferId ?? "",
+      ).trim();
+      const usedPlusOffer = verified.offerId !== "";
+      if (usedPlusOffer && verified.offerId !== plusOfferId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Google Play rozet teklifi katalogla eşleşmedi.",
+        );
+      }
+      const expectedOptionId = String(
+        currentProduct.data.googlePlayPurchaseOptionId ?? "",
+      ).trim();
+      if (usedPlusOffer &&
+          verified.purchaseOptionId !== expectedOptionId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Google Play rozet satın alma seçeneği katalogla eşleşmedi.",
+        );
+      }
+      const plusEligibleAtPurchase = usedPlusOffer &&
+        verified.purchaseTime != null &&
+        isPlusMembershipActive(
+          recipientSnapshot.data() ?? {},
+          verified.purchaseTime.getTime(),
+        );
+      if (usedPlusOffer && !plusEligibleAtPurchase) {
+        throw new HttpsError(
+          "permission-denied",
+          "Plus rozet teklifi için aktif Plus üyeliği gerekir.",
+        );
+      }
+      let recordedPrice: ReturnType<typeof badgeRecordedPrice>;
+      try {
+        recordedPrice = badgeRecordedPrice({
+          usedPlusOffer,
+          listPriceKurus: currentProduct.priceKurus,
+          plusPriceKurus: currentProduct.data.plusPriceKurus,
+        });
+      } catch {
+        throw new HttpsError(
+          "failed-precondition",
+          "Rozet fiyat kaydı geçersiz.",
+        );
+      }
+
       const reservation =
         await reserveCommercialOperation(
           firestore,
@@ -639,10 +726,10 @@ async function fulfillBadgePurchase(
             money: {
               currency: "TRY",
               grossAmountMinor:
-                currentProduct.priceKurus,
+                recordedPrice.amountKurus,
               feeAmountMinor: 0,
               netAmountMinor:
-                currentProduct.priceKurus,
+                recordedPrice.amountKurus,
             },
             relatedProductId: productId,
             metadata: {
@@ -652,8 +739,12 @@ async function fulfillBadgePurchase(
                 verified.purchaseTokenHash,
               testPurchase:
                 verified.testPurchase,
-              amountSource:
-                "catalog_nominal",
+              amountSource: recordedPrice.amountSource,
+              listPriceKurus: recordedPrice.listPriceKurus,
+              providerAmountVerified: false,
+              offerId: verified.offerId,
+              purchaseOptionId: verified.purchaseOptionId,
+              plusEligibleAtPurchase,
             },
           },
           {
@@ -664,6 +755,12 @@ async function fulfillBadgePurchase(
         );
 
       if (!reservation.created) {
+        if (tokenSnapshot.data()?.active === false) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Bu Google Play satın alması iade edilmiş.",
+          );
+        }
         return {
           success: true,
           idempotentReplay: true,
@@ -707,6 +804,10 @@ async function fulfillBadgePurchase(
               reservation.operationId,
             googlePlayPurchaseTokenHash:
               verified.purchaseTokenHash,
+            priceKurus: recordedPrice.amountKurus,
+            listPriceKurus: recordedPrice.listPriceKurus,
+            amountSource: recordedPrice.amountSource,
+            providerAmountVerified: false,
             updatedAt:
               FieldValue.serverTimestamp(),
           },
@@ -734,8 +835,10 @@ async function fulfillBadgePurchase(
             title,
             emoji,
             imageUrl,
-            priceKurus:
-              currentProduct.priceKurus,
+            priceKurus: recordedPrice.amountKurus,
+            listPriceKurus: recordedPrice.listPriceKurus,
+            amountSource: recordedPrice.amountSource,
+            providerAmountVerified: false,
             paymentMethod:
               "google_play",
             equipped: true,
@@ -823,10 +926,10 @@ async function fulfillBadgePurchase(
           gameId,
           gameName,
           title,
-          amountKurus:
-            currentProduct.priceKurus,
-          amountSource:
-            "catalog_nominal",
+          amountKurus: recordedPrice.amountKurus,
+          listPriceKurus: recordedPrice.listPriceKurus,
+          amountSource: recordedPrice.amountSource,
+          providerAmountVerified: false,
           paymentMethod:
             "google_play",
           status:
@@ -1067,12 +1170,83 @@ function readTimestampDate(
 }
 
 /**
- * Resolves one canonical internal product from a Google Play product id.
- *
- * The client does not choose internal product id or entitlement kind.
- *
- * @param {string} googlePlayProductId Google Play product id.
- * @return {Promise<ResolvedCatalogProduct>} Canonical product mapping.
+ * Resolves a separate gift Play product id.
+ * @param {string} googlePlayProductId Play product id.
+ * @return {Promise<object|null>} Gift catalog match.
+ */
+async function resolveGiftCatalog(
+  googlePlayProductId: string,
+): Promise<{productId: string; kind: "badge_gift" | "plus_gift"} | null> {
+  try {
+    const [badgeSnapshot, plusSnapshot] = await Promise.all([
+      firestore.collection("badge_products")
+        .where("giftGooglePlayProductId", "==", googlePlayProductId)
+        .limit(5)
+        .get(),
+      firestore.collection("plus_products")
+        .where("giftGooglePlayProductId", "==", googlePlayProductId)
+        .limit(5)
+        .get(),
+    ]);
+    const matches = [
+      ...badgeSnapshot.docs
+        .filter((document) => separateGiftProduct(document.data()))
+        .map((document) => ({
+          productId: document.id,
+          kind: "badge_gift" as const,
+        })),
+      ...plusSnapshot.docs
+        .filter((document) => separateGiftProduct(document.data()))
+        .map((document) => ({
+          productId: document.id,
+          kind: "plus_gift" as const,
+        })),
+    ];
+
+    if (matches.length === 0) {
+      return null;
+    }
+
+    if (matches.length !== 1) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Hediye Play ürün eşlemesi benzersiz değil.",
+      );
+    }
+
+    return matches[0];
+  } catch (error) {
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    console.error(
+      "Gift catalog lookup skipped. Personal purchase continues.",
+    );
+    return null;
+  }
+}
+
+/**
+ * A gift product must be active and use a Play id separate from the
+ * personal product. A missing or identical gift id stays on the personal path.
+ * @param {Record<string, unknown>} data Catalog document.
+ * @return {boolean} Whether this document is a separate gift product.
+ */
+function separateGiftProduct(
+  data: Record<string, unknown>,
+): boolean {
+  if (data.active !== true) {
+    return false;
+  }
+  const giftId = String(data.giftGooglePlayProductId ?? "").trim();
+  const personalId = String(data.googlePlayProductId ?? "").trim();
+  return giftId !== "" && giftId !== personalId;
+}
+
+/**
+ * Resolves one personal catalog product from a Play product id.
+ * @param {string} googlePlayProductId Play product id.
+ * @return {Promise<ResolvedCatalogProduct>} Catalog product.
  */
 async function resolveCatalogByGooglePlayId(
   googlePlayProductId: string,

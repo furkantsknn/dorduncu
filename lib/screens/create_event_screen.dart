@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -10,11 +10,14 @@ import 'package:http/http.dart' as http;
 import '../l10n/app_localizations.dart';
 import '../services/user_service.dart';
 import '../utils/game_catalog.dart';
-import '../widgets/game_visuals.dart';
 import 'map_location_picker_screen.dart';
+import 'market_screen.dart';
 
 import '../models/event_model.dart';
+import '../services/event_schedule.dart';
 import '../services/event_service.dart';
+import '../services/event_operation_failure.dart';
+import '../services/plus_entitlement.dart';
 
 String _createEventCategoryName(
   BuildContext context,
@@ -104,7 +107,33 @@ String _createEventGameName(BuildContext context, GameDefinition game) {
 }
 
 String _createEventGameDisplayName(BuildContext context, GameDefinition game) {
-  return '${GameVisuals.emoji(game.id)} ${_createEventGameName(context, game)}';
+  return _createEventGameName(context, game);
+}
+
+String _marketPlayerCountError(BuildContext context) {
+  switch (Localizations.localeOf(context).languageCode) {
+    case 'en':
+      return 'Enter a positive whole number.';
+    case 'de':
+      return 'Gib eine positive ganze Zahl ein.';
+    default:
+      return 'Pozitif bir tam sayı gir.';
+  }
+}
+
+String _quotaText({
+  required String tr,
+  required String en,
+  required String de,
+}) {
+  switch (WidgetsBinding.instance.platformDispatcher.locale.languageCode) {
+    case 'en':
+      return en;
+    case 'de':
+      return de;
+    default:
+      return tr;
+  }
 }
 
 class CreateEventScreen extends StatefulWidget {
@@ -115,10 +144,16 @@ class CreateEventScreen extends StatefulWidget {
 }
 
 class _CreateEventScreenState extends State<CreateEventScreen> {
+  // Stable for this form, including a lost response. No automatic retries.
+  final String _creationRequestId = FirebaseFirestore.instance
+      .collection('events')
+      .doc()
+      .id;
   final _formKey = GlobalKey<FormState>();
   final districtController = TextEditingController();
   final neighborhoodController = TextEditingController();
   final descriptionController = TextEditingController();
+  final playerCountController = TextEditingController(text: '1');
   final neighborhoodFocusNode = FocusNode();
 
   Map<String, dynamic> profile = <String, dynamic>{};
@@ -126,9 +161,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   int? selectedDistrictId;
   String selectedCategoryId = GameCatalog.categories.first.id;
   String selectedGameId = GameCatalog.categories.first.games.first.id;
-  int selectedPlayerCount = 1;
   String selectedMemberPreference = 'Herkes';
-  DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+  DateTime selectedDate = istanbulCivilDate(DateTime.now());
   TimeOfDay selectedStartTime = const TimeOfDay(hour: 20, minute: 30);
   TimeOfDay selectedEndTime = const TimeOfDay(hour: 21, minute: 30);
   double latitude = 0;
@@ -138,13 +172,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool profileLoading = true;
   bool districtLoading = false;
   bool neighborhoodLoading = false;
+  EventCreationQuotaState? creationQuota;
   List<_District> districts = const [];
   List<String> neighborhoodSuggestions = const [];
   Timer? _neighborhoodTimer;
 
   static const memberPreferences = <String>['Herkes', 'Normal Üye', 'Plus Üye'];
-
-  static const playerOptions = <int>[1, 2, 3, 4];
 
   static const provinceIds = <String, int>{
     'Adana': 1,
@@ -244,13 +277,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     districtController.dispose();
     neighborhoodController.dispose();
     descriptionController.dispose();
+    playerCountController.dispose();
     neighborhoodFocusNode.dispose();
     super.dispose();
   }
 
   bool get isPlus => _plusActive(profile);
 
-  int get playerCount => selectedPlayerCount;
+  int get playerCount => int.tryParse(playerCountController.text.trim()) ?? 0;
 
   GameCategoryDefinition get selectedCategory =>
       GameCatalog.categoryById(selectedCategoryId) ??
@@ -260,20 +294,20 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     return GameCatalog.gameById(selectedGameId) ?? selectedCategory.games.first;
   }
 
-  DateTime get startAt => DateTime(
-    selectedDate.year,
-    selectedDate.month,
-    selectedDate.day,
-    selectedStartTime.hour,
-    selectedStartTime.minute,
+  DateTime get startAt => instantFromIstanbulCivil(
+    year: selectedDate.year,
+    month: selectedDate.month,
+    day: selectedDate.day,
+    hour: selectedStartTime.hour,
+    minute: selectedStartTime.minute,
   );
 
-  DateTime get endAt => DateTime(
-    selectedDate.year,
-    selectedDate.month,
-    selectedDate.day,
-    selectedEndTime.hour,
-    selectedEndTime.minute,
+  DateTime get endAt => instantFromIstanbulCivil(
+    year: selectedDate.year,
+    month: selectedDate.month,
+    day: selectedDate.day,
+    hour: selectedEndTime.hour,
+    minute: selectedEndTime.minute,
   );
 
   int get durationMinutes => endAt.difference(startAt).inMinutes;
@@ -288,6 +322,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       if (!mounted) return;
 
       profile = data;
+      try {
+        creationQuota = await EventService().getCreationQuotaState();
+      } catch (_) {
+        creationQuota = null;
+      }
 
       final selected = data['aktifSehir']?.toString().trim() ?? '';
       final profileCity = data['sehir']?.toString().trim() ?? '';
@@ -516,11 +555,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Future<void> _pickDate() async {
-    final today = DateTime.now();
-    final first = DateTime(today.year, today.month, today.day);
-    final last = isPlus
-        ? first.add(const Duration(days: 365))
-        : first.add(const Duration(days: 1));
+    final DateTime first = istanbulCivilDate(DateTime.now());
+    final DateTime last = isPlus ? DateTime(9999, 12, 31) : first;
     var initial = DateTime(
       selectedDate.year,
       selectedDate.month,
@@ -569,19 +605,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   TimeOfDay _timeFromMinutes(int minutes) {
     final safeMinutes = minutes.clamp(0, (24 * 60) - 1);
     return TimeOfDay(hour: safeMinutes ~/ 60, minute: safeMinutes % 60);
-  }
-
-  String _playerOptionText(int count) {
-    final languageCode = Localizations.localeOf(context).languageCode;
-
-    switch (languageCode) {
-      case 'en':
-        return count == 1 ? '$count Player' : '$count Players';
-      case 'de':
-        return '$count Spieler';
-      default:
-        return '$count Oyuncu';
-    }
   }
 
   String _memberPreferenceText(String preference) {
@@ -848,9 +871,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Future<void> _publish() async {
+    if (busy) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (startAt.isBefore(DateTime.now())) {
+    final EventScheduleDecision schedule = evaluateEventSchedule(
+      startAt: startAt,
+      now: DateTime.now(),
+      plusActive: isPlus,
+    );
+    if (schedule == EventScheduleDecision.past) {
       _message(AppLocalizations.of(context)!.cannotSelectPastDateTime);
+      return;
+    }
+    if (schedule == EventScheduleDecision.freeNotToday) {
+      _message(AppLocalizations.of(context)!.normalMembersTomorrowOnly);
       return;
     }
     if (durationMinutes < GameCatalog.minimumDurationMinutes) {
@@ -867,22 +900,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
     if (!isPlus && playerCount > 1) {
       _message(AppLocalizations.of(context)!.plusRequiredForMultiplePlayers);
-      return;
-    }
-
-    final now = DateTime.now();
-    final normalLastDay = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).add(const Duration(days: 1));
-    final selectedDay = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    if (!isPlus && selectedDay.isAfter(normalLastDay)) {
-      _message(AppLocalizations.of(context)!.normalMembersTomorrowOnly);
       return;
     }
 
@@ -952,22 +969,50 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         durationMinutes: durationMinutes,
       );
 
-      await EventService().createEvent(event);
+      await EventService().createEvent(event, requestId: _creationRequestId);
 
       if (!mounted) return;
 
       Navigator.of(context).pop(true);
-    } on FirebaseException catch (error) {
+    } on PlusPlayerLimitException {
+      _message(AppLocalizations.of(context)!.plusRequiredForMultiplePlayers);
+    } on OpenEventQuotaException {
       _message(
-        AppLocalizations.of(
-          context,
-        )!.eventCreateFailedWithCode(error.code, error.message ?? ''),
+        _quotaText(
+          tr: 'Aynı anda en fazla 2 açık etkinliğin olabilir. Bir etkinlik tamamlandığında, iptal edildiğinde veya süresi geçtiğinde yeniden oluşturabilirsin.',
+          en: 'You can own at most 2 open events at once. Create another after one is completed, cancelled, or expires.',
+          de: 'Du kannst gleichzeitig höchstens 2 offene Events besitzen. Erstelle ein neues, sobald eines beendet, abgesagt oder abgelaufen ist.',
+        ),
       );
-    } catch (error) {
-      _message(AppLocalizations.of(context)!.eventCreateFailed('$error'));
+    } on EventScheduleException {
+      final AppLocalizations l10n = AppLocalizations.of(context)!;
+      _message(l10n.normalMembersTomorrowOnly);
+    } on EventOperationFailure catch (error) {
+      _showCreateFailure(error);
+    } on FirebaseException catch (error) {
+      _showCreateFailure(
+        EventOperationFailure(code: error.code, stage: 'create'),
+      );
+    } catch (_) {
+      _showCreateFailure(
+        const EventOperationFailure(code: 'unknown', stage: 'create'),
+      );
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  void _showCreateFailure(EventOperationFailure failure) {
+    final l10n = AppLocalizations.of(context)!;
+    final code = failure.safeCode;
+    final message = switch (code) {
+      'resource-exhausted' => l10n.eventServiceBusy(code),
+      'unavailable' || 'deadline-exceeded' => l10n.eventCreateUncertain(code),
+      'unauthenticated' ||
+      'permission-denied' => l10n.eventVerificationFailed(code),
+      _ => l10n.eventCreateSafeFailure(code),
+    };
+    _message(message);
   }
 
   @override
@@ -993,8 +1038,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                           (category) => DropdownMenuItem<String>(
                             value: category.id,
                             child: Text(
-                              '${category.emoji} '
-                              '${_createEventCategoryName(context, category)}',
+                              _createEventCategoryName(context, category),
                             ),
                           ),
                         )
@@ -1044,33 +1088,26 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    initialValue: selectedPlayerCount,
-                    isExpanded: true,
-                    items: playerOptions
-                        .map(
-                          (playerOption) => DropdownMenuItem<int>(
-                            value: playerOption,
-                            child: Text(_playerOptionText(playerOption)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: busy
-                        ? null
-                        : (value) {
-                            if (value == null) return;
-                            if (!isPlus && value != 1) {
-                              _message(
-                                AppLocalizations.of(
-                                  context,
-                                )!.plusRequiredForMultiplePlayers,
-                              );
-                              return;
-                            }
-                            setState(() => selectedPlayerCount = value);
-                          },
+                  TextFormField(
+                    controller: playerCountController,
+                    enabled: !busy,
+                    keyboardType: TextInputType.number,
+                    maxLength: 16,
+                    validator: (String? raw) {
+                      final int? value = int.tryParse(raw?.trim() ?? '');
+                      if (value == null || value < 1) {
+                        return _marketPlayerCountError(context);
+                      }
+                      if (!isPlus && value != 1) {
+                        return AppLocalizations.of(
+                          context,
+                        )!.plusRequiredForMultiplePlayers;
+                      }
+                      return null;
+                    },
                     decoration: InputDecoration(
                       labelText: AppLocalizations.of(context)!.searchedPlayer,
+                      counterText: '',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1104,11 +1141,40 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       color: Theme.of(context).colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Text(
-                      isPlus
-                          ? AppLocalizations.of(context)!.plusMemberBenefits
-                          : AppLocalizations.of(context)!.normalMemberLimits,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          isPlus
+                              ? _quotaText(
+                                  tr: 'Plus: Aynı anda birden fazla etkinlik oluştur; açık etkinlik sayısı sınırı yok.',
+                                  en: 'Plus: Create multiple events at once; there is no open-event limit.',
+                                  de: 'Plus: Erstelle mehrere Events gleichzeitig; die Zahl offener Events ist unbegrenzt.',
+                                )
+                              : _quotaText(
+                                  tr: 'Ücretsiz: Aynı anda 2 açık etkinlik. ${creationQuota?.openEventCount ?? '–'}/2',
+                                  en: 'Free: 2 open events at once. ${creationQuota?.openEventCount ?? '–'}/2',
+                                  de: 'Kostenlos: Gleichzeitig 2 offene Events. ${creationQuota?.openEventCount ?? '–'}/2',
+                                ),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (!isPlus && creationQuota?.canCreate == false)
+                          TextButton(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    const MarketScreen(openPlusDetails: true),
+                              ),
+                            ),
+                            child: Text(
+                              _quotaText(
+                                tr: 'Plus detayını gör',
+                                en: 'View Plus details',
+                                de: 'Plus-Details ansehen',
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1412,16 +1478,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   );
 }
 
-bool _plusActive(Map<String, dynamic> data) {
-  if (data['plus'] != true) {
-    return false;
-  }
-  final Object? expiry = data['plusExpiresAt'] ?? data['subscriptionExpiresAt'];
-  if (expiry is Timestamp) {
-    return expiry.toDate().isAfter(DateTime.now());
-  }
-  return false;
-}
+bool _plusActive(Map<String, dynamic> data) => PlusEntitlement.isActive(data);
 
 String _createEventSummaryTitle(BuildContext context) {
   switch (Localizations.localeOf(context).languageCode) {

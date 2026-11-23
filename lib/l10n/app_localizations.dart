@@ -1537,8 +1537,14 @@ abstract class AppLocalizations {
   /// No description provided for @normalMembersTomorrowOnly.
   ///
   /// In tr, this message translates to:
-  /// **'Normal üyeler en fazla yarın için etkinlik oluşturabilir.'**
+  /// **'Ücretsiz üyelikte etkinlik yalnızca bugün için açılabilir.'**
   String get normalMembersTomorrowOnly;
+
+  /// No description provided for @eventPlusSevenDayLimit.
+  ///
+  /// In tr, this message translates to:
+  /// **'Plus ile ileri tarihler için etkinlik oluşturabilirsin.'**
+  String get eventPlusSevenDayLimit;
 
   /// No description provided for @sessionNotFoundPleaseLogin.
   ///
@@ -1621,13 +1627,13 @@ abstract class AppLocalizations {
   /// No description provided for @plusMemberBenefits.
   ///
   /// In tr, this message translates to:
-  /// **'Plus üye: Birden fazla oyuncu ve ileri tarih seçebilirsin.'**
+  /// **'Plus: Aynı anda birden fazla etkinlik oluştur; açık etkinlik sayısı sınırı yok.'**
   String get plusMemberBenefits;
 
   /// No description provided for @normalMemberLimits.
   ///
   /// In tr, this message translates to:
-  /// **'Normal üye: 1 oyuncu ve en fazla yarın için etkinlik oluşturabilirsin.'**
+  /// **'Ücretsiz: Aynı anda 2 açık etkinlik; yalnızca bugün ve 1 oyuncu.'**
   String get normalMemberLimits;
 
   /// No description provided for @startTimeLabel.
@@ -1851,6 +1857,30 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir.'**
   String get communityRulesBody;
+
+  /// No description provided for @eventServiceBusy.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hizmet şu anda yoğun veya istek sınırına ulaşıldı. Bu hata Plus etkinlik kotası anlamına gelmez. Yeniden denemeden önce Etkinliklerim listesini kontrol et. ({code})'**
+  String eventServiceBusy(String code);
+
+  /// No description provided for @eventCreateUncertain.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinlik işleminin sonucu doğrulanamadı. Yeniden oluşturmadan önce Etkinliklerim listesini kontrol et. ({code})'**
+  String eventCreateUncertain(String code);
+
+  /// No description provided for @eventVerificationFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Oturum veya işlem yetkisi doğrulanamadı. Bağlantını ve oturumunu kontrol et. ({code})'**
+  String eventVerificationFailed(String code);
+
+  /// No description provided for @eventCreateSafeFailure.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinlik oluşturulamadı. Yeniden denemeden önce Etkinliklerim listesini kontrol et. ({code})'**
+  String eventCreateSafeFailure(String code);
 }
 
 class _AppLocalizationsDelegate

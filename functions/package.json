@@ -3,6 +3,11 @@
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
     "build": "tsc",
+    "test:verification": "npm run build && node --test test/verificationCleanupPolicy.test.cjs",
+    "test:verification:integration": "npm run build && firebase emulators:exec --only firestore --project demo-verification-cleanup \"node --test test/verificationCleanup.integration.test.cjs\"",
+    "inventory:verification-orphans": "node scripts/inventoryVerificationOrphans.cjs",
+    "backfill:management-numbers:dry-run": "npm run build && node scripts/backfillManagementNumbers.cjs --project=dorduncu-8e599",
+    "backfill:management-numbers": "npm run build && node scripts/backfillManagementNumbers.cjs --project=dorduncu-8e599 --commit",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",

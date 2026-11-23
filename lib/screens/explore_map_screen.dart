@@ -256,6 +256,11 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                     userAgentPackageName: 'com.dortapp.dort',
                     maxNativeZoom: 19,
                   ),
+                  const RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution('OpenStreetMap contributors'),
+                    ],
+                  ),
                   if (userPosition != null)
                     MarkerLayer(
                       markers: [
@@ -326,7 +331,16 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                               materialTapTargetSize:
                                   MaterialTapTargetSize.shrinkWrap,
                               visualDensity: VisualDensity.compact,
-                              label: Text(value),
+                              label: Text(
+                                value == 'Tümü'
+                                    ? _mapText(
+                                        context,
+                                        tr: 'Tümü',
+                                        en: 'All',
+                                        de: 'Alle',
+                                      )
+                                    : value,
+                              ),
                               selected: category == value,
                               onSelected: (_) {
                                 setState(() {
@@ -434,7 +448,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     final eventCity = _normalize(data['sehir']?.toString() ?? '');
     if (selectedCity.isNotEmpty && eventCity != selectedCity) return false;
 
-    if (category != _mapText(context, tr: 'Tümü', en: 'All', de: 'Alle')) {
+    if (category != 'Tümü') {
       final selectedCategory = _normalize(_clean(category));
       final eventGame = _normalize(_clean(game));
 

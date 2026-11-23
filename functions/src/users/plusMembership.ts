@@ -1,9 +1,29 @@
 import {Timestamp} from "firebase-admin/firestore";
 
+import {evaluatePlusAccess} from "../commercial/plusEntitlementPolicy";
+
 /**
- * Plus is active only while the server expiry is still in the future.
+ * Reads a Firestore timestamp as epoch milliseconds.
+ * @param {unknown} value Raw value.
+ * @return {number|null} Milliseconds.
+ */
+function millis(value: unknown): number | null {
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  return null;
+}
+
+/**
+ * Plus is active while a Play subscription or a gift period remains.
  *
- * A raw plus flag without an expiry does not grant Plus.
+ * A raw plus flag without a future expiry does not grant Plus.
+ * Subscription expiry does not erase a later gift expiry.
  *
  * @param {FirebaseFirestore.DocumentData} data User data.
  * @param {number} nowMs Comparison clock.
@@ -13,19 +33,23 @@ export function isPlusMembershipActive(
   data: FirebaseFirestore.DocumentData,
   nowMs: number = Date.now(),
 ): boolean {
-  if (data.plus !== true) {
-    return false;
+  if (data.plusAdminGranted === true) {
+    return true;
   }
 
-  const expiry = data.plusExpiresAt ?? data.subscriptionExpiresAt;
+  const giftExpiresAtMs = millis(data.plusGiftExpiresAt);
+  const explicitSubscription = millis(data.plusSubscriptionExpiresAt);
+  const legacyExpiry = millis(
+    data.plusExpiresAt ?? data.subscriptionExpiresAt,
+  );
+  const subscriptionExpiresAtMs = explicitSubscription ??
+    (giftExpiresAtMs == null ? legacyExpiry : null);
 
-  if (expiry instanceof Timestamp) {
-    return expiry.toMillis() > nowMs;
-  }
-
-  if (expiry instanceof Date) {
-    return expiry.getTime() > nowMs;
-  }
-
-  return false;
+  return evaluatePlusAccess({
+    plusFlag: data.plus === true || data.isPlus === true,
+    subscriptionExpiresAtMs,
+    giftExpiresAtMs,
+    subscriptionState: String(data.plusSubscriptionState ?? ""),
+    nowMs,
+  }).active;
 }

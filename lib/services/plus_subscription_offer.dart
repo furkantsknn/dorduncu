@@ -1,11 +1,15 @@
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
+import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
 
-/// The single standard base plan chosen for a Plus purchase.
+/// The single standard base plan or Apple subscription product chosen for a
+/// Plus purchase.
 ///
-/// [formattedPrice] and [billingPeriod] come from the same subscription offer
-/// whose [offerToken] is sent to Google Play.
+/// [formattedPrice] and [billingPeriod] come from the same store offer
+/// submitted to Google Play or App Store.
 class PlusSubscriptionSelection {
   const PlusSubscriptionSelection({
     required this.productDetails,
@@ -14,14 +18,20 @@ class PlusSubscriptionSelection {
     required this.formattedPrice,
     required this.billingPeriod,
     required this.periodLabel,
+    this.offerId = '',
+    this.discountedPeriodCount = 0,
+    this.renewalFormattedPrice = '',
   });
 
-  final GooglePlayProductDetails productDetails;
+  final ProductDetails productDetails;
   final String offerToken;
   final String basePlanId;
   final String formattedPrice;
   final String billingPeriod;
   final String periodLabel;
+  final String offerId;
+  final int discountedPeriodCount;
+  final String renewalFormattedPrice;
 }
 
 class PlusSubscriptionOfferException implements Exception {
@@ -151,9 +161,17 @@ PlusSubscriptionSelection selectStandardPlusBasePlan({
 
 /// Builds the Play purchase param from the offer already chosen for display.
 GooglePlayPurchaseParam purchaseParamForSelectedPlusOffer(
-  PlusSubscriptionSelection selection,
-) {
-  final String token = selection.productDetails.offerToken?.trim() ?? '';
+  PlusSubscriptionSelection selection, {
+  String? applicationUserName,
+}) {
+  final ProductDetails details = selection.productDetails;
+  if (details is! GooglePlayProductDetails) {
+    throw const PlusSubscriptionOfferException(
+      'Seçilen teklifin Google Play ürün bilgisi okunamadı. Satın alma kapatıldı.',
+      code: 'offer_unreadable',
+    );
+  }
+  final String token = details.offerToken?.trim() ?? '';
 
   if (token.isEmpty || token != selection.offerToken) {
     throw const PlusSubscriptionOfferException(
@@ -163,8 +181,198 @@ GooglePlayPurchaseParam purchaseParamForSelectedPlusOffer(
   }
 
   return GooglePlayPurchaseParam(
-    productDetails: selection.productDetails,
+    productDetails: details,
     offerToken: selection.offerToken,
+    applicationUserName: applicationUserName,
+  );
+}
+
+/// Selects the configured Apple auto-renewable Plus subscription product from
+/// StoreKit product details.
+PlusSubscriptionSelection selectApplePlusProduct({
+  required Iterable<ProductDetails> offers,
+  required String appleProductId,
+}) {
+  final String productId = appleProductId.trim();
+  if (productId.isEmpty) {
+    throw const PlusSubscriptionOfferException(
+      'App Store ürün eşlemesi henüz yapılmamış.',
+      code: 'missing_product_id',
+    );
+  }
+
+  final List<ProductDetails> matches = offers
+      .where((ProductDetails item) => item.id.trim() == productId)
+      .toList();
+
+  if (matches.isEmpty) {
+    throw const PlusSubscriptionOfferException(
+      'Seçilen Plus aboneliği App Store üzerinde bulunamadı. '
+      'Satın alma kapatıldı.',
+      code: 'plan_not_found',
+    );
+  }
+
+  if (matches.length != 1) {
+    throw const PlusSubscriptionOfferException(
+      'Aynı App Store ürünü için birden fazla teklif döndü. '
+      'Satın alma kapatıldı.',
+      code: 'ambiguous_plan',
+    );
+  }
+
+  final ProductDetails selected = matches.single;
+  final String price = selected.price.trim();
+  if (price.isEmpty) {
+    throw const PlusSubscriptionOfferException(
+      'Seçilen aboneliğin App Store fiyatı okunamadı. Satın alma kapatıldı.',
+      code: 'invalid_price',
+    );
+  }
+
+  final String billingPeriod = _appleBillingPeriod(selected);
+  return PlusSubscriptionSelection(
+    productDetails: selected,
+    offerToken: '',
+    basePlanId: 'apple_subscription',
+    formattedPrice: price,
+    billingPeriod: billingPeriod,
+    periodLabel: plusBillingPeriodLabel(billingPeriod),
+  );
+}
+
+String _appleBillingPeriod(ProductDetails product) {
+  if (product is AppStoreProduct2Details) {
+    final SK2SubscriptionPeriod? period =
+        product.sk2Product.subscription?.subscriptionPeriod;
+    if (period != null && period.value > 0) {
+      final String unit = switch (period.unit) {
+        SK2SubscriptionPeriodUnit.day => 'D',
+        SK2SubscriptionPeriodUnit.week => 'W',
+        SK2SubscriptionPeriodUnit.month => 'M',
+        SK2SubscriptionPeriodUnit.year => 'Y',
+      };
+      return 'P${period.value}$unit';
+    }
+  } else if (product is AppStoreProductDetails) {
+    final SKProductSubscriptionPeriodWrapper? period =
+        product.skProduct.subscriptionPeriod;
+    if (period != null && period.numberOfUnits > 0) {
+      final String unit = switch (period.unit) {
+        SKSubscriptionPeriodUnit.day => 'D',
+        SKSubscriptionPeriodUnit.week => 'W',
+        SKSubscriptionPeriodUnit.month => 'M',
+        SKSubscriptionPeriodUnit.year => 'Y',
+      };
+      return 'P${period.numberOfUnits}$unit';
+    }
+  }
+  return 'P1M';
+}
+
+/// Selects either the standard base plan or one catalog campaign offer.
+///
+/// An unknown offer id is rejected. The selector never uses list position.
+PlusSubscriptionSelection selectCatalogPlusOffer({
+  required Iterable<ProductDetails> offers,
+  required String googlePlayProductId,
+  required String googlePlayBasePlanId,
+  String campaignOfferId = '',
+  int discountedPeriods = 0,
+}) {
+  final String expectedOfferId = campaignOfferId.trim();
+
+  if (expectedOfferId.isEmpty) {
+    return selectStandardPlusBasePlan(
+      offers: offers,
+      googlePlayProductId: googlePlayProductId,
+      googlePlayBasePlanId: googlePlayBasePlanId,
+    );
+  }
+
+  if (discountedPeriods < 1) {
+    throw const PlusSubscriptionOfferException(
+      'Plus kampanya dönem sayısı katalogda yok. Satın alma kapatıldı.',
+      code: 'offer_unreadable',
+    );
+  }
+
+  final List<GooglePlayProductDetails> matches = <GooglePlayProductDetails>[];
+
+  for (final ProductDetails offer in offers) {
+    if (offer is! GooglePlayProductDetails ||
+        offer.id.trim() != googlePlayProductId.trim()) {
+      continue;
+    }
+
+    final SubscriptionOfferDetailsWrapper? subscription = _subscriptionOffer(
+      offer,
+    );
+
+    if (subscription == null) {
+      continue;
+    }
+
+    if (subscription.basePlanId.trim() != googlePlayBasePlanId.trim()) {
+      continue;
+    }
+
+    if ((subscription.offerId?.trim() ?? '') == expectedOfferId) {
+      matches.add(offer);
+    }
+  }
+
+  if (matches.length != 1) {
+    throw const PlusSubscriptionOfferException(
+      'Kampanya teklifi Google Play üzerinde yok veya birden fazla. '
+      'İndirim gösterilmedi.',
+      code: 'campaign_not_on_play',
+    );
+  }
+
+  final GooglePlayProductDetails selected = matches.single;
+  final SubscriptionOfferDetailsWrapper subscription = _subscriptionOffer(
+    selected,
+  )!;
+  final List<PricingPhaseWrapper> phases = subscription.pricingPhases;
+
+  if (phases.length < 2 ||
+      phases.first.recurrenceMode != RecurrenceMode.finiteRecurring ||
+      phases.first.billingCycleCount != discountedPeriods ||
+      phases.first.billingPeriod.trim() != 'P1M' ||
+      phases.last.recurrenceMode != RecurrenceMode.infiniteRecurring) {
+    throw const PlusSubscriptionOfferException(
+      'Plus kampanya teklifinin indirimli dönemi veya yenileme fiyatı '
+      'Play yanıtında doğrulanamadı.',
+      code: 'invalid_price',
+    );
+  }
+
+  final String token = selected.offerToken?.trim() ?? '';
+  final String price = phases.first.formattedPrice.trim();
+  final String renewal = phases.last.formattedPrice.trim();
+
+  if (token.isEmpty ||
+      token != subscription.offerIdToken ||
+      price.isEmpty ||
+      renewal.isEmpty ||
+      selected.price != phases.first.formattedPrice) {
+    throw const PlusSubscriptionOfferException(
+      'Kampanya teklifinin satın alma anahtarı fiyatla eşleşmiyor.',
+      code: 'invalid_price',
+    );
+  }
+
+  return PlusSubscriptionSelection(
+    productDetails: selected,
+    offerToken: token,
+    basePlanId: googlePlayBasePlanId.trim(),
+    formattedPrice: price,
+    billingPeriod: phases.first.billingPeriod.trim(),
+    periodLabel: plusBillingPeriodLabel(phases.first.billingPeriod),
+    offerId: expectedOfferId,
+    discountedPeriodCount: discountedPeriods,
+    renewalFormattedPrice: renewal,
   );
 }
 
@@ -174,25 +382,60 @@ bool samePlusOffer(
 ) {
   return left.productDetails.id == right.productDetails.id &&
       left.basePlanId == right.basePlanId &&
+      left.offerId == right.offerId &&
       left.offerToken == right.offerToken &&
       left.formattedPrice == right.formattedPrice &&
+      left.renewalFormattedPrice == right.renewalFormattedPrice &&
       left.billingPeriod == right.billingPeriod;
 }
 
-String plusBillingPeriodLabel(String billingPeriod) {
+String plusBillingPeriodLabel(
+  String billingPeriod, {
+  String languageCode = 'tr',
+}) {
+  final String code = languageCode.toLowerCase();
+  String text(String tr, String en, String de) {
+    switch (code) {
+      case 'en':
+        return en;
+      case 'de':
+        return de;
+      default:
+        return tr;
+    }
+  }
+
   switch (billingPeriod.trim()) {
     case 'P1W':
-      return 'Haftalık (P1W)';
+      return text('Haftalık', 'Weekly', 'Wöchentlich');
     case 'P1M':
-      return 'Aylık (P1M)';
+      return text('Aylık', 'Monthly', 'Monatlich');
     case 'P3M':
-      return '3 aylık (P3M)';
+      return text('3 aylık', '3 months', '3 Monate');
     case 'P6M':
-      return '6 aylık (P6M)';
+      return text('6 aylık', '6 months', '6 Monate');
     case 'P1Y':
-      return 'Yıllık (P1Y)';
+      return text('Yıllık', 'Yearly', 'Jährlich');
     default:
-      return billingPeriod.trim();
+      return '';
+  }
+}
+
+String plusPricePeriodSuffix(
+  String billingPeriod, {
+  String languageCode = 'tr',
+}) {
+  if (billingPeriod.trim() != 'P1M') {
+    return '';
+  }
+
+  switch (languageCode.toLowerCase()) {
+    case 'en':
+      return '/month';
+    case 'de':
+      return '/Monat';
+    default:
+      return '/ay';
   }
 }
 

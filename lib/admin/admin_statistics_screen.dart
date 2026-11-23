@@ -168,6 +168,26 @@ class _AdminStatisticsScreenState extends State<AdminStatisticsScreen> {
                             icon: Icons.task_alt_outlined,
                           ),
                           _StatisticItem(
+                            title: _locText(
+                              context,
+                              tr: 'Tarihi geçti',
+                              en: 'Expired',
+                              de: 'Abgelaufen',
+                            ),
+                            value: report.events.expired,
+                            icon: Icons.event_busy_outlined,
+                          ),
+                          _StatisticItem(
+                            title: _locText(
+                              context,
+                              tr: 'Geçmiş kayıt',
+                              en: 'Past records',
+                              de: 'Vergangene Einträge',
+                            ),
+                            value: report.events.legacyClosed,
+                            icon: Icons.history,
+                          ),
+                          _StatisticItem(
                             title: 'İptal edildi',
                             value: report.events.cancelled,
                             icon: Icons.event_busy_outlined,
@@ -202,36 +222,6 @@ class _AdminStatisticsScreenState extends State<AdminStatisticsScreen> {
                             ),
                             value: report.operations.attentionRequired,
                             icon: Icons.warning_amber_rounded,
-                          ),
-                          _StatisticItem(
-                            title: _locText(
-                              context,
-                              tr: 'Bekleyen ödeme',
-                              en: 'Pending payments',
-                              de: 'Ausstehende Zahlungen',
-                            ),
-                            value: report.operations.pendingPayments,
-                            icon: Icons.hourglass_top_outlined,
-                          ),
-                          _StatisticItem(
-                            title: _locText(
-                              context,
-                              tr: '24 saati aşan ödeme',
-                              en: 'Payments pending 24h+',
-                              de: 'Zahlungen über 24 Std.',
-                            ),
-                            value: report.operations.stalePendingPayments,
-                            icon: Icons.schedule_outlined,
-                          ),
-                          _StatisticItem(
-                            title: _locText(
-                              context,
-                              tr: 'Başarısız ödeme',
-                              en: 'Failed payments',
-                              de: 'Fehlgeschlagene Zahlungen',
-                            ),
-                            value: report.operations.failedPayments,
-                            icon: Icons.error_outline,
                           ),
                           _StatisticItem(
                             title: _locText(
@@ -302,16 +292,6 @@ class _AdminStatisticsScreenState extends State<AdminStatisticsScreen> {
                             ),
                             value: report.operations.auditEventsLast24h,
                             icon: Icons.shield_outlined,
-                          ),
-                          _StatisticItem(
-                            title: _locText(
-                              context,
-                              tr: 'Tamamlanan ödeme',
-                              en: 'Completed payments',
-                              de: 'Abgeschlossene Zahlungen',
-                            ),
-                            value: report.operations.paidPayments,
-                            icon: Icons.check_circle_outline,
                           ),
                         ],
                       ),
@@ -433,6 +413,8 @@ class _EventReport {
     required this.completed,
     required this.cancelled,
     required this.hidden,
+    required this.expired,
+    required this.legacyClosed,
   });
 
   factory _EventReport.fromMap(Map<String, dynamic> map) {
@@ -442,6 +424,8 @@ class _EventReport {
       completed: _number(map['completed']),
       cancelled: _number(map['cancelled']),
       hidden: _number(map['hidden']),
+      expired: _number(map['expired']),
+      legacyClosed: _number(map['legacyClosed']),
     );
   }
 
@@ -450,6 +434,8 @@ class _EventReport {
   final int completed;
   final int cancelled;
   final int hidden;
+  final int expired;
+  final int legacyClosed;
 }
 
 class _SupportReport {
@@ -483,11 +469,6 @@ class _SupportReport {
 
 class _OperationsReport {
   const _OperationsReport({
-    required this.paymentSessions,
-    required this.pendingPayments,
-    required this.paidPayments,
-    required this.failedPayments,
-    required this.stalePendingPayments,
     required this.pendingWithdrawals,
     required this.stalePendingWithdrawals,
     required this.pendingVerifications,
@@ -500,11 +481,6 @@ class _OperationsReport {
 
   factory _OperationsReport.fromMap(Map<String, dynamic> map) {
     return _OperationsReport(
-      paymentSessions: _number(map['paymentSessions']),
-      pendingPayments: _number(map['pendingPayments']),
-      paidPayments: _number(map['paidPayments']),
-      failedPayments: _number(map['failedPayments']),
-      stalePendingPayments: _number(map['stalePendingPayments']),
       pendingWithdrawals: _number(map['pendingWithdrawals']),
       stalePendingWithdrawals: _number(map['stalePendingWithdrawals']),
       pendingVerifications: _number(map['pendingVerifications']),
@@ -516,11 +492,6 @@ class _OperationsReport {
     );
   }
 
-  final int paymentSessions;
-  final int pendingPayments;
-  final int paidPayments;
-  final int failedPayments;
-  final int stalePendingPayments;
   final int pendingWithdrawals;
   final int stalePendingWithdrawals;
   final int pendingVerifications;

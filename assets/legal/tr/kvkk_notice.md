@@ -1,8 +1,8 @@
 # KVKK Aydınlatma Metni
 
-**Sürüm:** 1.0.0
+**Sürüm:** 1.0.1
 
-**Yürürlük:** 5 Ekim 2026
+**Güncelleme:** 19 Ekim 2026
 
 Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında aydınlatma yükümlülüğünü yerine getirir. Gizlilik Politikası ayrı bir belgedir ve uygulamanın veri kullanımını ürün diliyle açıklar.
 
@@ -68,7 +68,7 @@ Kişisel veriler bağımsız reklam amacıyla satılmaz. Etkinlik ve sohbet içe
 
 Hesap verileri, hesap açık olduğu sürece hizmeti sunmak için saklanır.
 
-Silme işlemi tamamlandığında hesap girişi, profil, herkese açık profil, profil fotoğrafları ve doğrulama belgeleri silinir. Giriş ve denetim kayıtlarındaki kimlik alanları anonimleştirilebilir. Telefon numarasının özeti, aynı numarayla yeniden kaydı engellemek için saklanabilir.
+Silme işlemi tamamlandığında hesap girişi, profil, herkese açık profil, profil fotoğrafları ve doğrulama belgeleri silinir. Giriş ve denetim kayıtlarındaki kimlik alanları hash tabanlı takma değerlerle değiştirilebilir; bu işlem kayıtları bütünüyle anonim hâle getirmez. Telefon numarasının özeti, aynı numarayla yeniden kaydı engellemek için saklanabilir.
 
 Başka kullanıcıların etkinlik ve mesaj kayıtları ile güvenlik, uyuşmazlık veya yasal yükümlülük için gerekli sınırlı kayıtlar silinmeyebilir.
 

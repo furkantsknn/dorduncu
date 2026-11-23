@@ -778,7 +778,11 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get normalMembersTomorrowOnly =>
-      'Normal üyeler en fazla yarın için etkinlik oluşturabilir.';
+      'Ücretsiz üyelikte etkinlik yalnızca bugün için açılabilir.';
+
+  @override
+  String get eventPlusSevenDayLimit =>
+      'Plus ile ileri tarihler için etkinlik oluşturabilirsin.';
 
   @override
   String get sessionNotFoundPleaseLogin =>
@@ -828,11 +832,11 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get plusMemberBenefits =>
-      'Plus üye: Birden fazla oyuncu ve ileri tarih seçebilirsin.';
+      'Plus: Aynı anda birden fazla etkinlik oluştur; açık etkinlik sayısı sınırı yok.';
 
   @override
   String get normalMemberLimits =>
-      'Normal üye: 1 oyuncu ve en fazla yarın için etkinlik oluşturabilirsin.';
+      'Ücretsiz: Aynı anda 2 açık etkinlik; yalnızca bugün ve 1 oyuncu.';
 
   @override
   String startTimeLabel(String time) {
@@ -966,4 +970,24 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get communityRulesBody =>
       'Saygılı ol. Taciz, tehdit, ayrımcılık, dolandırıcılık ve yanıltıcı etkinlikler yasaktır. Katılamayacağın etkinliğe başvurma; iptal gerektiğinde organizatöre zamanında haber ver. Güvenlik riski oluşturan kullanıcıları destek kanalına bildir.';
+
+  @override
+  String eventServiceBusy(String code) {
+    return 'Hizmet şu anda yoğun veya istek sınırına ulaşıldı. Bu hata Plus etkinlik kotası anlamına gelmez. Yeniden denemeden önce Etkinliklerim listesini kontrol et. ($code)';
+  }
+
+  @override
+  String eventCreateUncertain(String code) {
+    return 'Etkinlik işleminin sonucu doğrulanamadı. Yeniden oluşturmadan önce Etkinliklerim listesini kontrol et. ($code)';
+  }
+
+  @override
+  String eventVerificationFailed(String code) {
+    return 'Oturum veya işlem yetkisi doğrulanamadı. Bağlantını ve oturumunu kontrol et. ($code)';
+  }
+
+  @override
+  String eventCreateSafeFailure(String code) {
+    return 'Etkinlik oluşturulamadı. Yeniden denemeden önce Etkinliklerim listesini kontrol et. ($code)';
+  }
 }

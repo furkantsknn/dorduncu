@@ -175,6 +175,7 @@ class EventModel {
         .trim()
         .toLowerCase();
     return status == 'iptal' ||
+        status == 'expired' ||
         status == 'cancelled' ||
         status == 'completed' ||
         status == 'tamamlandi' ||

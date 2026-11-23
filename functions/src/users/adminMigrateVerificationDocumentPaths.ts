@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 import {
   HttpsError,
   onCall,
@@ -33,6 +34,7 @@ export const adminMigrateVerificationDocumentPaths =
     },
     async (request) => {
       assertSuperAdmin(request);
+      await assertCurrentAdminSession(request);
 
       const marker =
         firestore

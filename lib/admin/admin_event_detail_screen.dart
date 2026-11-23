@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../models/event_closure.dart';
 import 'admin_event_status_screen.dart';
 import 'admin_event_actions_screen.dart';
 import 'admin_permission_gate.dart';
@@ -21,7 +22,6 @@ String _locText(
   }
 }
 
-
 class AdminEventDetailScreen extends StatelessWidget {
   const AdminEventDetailScreen({super.key, required this.eventId});
 
@@ -42,7 +42,16 @@ class AdminEventDetailScreen extends StatelessWidget {
           ) {
             if (snapshot.hasError) {
               return Scaffold(
-                appBar: AppBar(title: Text(_locText(context, tr: 'Etkinlik Detayı', en: 'Event Details', de: 'Veranstaltungsdetails'))),
+                appBar: AppBar(
+                  title: Text(
+                    _locText(
+                      context,
+                      tr: 'Etkinlik Detayı',
+                      en: 'Event Details',
+                      de: 'Veranstaltungsdetails',
+                    ),
+                  ),
+                ),
                 body: const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
@@ -57,7 +66,16 @@ class AdminEventDetailScreen extends StatelessWidget {
 
             if (!snapshot.hasData) {
               return Scaffold(
-                appBar: AppBar(title: Text(_locText(context, tr: 'Etkinlik Detayı', en: 'Event Details', de: 'Veranstaltungsdetails'))),
+                appBar: AppBar(
+                  title: Text(
+                    _locText(
+                      context,
+                      tr: 'Etkinlik Detayı',
+                      en: 'Event Details',
+                      de: 'Veranstaltungsdetails',
+                    ),
+                  ),
+                ),
                 body: const Center(child: CircularProgressIndicator()),
               );
             }
@@ -69,8 +87,26 @@ class AdminEventDetailScreen extends StatelessWidget {
 
             if (!document.exists || data == null) {
               return Scaffold(
-                appBar: AppBar(title: Text(_locText(context, tr: 'Etkinlik Detayı', en: 'Event Details', de: 'Veranstaltungsdetails'))),
-                body: Center(child: Text(_locText(context, tr: 'Etkinlik bulunamadı.', en: 'Event not found.', de: 'Veranstaltung nicht gefunden.'))),
+                appBar: AppBar(
+                  title: Text(
+                    _locText(
+                      context,
+                      tr: 'Etkinlik Detayı',
+                      en: 'Event Details',
+                      de: 'Veranstaltungsdetails',
+                    ),
+                  ),
+                ),
+                body: Center(
+                  child: Text(
+                    _locText(
+                      context,
+                      tr: 'Etkinlik bulunamadı.',
+                      en: 'Event not found.',
+                      de: 'Veranstaltung nicht gefunden.',
+                    ),
+                  ),
+                ),
               );
             }
 
@@ -123,9 +159,15 @@ class AdminEventDetailScreen extends StatelessWidget {
               'oyun',
             ]);
 
-            final String status = _normalizeStatus(
+            final String rawStatus = _normalizeStatus(
               _firstString(data, <String>['status', 'durum']),
             );
+            final closure = eventClosure(data);
+            final String status = closure == EventClosure.expired
+                ? 'expired'
+                : closure == EventClosure.legacyClosed
+                ? 'legacy_closed'
+                : rawStatus;
 
             final DateTime? eventDate = _firstDate(data, <String>[
               'eventDate',
@@ -134,6 +176,13 @@ class AdminEventDetailScreen extends StatelessWidget {
               'startsAt',
               'tarih',
             ]);
+
+            final String displayTitle = title.isNotEmpty
+                ? title
+                : <String>[
+                    if (category.isNotEmpty) category,
+                    if (city.isNotEmpty) city,
+                  ].join(' · ');
 
             final DateTime? createdAt = _firstDate(data, <String>[
               'createdAt',
@@ -175,7 +224,12 @@ class AdminEventDetailScreen extends StatelessWidget {
             return Scaffold(
               appBar: AppBar(
                 title: Text(
-                  _locText(context, tr: 'Etkinlik Detayı', en: 'Event Details', de: 'Veranstaltungsdetails'),
+                  _locText(
+                    context,
+                    tr: 'Etkinlik Detayı',
+                    en: 'Event Details',
+                    de: 'Veranstaltungsdetails',
+                  ),
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
@@ -183,7 +237,14 @@ class AdminEventDetailScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 children: <Widget>[
                   _HeaderCard(
-                    title: title.isEmpty ? _locText(context, tr: 'İsimsiz etkinlik', en: 'Untitled event', de: 'Unbenannte Veranstaltung') : title,
+                    title: displayTitle.isEmpty
+                        ? _locText(
+                            context,
+                            tr: 'Başlıksız etkinlik',
+                            en: 'Untitled event',
+                            de: 'Unbenannte Veranstaltung',
+                          )
+                        : displayTitle,
                     status: status,
                     category: category,
                   ),
@@ -233,7 +294,12 @@ class AdminEventDetailScreen extends StatelessWidget {
                     icon: Icons.location_on_outlined,
                     children: <Widget>[
                       _InformationRow(
-                        label: _locText(context, tr: 'Şehir', en: 'City', de: 'Stadt'),
+                        label: _locText(
+                          context,
+                          tr: 'Şehir',
+                          en: 'City',
+                          de: 'Stadt',
+                        ),
                         value: city.isEmpty ? 'Bilgi bulunamadı' : city,
                       ),
                       const Divider(height: 24),
@@ -291,7 +357,12 @@ class AdminEventDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   _SectionCard(
-                    title: _locText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'),
+                    title: _locText(
+                      context,
+                      tr: 'Açıklama',
+                      en: 'Description',
+                      de: 'Beschreibung',
+                    ),
                     icon: Icons.description_outlined,
                     children: <Widget>[
                       Text(
@@ -490,10 +561,34 @@ class AdminEventDetailScreen extends StatelessWidget {
 
   static String _statusTitle(BuildContext context, String value) {
     switch (value) {
+      case 'expired':
+        return _locText(
+          context,
+          tr: 'Tarihi geçti',
+          en: 'Expired',
+          de: 'Abgelaufen',
+        );
+      case 'legacy_closed':
+        return _locText(
+          context,
+          tr: 'Geçmiş kayıt',
+          en: 'Past record',
+          de: 'Vergangener Eintrag',
+        );
       case 'completed':
-        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
+        return _locText(
+          context,
+          tr: 'Tamamlandı',
+          en: 'Completed',
+          de: 'Abgeschlossen',
+        );
       case 'cancelled':
-        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
+        return _locText(
+          context,
+          tr: 'İptal edildi',
+          en: 'Cancelled',
+          de: 'Abgesagt',
+        );
       case 'hidden':
         return 'Gizli';
       default:

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'admin_user_number.dart';
+import '../utils/verification_admin_labels.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -22,7 +24,6 @@ String _locText(
       return tr;
   }
 }
-
 
 class AdminVerificationDetailScreen extends StatefulWidget {
   const AdminVerificationDetailScreen({super.key, required this.requestId});
@@ -57,7 +58,12 @@ class _AdminVerificationDetailScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _locText(context, tr: 'Oyuncu Başvurusu', en: 'Player Application', de: 'Spielerbewerbung'),
+          _locText(
+            context,
+            tr: 'Oyuncu Başvurusu',
+            en: 'Player Application',
+            de: 'Spielerbewerbung',
+          ),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -110,11 +116,26 @@ class _AdminVerificationDetailScreenState
 
     final String phone = data['telefon']?.toString().trim() ?? '';
 
-    final String uid = data['uid']?.toString().trim() ?? widget.requestId;
+    final String uid =
+        data['uid']?.toString().trim() ??
+        data['userId']?.toString().trim() ??
+        widget.requestId;
 
     final String status = data['status']?.toString().trim() ?? 'pending';
 
     final String normalizedStatus = status.toLowerCase();
+    final VerificationAdminLabels presentation = presentVerificationAdmin(
+      status: status,
+      automaticCheckStatus:
+          data['automaticCheckStatus']?.toString() ??
+          data['analysisStatus']?.toString() ??
+          '',
+      reasonCode:
+          data['decisionReasonCode']?.toString() ??
+          data['reasonCode']?.toString() ??
+          '',
+      decisionSource: data['decisionSource']?.toString() ?? '',
+    );
 
     final DateTime? birthDate = _dateFromValue(data['dogumTarihi']);
 
@@ -163,33 +184,53 @@ class _AdminVerificationDetailScreenState
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: <Widget>[
-          _ApplicationHeaderCard(
-            fullName: fullName,
-            phone: phone,
-            status: status,
-          ),
+          _ApplicationHeaderCard(uid: uid, status: status),
           const SizedBox(height: 14),
           _SectionCard(
-            title: _locText(context, tr: 'Başvuru bilgileri', en: 'Application details', de: 'Bewerbungsdetails'),
+            title: _locText(
+              context,
+              tr: 'Başvuru bilgileri',
+              en: 'Application details',
+              de: 'Bewerbungsdetails',
+            ),
             icon: Icons.assignment_outlined,
             children: <Widget>[
               _InformationRow(
                 icon: Icons.person_outline,
                 label: 'Ad soyad',
-                value: fullName.isEmpty ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar') : fullName,
+                value: fullName.isEmpty
+                    ? _locText(
+                        context,
+                        tr: 'Bilgi bulunamadı',
+                        en: 'Information unavailable',
+                        de: 'Information nicht verfügbar',
+                      )
+                    : fullName,
               ),
               const Divider(height: 25),
               _InformationRow(
                 icon: Icons.phone_outlined,
                 label: 'Telefon',
-                value: phone.isEmpty ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar') : phone,
+                value: phone.isEmpty
+                    ? _locText(
+                        context,
+                        tr: 'Bilgi bulunamadı',
+                        en: 'Information unavailable',
+                        de: 'Information nicht verfügbar',
+                      )
+                    : phone,
               ),
               const Divider(height: 25),
               _InformationRow(
                 icon: Icons.cake_outlined,
                 label: 'Doğum tarihi',
                 value: birthDate == null
-                    ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar')
+                    ? _locText(
+                        context,
+                        tr: 'Bilgi bulunamadı',
+                        en: 'Information unavailable',
+                        de: 'Information nicht verfügbar',
+                      )
                     : _formatDate(birthDate, includeTime: false),
               ),
               const Divider(height: 25),
@@ -197,7 +238,12 @@ class _AdminVerificationDetailScreenState
                 icon: Icons.schedule_outlined,
                 label: 'Başvuru tarihi',
                 value: createdAt == null
-                    ? _locText(context, tr: 'Bilgi bulunamadı', en: 'Information unavailable', de: 'Information nicht verfügbar')
+                    ? _locText(
+                        context,
+                        tr: 'Bilgi bulunamadı',
+                        en: 'Information unavailable',
+                        de: 'Information nicht verfügbar',
+                      )
                     : _formatDate(createdAt),
               ),
               if (updatedAt != null) ...<Widget>[
@@ -225,13 +271,6 @@ class _AdminVerificationDetailScreenState
                   allowCopy: true,
                 ),
               ],
-              const Divider(height: 25),
-              _InformationRow(
-                icon: Icons.fingerprint,
-                label: 'Kullanıcı kimliği',
-                value: uid,
-                allowCopy: true,
-              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -290,6 +329,46 @@ class _AdminVerificationDetailScreenState
             ],
           ),
           const SizedBox(height: 14),
+          _SectionCard(
+            title: 'Karar hiyerarşisi',
+            icon: Icons.account_tree_outlined,
+            children: <Widget>[
+              _InformationRow(
+                icon: Icons.assignment_outlined,
+                label: 'Başvuru durumu',
+                value: presentation.applicationStatus,
+              ),
+              const Divider(height: 25),
+              _InformationRow(
+                icon: Icons.analytics_outlined,
+                label: 'Analiz sonucu',
+                value: presentation.analysisStatus,
+              ),
+              const Divider(height: 25),
+              _InformationRow(
+                icon: Icons.rate_review_outlined,
+                label: 'İnceleme gereksinimi',
+                value:
+                    normalizedStatus == 'pending' ||
+                        normalizedStatus == 'needs_review'
+                    ? 'İnsan incelemesi gerekli'
+                    : 'Nihai karar mevcut',
+              ),
+              const Divider(height: 25),
+              _InformationRow(
+                icon: Icons.gavel_outlined,
+                label: 'Karar kaynağı',
+                value: presentation.source,
+              ),
+              const Divider(height: 25),
+              _InformationRow(
+                icon: Icons.info_outline,
+                label: 'Gerekçe',
+                value: presentation.reason,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           _StatusInformationCard(status: status),
 
           const SizedBox(height: 16),
@@ -443,7 +522,9 @@ class _AdminVerificationDetailScreenState
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen'),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -811,14 +892,9 @@ class _DocumentLoadError extends StatelessWidget {
 }
 
 class _ApplicationHeaderCard extends StatelessWidget {
-  const _ApplicationHeaderCard({
-    required this.fullName,
-    required this.phone,
-    required this.status,
-  });
+  const _ApplicationHeaderCard({required this.uid, required this.status});
 
-  final String fullName;
-  final String phone;
+  final String uid;
   final String status;
 
   @override
@@ -841,30 +917,7 @@ class _ApplicationHeaderCard extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: statusColor.withValues(alpha: 0.16),
-            child: Icon(
-              Icons.verified_user_outlined,
-              color: statusColor,
-              size: 38,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            fullName.isEmpty ? 'İsimsiz kullanıcı' : fullName,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            phone.isEmpty ? 'Telefon bilgisi yok' : phone,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          AdminUserIdentity(uid: uid),
           const SizedBox(height: 13),
           _VerificationStatusChip(status: status),
         ],

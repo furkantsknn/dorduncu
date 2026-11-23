@@ -19,7 +19,6 @@ String _adminRolesText(
   }
 }
 
-
 class AdminRolesScreen extends StatefulWidget {
   const AdminRolesScreen({super.key});
 
@@ -43,7 +42,12 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _adminRolesText(context, tr: 'Admin ve Yetki Yönetimi', en: 'Admin and Role Management', de: 'Admin- und Rollenverwaltung'),
+          _adminRolesText(
+            context,
+            tr: 'Admin ve Yetki Yönetimi',
+            en: 'Admin and Role Management',
+            de: 'Admin- und Rollenverwaltung',
+          ),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -151,7 +155,12 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
                     child: users.isEmpty
                         ? Center(
                             child: Text(
-                              _adminRolesText(context, tr: 'Kullanıcı bulunamadı.', en: 'User not found.', de: 'Nutzer nicht gefunden.'),
+                              _adminRolesText(
+                                context,
+                                tr: 'Kullanıcı bulunamadı.',
+                                en: 'User not found.',
+                                de: 'Nutzer nicht gefunden.',
+                              ),
                               style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           )
@@ -406,7 +415,14 @@ class _AdminRoleEditorScreenState extends State<_AdminRoleEditorScreen> {
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_adminRolesText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _adminRolesText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -467,23 +483,53 @@ class _AdminRoleEditorScreenState extends State<_AdminRoleEditorScreen> {
   String _roleTitle(String role) {
     switch (role) {
       case 'super_admin':
-        return _adminRolesText(context, tr: 'Süper Admin', en: 'Super Admin', de: 'Super-Admin');
+        return _adminRolesText(
+          context,
+          tr: 'Süper Admin',
+          en: 'Super Admin',
+          de: 'Super-Admin',
+        );
       case 'admin':
         return 'Admin';
       case 'moderator':
-        return _adminRolesText(context, tr: 'Moderatör', en: 'Moderator', de: 'Moderator');
+        return _adminRolesText(
+          context,
+          tr: 'Moderatör',
+          en: 'Moderator',
+          de: 'Moderator',
+        );
       case 'verification_officer':
         return 'Belge Doğrulama Görevlisi';
       case 'support_officer':
-        return _adminRolesText(context, tr: 'Destek Görevlisi', en: 'Support Agent', de: 'Support-Mitarbeiter');
+        return _adminRolesText(
+          context,
+          tr: 'Destek Görevlisi',
+          en: 'Support Agent',
+          de: 'Support-Mitarbeiter',
+        );
       case 'finance_officer':
-        return _adminRolesText(context, tr: 'Finans Görevlisi', en: 'Finance Agent', de: 'Finanz-Mitarbeiter');
+        return _adminRolesText(
+          context,
+          tr: 'Finans Görevlisi',
+          en: 'Finance Agent',
+          de: 'Finanz-Mitarbeiter',
+        );
       case 'content_manager':
-        return _adminRolesText(context, tr: 'İçerik Yöneticisi', en: 'Content Manager', de: 'Content-Manager');
+        return _adminRolesText(
+          context,
+          tr: 'İçerik Yöneticisi',
+          en: 'Content Manager',
+          de: 'Content-Manager',
+        );
       case 'analyst':
         return 'Salt Okunur Analist';
       default:
-        return _adminRolesText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer');
+        return _adminRolesText(
+          context,
+          tr: 'Kullanıcı',
+          en: 'User',
+          de: 'Nutzer',
+        );
     }
   }
 
@@ -538,7 +584,12 @@ class _AdminRoleEditorScreenState extends State<_AdminRoleEditorScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _adminRolesText(context, tr: 'Rol ve Yetki Düzenle', en: 'Edit Role and Permissions', de: 'Rolle und Berechtigungen bearbeiten'),
+          _adminRolesText(
+            context,
+            tr: 'Rol ve Yetki Düzenle',
+            en: 'Edit Role and Permissions',
+            de: 'Rolle und Berechtigungen bearbeiten',
+          ),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -630,7 +681,12 @@ class _AdminRoleEditorScreenState extends State<_AdminRoleEditorScreen> {
                     minLines: 3,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      labelText: _adminRolesText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
+                      labelText: _adminRolesText(
+                        context,
+                        tr: 'İşlem açıklaması',
+                        en: 'Action description',
+                        de: 'Aktionsbeschreibung',
+                      ),
                       hintText: 'Örnek: Moderasyon ekibine dahil edildi',
                       border: OutlineInputBorder(),
                     ),
@@ -650,7 +706,14 @@ class _AdminRoleEditorScreenState extends State<_AdminRoleEditorScreen> {
                       label: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          _saving ? 'Kaydediliyor...' : _adminRolesText(context, tr: 'Rolü Güncelle', en: 'Update Role', de: 'Rolle aktualisieren'),
+                          _saving
+                              ? 'Kaydediliyor...'
+                              : _adminRolesText(
+                                  context,
+                                  tr: 'Rolü Güncelle',
+                                  en: 'Update Role',
+                                  de: 'Rolle aktualisieren',
+                                ),
                         ),
                       ),
                     ),
@@ -677,7 +740,12 @@ class _RoleLabel extends StatelessWidget {
 
     switch (role) {
       case 'super_admin':
-        title = _adminRolesText(context, tr: 'Süper Admin', en: 'Super Admin', de: 'Super-Admin');
+        title = _adminRolesText(
+          context,
+          tr: 'Süper Admin',
+          en: 'Super Admin',
+          de: 'Super-Admin',
+        );
         icon = Icons.security_rounded;
         break;
       case 'admin':
@@ -685,7 +753,12 @@ class _RoleLabel extends StatelessWidget {
         icon = Icons.admin_panel_settings_outlined;
         break;
       case 'moderator':
-        title = _adminRolesText(context, tr: 'Moderatör', en: 'Moderator', de: 'Moderator');
+        title = _adminRolesText(
+          context,
+          tr: 'Moderatör',
+          en: 'Moderator',
+          de: 'Moderator',
+        );
         icon = Icons.shield_outlined;
         break;
       case 'verification_officer':
@@ -709,7 +782,12 @@ class _RoleLabel extends StatelessWidget {
         icon = Icons.analytics_outlined;
         break;
       default:
-        title = _adminRolesText(context, tr: 'Kullanıcı', en: 'User', de: 'Nutzer');
+        title = _adminRolesText(
+          context,
+          tr: 'Kullanıcı',
+          en: 'User',
+          de: 'Nutzer',
+        );
         icon = Icons.person_outline;
     }
 

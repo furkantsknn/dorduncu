@@ -34,10 +34,7 @@ class GameDefinition {
 }
 
 class SkillLevelDefinition {
-  const SkillLevelDefinition({
-    required this.value,
-    required this.label,
-  });
+  const SkillLevelDefinition({required this.value, required this.label});
 
   /// Profilde ve bar üzerinde kullanılacak yüzde değeri.
   final int value;
@@ -52,9 +49,9 @@ class SkillLevelDefinition {
 /// kullanmalıdır.
 abstract final class GameCatalog {
   static const List<SkillLevelDefinition> skillLevels = [
-    SkillLevelDefinition(value: 30, label: 'Başlangıç'),
+    SkillLevelDefinition(value: 30, label: 'Acemi'),
     SkillLevelDefinition(value: 60, label: 'Orta'),
-    SkillLevelDefinition(value: 90, label: 'İleri'),
+    SkillLevelDefinition(value: 90, label: 'Usta'),
   ];
 
   static const List<GameCategoryDefinition> categories = [
@@ -276,6 +273,12 @@ abstract final class GameCatalog {
           emoji: '🏂',
           categoryId: 'premium_sporlar',
         ),
+        GameDefinition(
+          id: 'paintball',
+          name: 'Paintball',
+          emoji: '🎯',
+          categoryId: 'premium_sporlar',
+        ),
       ],
     ),
   ];
@@ -428,8 +431,7 @@ abstract final class GameCatalog {
     }
 
     final durationFactor = durationFactorForMinutes(durationMinutes);
-    final rawTotal =
-        category.basePricePerPlayer * playerCount * durationFactor;
+    final rawTotal = category.basePricePerPlayer * playerCount * durationFactor;
 
     /// Kullanıcıya temiz rakam göstermek için en yakın 10 TL'ye yuvarlanır.
     return (rawTotal / 10).round() * 10;

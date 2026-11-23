@@ -1,8 +1,8 @@
 # Gizlilik Politikası
 
-**Sürüm:** 1.0.0
+**Sürüm:** 1.0.1
 
-**Yürürlük:** 5 Ekim 2026
+**Güncelleme:** 19 Ekim 2026
 
 Bu politika, Dört. mobil uygulamasının hangi bilgileri neden kullandığını açıklar. KVKK aydınlatma metni ayrıdır.
 
@@ -46,13 +46,15 @@ Dört. Plus abonelik, dijital rozetler tek seferlik Google Play ürünüdür. Uy
 
 # 9. Güvenlik kayıtları
 
-Oturum, giriş geçmişi, cihaz bilgisi ve denetim kayıtları kötüye kullanımı fark etmek ve hesabı korumak için tutulur. Hesap silindiğinde bu kayıtlardaki doğrudan kimlik alanları anonimleştirilebilir.
+Oturum, giriş geçmişi, cihaz bilgisi ve denetim kayıtları kötüye kullanımı fark etmek ve hesabı korumak için tutulur. Hesap silindiğinde bu kayıtlardaki doğrudan kimlik alanları hash tabanlı takma değerlerle değiştirilebilir; bu işlem kayıtları bütünüyle anonim hâle getirmez.
 
 # 10. Silme ve saklama
 
 Hesap silme Ayarlar üzerinden talep edilir. Uygulamaya giremiyorsanız kayıtlı telefon numaranızla destek@dortapp.com adresine yazabilirsiniz. E-posta tek başına silmeyi tamamlamaz.
 
 İşlem tamamlandığında hesap girişi, profil, herkese açık profil, profil fotoğrafları ve doğrulama belgeleri silinir. Başka kullanıcıların etkinlik veya mesajlarında kalan içerik ile güvenlik, uyuşmazlık ya da yasal veya finansal yükümlülük için gerekli sınırlı kayıtlar tutulabilir. Telefon numarasının özeti, aynı numarayla yeniden kaydı engellemek için saklanabilir.
+
+Hesap silme, Google Play aboneliğini otomatik olarak iptal etmez. Abonelik Google Play hesabındaki abonelikler bölümünden yönetilir veya iptal edilir.
 
 # 11. Üçüncü taraf hizmetler
 

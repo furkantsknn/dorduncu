@@ -1,8 +1,8 @@
 # Datenschutzerklärung
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 
-**Inkrafttreten:** 5. Oktober 2026
+**Aktualisiert:** 19. Oktober 2026
 
 Diese Erklärung beschreibt, welche Informationen die App Dört. verwendet und warum. Der KVKK-Hinweis ist ein separates Dokument.
 
@@ -46,13 +46,15 @@ Dört. Plus ist ein Abonnement. Digitale Abzeichen sind einmalige Google-Play-Pr
 
 # 9. Sicherheitsprotokolle
 
-Sitzung, Anmeldeverlauf, Geräteinformationen und Prüfprotokolle dienen dazu, Missbrauch zu erkennen und das Konto zu schützen. Direkte Identitätsfelder können bei der Kontolöschung anonymisiert werden.
+Sitzung, Anmeldeverlauf, Geräteinformationen und Prüfprotokolle dienen dazu, Missbrauch zu erkennen und das Konto zu schützen. Direkte Identitätsfelder können bei der Kontolöschung durch hashbasierte Pseudonyme ersetzt werden; dadurch werden die Aufzeichnungen nicht vollständig anonym.
 
 # 10. Löschung und Aufbewahrung
 
 Die Löschung beantragst du in den Einstellungen. Wenn du die App nicht öffnen kannst, schreibe mit deiner registrierten Telefonnummer an destek@dortapp.com. Eine E-Mail allein schließt die Löschung nicht ab.
 
 Nach Abschluss werden Anmeldung, Profil, öffentliches Profil, Profilfotos und Verifizierungsdokumente gelöscht. Inhalte, die in Veranstaltungen oder Nachrichten anderer Nutzer bleiben, sowie begrenzte Aufzeichnungen für Sicherheit, Streitfälle oder eine rechtliche oder finanzielle Pflicht können aufbewahrt werden. Eine Zusammenfassung der Telefonnummer kann eine erneute Registrierung mit derselben Nummer verhindern.
+
+Die Löschung des Dört.-Kontos beendet ein Google-Play-Abonnement nicht automatisch. Verwalte oder kündige es im Abonnementbereich von Google Play.
 
 # 11. Drittdienste
 

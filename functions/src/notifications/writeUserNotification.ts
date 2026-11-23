@@ -5,6 +5,7 @@ import {
 } from "firebase-admin/firestore";
 
 export interface UserNotificationInput {
+  notificationId?: string;
   userId: string;
   type: string;
   title: string;
@@ -34,11 +35,14 @@ export function writeUserNotificationInTransaction(
   input: UserNotificationInput,
 ): string {
   const normalized = normalizeNotificationInput(input);
-  const reference = firestore
+  const collection = firestore
     .collection("users")
     .doc(normalized.userId)
-    .collection("notifications")
-    .doc();
+    .collection("notifications");
+  const requestedId = normalized.notificationId?.trim();
+  const reference = requestedId ?
+    collection.doc(requestedId) :
+    collection.doc();
 
   transaction.set(
     reference,
@@ -60,11 +64,14 @@ export async function writeUserNotification(
   input: UserNotificationInput,
 ): Promise<string> {
   const normalized = normalizeNotificationInput(input);
-  const reference = firestore
+  const collection = firestore
     .collection("users")
     .doc(normalized.userId)
-    .collection("notifications")
-    .doc();
+    .collection("notifications");
+  const requestedId = normalized.notificationId?.trim();
+  const reference = requestedId ?
+    collection.doc(requestedId) :
+    collection.doc();
 
   await reference.set(
     buildNotificationDocument(reference.id, normalized),

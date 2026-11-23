@@ -2,7 +2,7 @@ name: dorduncu
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+2
+version: 1.0.0+30
 
 environment:
   sdk: ^3.12.2
@@ -44,12 +44,15 @@ dependencies:
   firebase_analytics: ^12.0.4
   in_app_purchase: ^3.3.0
   in_app_purchase_android: ^0.5.0
+  in_app_purchase_storekit: ^0.4.11
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  firebase_auth_platform_interface: ^9.0.7
 
 flutter:
   generate: true
@@ -58,9 +61,11 @@ flutter:
   assets:
     - assets/images/
     - assets/images/games/
+    - assets/images/badges/premium_v1/
     - assets/legal/tr/
     - assets/legal/en/
     - assets/legal/de/
     - assets/data/turkey_locations.json
     - assets/branding/dort_logo_white_orange.png
     - assets/branding/dort_logo_black_orange.png
+    - assets/branding/dort_d_mark_source.png

@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 import {
   HttpsError,
   onCall,
@@ -28,6 +29,7 @@ export const setUserRole = onCall(
   },
   async (request) => {
     assertSuperAdmin(request);
+    await assertCurrentAdminSession(request);
 
     const data =
       request.data as SetUserRoleRequest;

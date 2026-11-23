@@ -3,6 +3,8 @@
 export const commercialOperationTypes = [
   "digital_plus_purchase",
   "digital_badge_purchase",
+  "digital_plus_gift",
+  "digital_badge_gift",
   "event_payment",
   "event_refund",
   "event_payout",
@@ -14,6 +16,7 @@ export type CommercialOperationType =
 
 export const commercialProviders = [
   "google_play",
+  "apple_app_store",
   "external_payment_provider",
   "internal_legacy",
   "manual_admin",

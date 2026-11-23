@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import '../services/plus_entitlement.dart';
 import '../utils/verification_admin_labels.dart';
 import 'admin_permission_gate.dart';
 
@@ -289,7 +290,8 @@ class _AdminMembershipManagementScreenState
             final Map<String, dynamic> data =
                 snapshot.data?.data() ?? <String, dynamic>{};
 
-            final bool isPlus = data['plus'] == true;
+            final bool isPlus = PlusEntitlement.isActive(data);
+            final bool adminGranted = data['plusAdminGranted'] == true;
 
             final bool isPlayer =
                 data['oyuncuRozeti'] == true || data['verified'] == true;
@@ -340,14 +342,14 @@ class _AdminMembershipManagementScreenState
                           Text(
                             _adminMembershipText(
                               context,
-                              tr: 'Bu ekran eski admin bayrağını değiştirir. Google Play hakkı, süre ve Play ürün kimliği buradan açılmaz.',
-                              en: 'This screen changes the legacy admin flag. It does not grant a Google Play entitlement, expiry, or Play product id.',
-                              de: 'Dieser Bildschirm ändert nur die alte Admin-Markierung. Er vergibt kein Google-Play-Recht, kein Ablaufdatum und keine Play-Produkt-ID.',
+                              tr: 'Yönetici Plus hakkı Play ve hediye haklarından bağımsızdır. Kaldırma yalnız yönetici hakkını etkiler.',
+                              en: 'The admin Plus grant is independent of Play and gifts. Removing it affects only the admin grant.',
+                              de: 'Das Admin-Plus-Recht ist unabhängig von Play und Geschenken. Entfernen betrifft nur das Admin-Recht.',
                             ),
                           ),
                           const SizedBox(height: 16),
                           _StatusRow(
-                            title: 'Eski Plus bayrağı',
+                            title: 'Etkin Plus hakkı',
                             enabled: isPlus,
                             enabledText: _adminMembershipText(
                               context,
@@ -425,7 +427,7 @@ class _AdminMembershipManagementScreenState
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: _saving || isPlus
+                              onPressed: _saving || adminGranted
                                   ? null
                                   : () {
                                       _updatePlus(enabled: true);
@@ -450,7 +452,7 @@ class _AdminMembershipManagementScreenState
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: _saving || !isPlus
+                              onPressed: _saving || !adminGranted
                                   ? null
                                   : () {
                                       _updatePlus(enabled: false);

@@ -17,7 +17,6 @@ String _locText(
   }
 }
 
-
 class AdminEventStatusScreen extends StatefulWidget {
   const AdminEventStatusScreen({
     super.key,
@@ -76,7 +75,9 @@ class _AdminEventStatusScreenState extends State<AdminEventStatusScreen> {
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen'),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -103,6 +104,7 @@ class _AdminEventStatusScreenState extends State<AdminEventStatusScreen> {
       ).httpsCallable('adminUpdateEventStatus');
 
       await callable.call(<String, dynamic>{
+        'confirmedOccurred': _selectedStatus == 'completed',
         'eventId': widget.eventId,
         'status': _selectedStatus,
         'reason': reason,
@@ -163,10 +165,20 @@ class _AdminEventStatusScreenState extends State<AdminEventStatusScreen> {
   String _statusTitle(String value) {
     switch (value) {
       case 'completed':
-        return _locText(context, tr: 'Tamamlandı', en: 'Completed', de: 'Abgeschlossen');
+        return _locText(
+          context,
+          tr: 'Tamamlandı',
+          en: 'Completed',
+          de: 'Abgeschlossen',
+        );
 
       case 'cancelled':
-        return _locText(context, tr: 'İptal edildi', en: 'Cancelled', de: 'Abgesagt');
+        return _locText(
+          context,
+          tr: 'İptal edildi',
+          en: 'Cancelled',
+          de: 'Abgesagt',
+        );
 
       case 'hidden':
         return 'Gizli';
@@ -255,7 +267,12 @@ class _AdminEventStatusScreenState extends State<AdminEventStatusScreen> {
                     minLines: 3,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      labelText: _locText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
+                      labelText: _locText(
+                        context,
+                        tr: 'İşlem açıklaması',
+                        en: 'Action description',
+                        de: 'Aktionsbeschreibung',
+                      ),
                       hintText: 'Örnek: Kural ihlali nedeniyle gizlendi',
                       border: OutlineInputBorder(),
                     ),

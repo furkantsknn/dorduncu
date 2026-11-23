@@ -87,6 +87,7 @@ class SupportService {
     String? relatedEventId,
     String? relatedMessageId,
     List<String> attachmentUrls = const <String>[],
+    required String clientRequestId,
   }) async {
     final User? user = _auth.currentUser;
 
@@ -109,6 +110,7 @@ class SupportService {
             'relatedEventId': relatedEventId?.trim(),
             'relatedMessageId': relatedMessageId?.trim(),
             'attachmentUrls': attachmentUrls,
+            'clientRequestId': clientRequestId,
           });
 
       final Map<String, dynamic> data = Map<String, dynamic>.from(

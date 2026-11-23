@@ -1,5 +1,33 @@
 import 'package:flutter/foundation.dart';
 
+class ResendCooldown {
+  ResendCooldown({DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  static final ResendCooldown shared = ResendCooldown();
+
+  final DateTime Function() _now;
+  DateTime? _notBefore;
+
+  int get remainingSeconds {
+    final DateTime? notBefore = _notBefore;
+    if (notBefore == null) return 0;
+    final int milliseconds = notBefore.difference(_now()).inMilliseconds;
+    if (milliseconds <= 0) return 0;
+    return (milliseconds + 999) ~/ 1000;
+  }
+
+  bool get canSend => remainingSeconds == 0;
+
+  void start({Duration duration = const Duration(seconds: 60)}) {
+    if (!canSend) return;
+    _notBefore = _now().add(duration);
+  }
+
+  void clear() {
+    _notBefore = null;
+  }
+}
+
 /// Phone-entry screen stays up while the SMS screen is open, even if
 /// auto verification has already signed in. Cleared only when that
 /// attempt is abandoned or navigation is claimed.
@@ -74,6 +102,13 @@ PhoneAuthFailureKind classifyPhoneAuthError(String code) {
 /// One phone-auth attempt. A newer attempt or "change number" makes
 /// older callbacks unable to sign in, show an error, or navigate.
 class PhoneVerificationSession<T> extends ChangeNotifier {
+  PhoneVerificationSession({DateTime Function()? now, ResendCooldown? cooldown})
+    : assert(now == null || cooldown == null),
+      _resendCooldown =
+          cooldown ??
+          (now == null ? ResendCooldown.shared : ResendCooldown(now: now));
+
+  final ResendCooldown _resendCooldown;
   int _generation = 0;
   bool _signInStarted = false;
   bool _codeScreenOpen = false;
@@ -95,9 +130,13 @@ class PhoneVerificationSession<T> extends ChangeNotifier {
 
   String? get pendingErrorCode => _pendingErrorCode;
 
+  int get resendRemainingSeconds => _resendCooldown.remainingSeconds;
+
   bool isCurrent(int attempt) => attempt == _generation;
 
   int startAttempt() {
+    if (!_resendCooldown.canSend) return 0;
+    _resendCooldown.start();
     _generation += 1;
     _signInStarted = false;
     _codeScreenOpen = false;
@@ -122,6 +161,7 @@ class PhoneVerificationSession<T> extends ChangeNotifier {
 
     _verificationId = verificationId;
     _resendToken = resendToken;
+    _resendCooldown.start();
 
     if (_signInStarted || _codeScreenOpen) {
       notifyListeners();
@@ -218,6 +258,8 @@ class PhoneVerificationSession<T> extends ChangeNotifier {
     if (!isCurrent(attempt) || _signInStarted || _navigationClaimed) {
       return 0;
     }
+    if (!_resendCooldown.canSend) return 0;
+    _resendCooldown.start();
     _generation += 1;
     _verificationId = null;
     _pendingAuto = null;

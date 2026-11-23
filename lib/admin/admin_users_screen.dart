@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../services/plus_entitlement.dart';
 import 'admin_user_detail_screen.dart';
+import 'admin_user_number.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key, this.initialFilter = 'all'});
@@ -15,6 +17,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   String _searchText = '';
+  String? _managementUid;
   late String _selectedFilter;
   @override
   void initState() {
@@ -82,7 +85,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     role == 'super_admin' ||
                     role == 'moderator';
 
-                final bool isPlus = data['plus'] == true;
+                final bool isPlus = PlusEntitlement.isActive(data);
 
                 final bool isPlayer =
                     data['oyuncuRozeti'] == true || data['verified'] == true;
@@ -110,6 +113,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
                 if (_searchText.isEmpty) {
                   return true;
+                }
+
+                if (_searchText.toUpperCase().startsWith('U-')) {
+                  return document.id == _managementUid;
                 }
 
                 final String query = _searchText.toLowerCase();
@@ -163,9 +170,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (String value) {
+                      onChanged: (String value) async {
+                        final normalized = value.trim();
+                        final uid = await findUidByManagementNumber(normalized);
+                        if (!mounted ||
+                            _searchController.text.trim() != normalized) {
+                          return;
+                        }
                         setState(() {
-                          _searchText = value.trim();
+                          _searchText = normalized;
+                          _managementUid = uid;
                         });
                       },
                       decoration: InputDecoration(
@@ -248,7 +262,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     for (final QueryDocumentSnapshot<Map<String, dynamic>> document in users) {
       final Map<String, dynamic> data = document.data();
 
-      if (data['plus'] == true) {
+      if (PlusEntitlement.isActive(data)) {
         plusCount++;
       }
 
@@ -338,16 +352,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         ? fullName
         : 'İsimsiz kullanıcı';
 
-    final String phone =
-        data['telefon']?.toString().trim() ??
-        data['phoneNumber']?.toString().trim() ??
-        '';
-
     final String city = data['sehir']?.toString().trim() ?? '';
 
     final String photoUrl = data['profilFotografi']?.toString().trim() ?? '';
 
-    final bool isPlus = data['plus'] == true;
+    final bool isPlus = PlusEntitlement.isActive(data);
 
     final bool isPlayer =
         data['oyuncuRozeti'] == true || data['verified'] == true;
@@ -415,38 +424,27 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       ),
                     ],
                     const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: <Widget>[
-                        if (isPlus)
-                          const _UserLabel(
-                            text: 'Plus',
-                            icon: Icons.workspace_premium_rounded,
-                          ),
-                        if (isPlayer)
-                          const _UserLabel(
-                            text: 'Oyuncu',
-                            icon: Icons.verified_rounded,
-                          ),
-                        if (isAdmin)
-                          const _UserLabel(
-                            text: 'Admin',
-                            icon: Icons.admin_panel_settings_rounded,
-                          ),
-                        _UserLabel(
-                          text: _accountStatusTitle(accountStatus),
-                          icon: _accountStatusIcon(accountStatus),
-                        ),
-                      ],
+                    AdminUserNumber(uid: document.id),
+                    const SizedBox(height: 6),
+                    _UserLabel(
+                      text: _accountStatusTitle(accountStatus),
+                      icon: _accountStatusIcon(accountStatus),
                     ),
-                    if (phone.isNotEmpty || city.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 7),
+                    if (isPlus || isPlayer || isAdmin) ...<Widget>[
+                      const SizedBox(height: 6),
                       Text(
                         <String>[
-                          if (phone.isNotEmpty) phone,
-                          if (city.isNotEmpty) city,
-                        ].join(' • '),
+                          if (isPlus) 'Plus',
+                          if (isPlayer) 'Oyuncu',
+                          if (isAdmin) 'Admin',
+                        ].join(' · '),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    if (city.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 7),
+                      Text(
+                        <String>[if (city.isNotEmpty) city].join(' • '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,

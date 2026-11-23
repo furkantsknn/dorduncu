@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
@@ -14,16 +15,19 @@ export const adminUpdateMembership = onCall(
   {region: "europe-west1", enforceAppCheck: true},
   async (request) => {
     assertAdminPanelAccess(request);
+    await assertCurrentAdminSession(request);
     const data = request.data as Record<string, unknown>;
     const userId = text(data.userId, "Kullanıcı kimliği gerekli.");
     const action = text(data.action, "İşlem türü gerekli.");
 
     if (action === "plus") {
       assertAdminPermission(request, "finance.manage");
+      await assertCurrentAdminSession(request);
     } else if (action === "playerBadge") {
       // Verification officers must use the A6 assigned-request workflow.
       // This legacy manual badge override is reserved for super admins.
       assertSuperAdmin(request);
+      await assertCurrentAdminSession(request);
     } else {
       throw new HttpsError("invalid-argument", "Geçersiz işlem türü.");
     }
@@ -43,7 +47,9 @@ export const adminUpdateMembership = onCall(
     const batch = db.batch();
     if (action === "plus") {
       batch.set(userRef, {
-        plus: enabled,
+        // Keep the manual admin grant independent from Play and gift sources.
+        // Removing this grant must not revoke a still-valid paid entitlement.
+        plusAdminGranted: enabled,
         plusUpdatedAt: FieldValue.serverTimestamp(),
         plusUpdatedBy: adminId,
         updatedAt: FieldValue.serverTimestamp(),

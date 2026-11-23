@@ -789,7 +789,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get normalMembersTomorrowOnly =>
-      'Normal members can create events for tomorrow at the latest.';
+      'Free membership can only create an event for today.';
+
+  @override
+  String get eventPlusSevenDayLimit =>
+      'Plus can create events for future dates.';
 
   @override
   String get sessionNotFoundPleaseLogin =>
@@ -839,11 +843,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get plusMemberBenefits =>
-      'Plus member: You can select multiple players and future dates.';
+      'Plus: Create multiple events at once; there is no open-event limit.';
 
   @override
   String get normalMemberLimits =>
-      'Normal member: You can create an event for 1 player and at most tomorrow.';
+      'Free: 2 open events at once; today only and 1 player.';
 
   @override
   String startTimeLabel(String time) {
@@ -978,4 +982,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get communityRulesBody =>
       'Be respectful. Harassment, threats, discrimination, fraud, and misleading events are prohibited. Do not apply to events you cannot attend; notify the organizer promptly if you need to cancel. Report users who pose a safety risk through the support channel.';
+
+  @override
+  String eventServiceBusy(String code) {
+    return 'The service is busy or a request limit was reached. This does not mean your Plus event quota was reached. Check My Events before trying again. ($code)';
+  }
+
+  @override
+  String eventCreateUncertain(String code) {
+    return 'The event result could not be confirmed. Check My Events before creating it again. ($code)';
+  }
+
+  @override
+  String eventVerificationFailed(String code) {
+    return 'Your session or permission could not be verified. Check your connection and sign-in. ($code)';
+  }
+
+  @override
+  String eventCreateSafeFailure(String code) {
+    return 'The event could not be created. Check My Events before trying again. ($code)';
+  }
 }

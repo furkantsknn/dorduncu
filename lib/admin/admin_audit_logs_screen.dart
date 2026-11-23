@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'admin_audit_labels.dart';
+import 'admin_user_number.dart';
 
 String _locText(
   BuildContext context, {
@@ -16,7 +18,6 @@ String _locText(
       return tr;
   }
 }
-
 
 class AdminAuditLogsScreen extends StatefulWidget {
   const AdminAuditLogsScreen({super.key});
@@ -42,7 +43,12 @@ class _AdminAuditLogsScreenState extends State<AdminAuditLogsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _locText(context, tr: 'Admin İşlem Kayıtları', en: 'Admin Audit Logs', de: 'Admin-Audit-Protokolle'),
+          _locText(
+            context,
+            tr: 'Admin İşlem Kayıtları',
+            en: 'Admin Audit Logs',
+            de: 'Admin-Audit-Protokolle',
+          ),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -320,7 +326,7 @@ class _AuditLogCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    action,
+                    adminAuditTitle(context, action),
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
@@ -332,11 +338,23 @@ class _AuditLogCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            _line('Admin', performedBy),
+            if (performedBy.isNotEmpty)
+              AdminUserIdentity(uid: performedBy, compact: true),
             if (role.isNotEmpty) _line('Rol', role),
-            if (targetUid.isNotEmpty) _line('Hedef kullanıcı', targetUid),
-            if (reason.isNotEmpty) _line(_locText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'), reason),
-            _line('Kayıt ID', logId),
+            if (targetUid.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              AdminUserIdentity(uid: targetUid, compact: true),
+            ],
+            if (reason.isNotEmpty)
+              _line(
+                _locText(
+                  context,
+                  tr: 'Açıklama',
+                  en: 'Description',
+                  de: 'Beschreibung',
+                ),
+                reason,
+              ),
             if (metadata.isNotEmpty) ...<Widget>[
               const SizedBox(height: 8),
               ExpansionTile(
@@ -347,6 +365,10 @@ class _AuditLogCard extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 children: <Widget>[
+                  _line('Ham olay kodu', action),
+                  _line('İşlem ID', logId),
+                  if (performedBy.isNotEmpty) _line('Aktör UID', performedBy),
+                  if (targetUid.isNotEmpty) _line('Hedef UID', targetUid),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: SelectableText(metadata.toString()),

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/firebase_auth_language.dart';
 
 String _adminWebText(
   BuildContext context, {
@@ -16,7 +17,6 @@ String _adminWebText(
       return tr;
   }
 }
-
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -42,6 +42,7 @@ class _State extends State<AdminLoginScreen> {
   }
 
   Future<void> _login() async {
+    final String authLanguage = Localizations.localeOf(context).languageCode;
     setState(() {
       _busy = true;
       _error = null;
@@ -57,10 +58,19 @@ class _State extends State<AdminLoginScreen> {
       if (hints.isEmpty || hints.first is! PhoneMultiFactorInfo) {
         setState(() {
           _busy = false;
-          _error = _adminWebText(context, tr: 'SMS ikinci faktörü bulunamadı.', en: 'SMS second factor was not found.', de: 'SMS als zweiter Faktor wurde nicht gefunden.');
+          _error = _adminWebText(
+            context,
+            tr: 'SMS ikinci faktörü bulunamadı.',
+            en: 'SMS second factor was not found.',
+            de: 'SMS als zweiter Faktor wurde nicht gefunden.',
+          );
         });
         return;
       }
+      await applyFirebaseAuthLanguage(
+        FirebaseAuth.instance,
+        authLanguage,
+      );
       await FirebaseAuth.instance.verifyPhoneNumber(
         multiFactorSession: e.resolver.session,
         multiFactorInfo: hints.first as PhoneMultiFactorInfo,
@@ -141,7 +151,12 @@ class _State extends State<AdminLoginScreen> {
                   const Icon(Icons.admin_panel_settings_outlined, size: 54),
                   const SizedBox(height: 18),
                   Text(
-                    _adminWebText(context, tr: 'Dört. Yönetim', en: 'Dört. Admin', de: 'Dört. Admin'),
+                    _adminWebText(
+                      context,
+                      tr: 'Dört. Yönetim',
+                      en: 'Dört. Admin',
+                      de: 'Dört. Admin',
+                    ),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 24),
@@ -158,7 +173,12 @@ class _State extends State<AdminLoginScreen> {
                       controller: _password,
                       obscureText: true,
                       decoration: InputDecoration(
-                        labelText: _adminWebText(context, tr: 'Şifre', en: 'Password', de: 'Passwort'),
+                        labelText: _adminWebText(
+                          context,
+                          tr: 'Şifre',
+                          en: 'Password',
+                          de: 'Passwort',
+                        ),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -181,7 +201,21 @@ class _State extends State<AdminLoginScreen> {
                         : mfa
                         ? _verify
                         : _login,
-                    child: Text(mfa ? _adminWebText(context, tr: 'Doğrula', en: 'Verify', de: 'Bestätigen') : _adminWebText(context, tr: 'Giriş yap', en: 'Sign in', de: 'Anmelden')),
+                    child: Text(
+                      mfa
+                          ? _adminWebText(
+                              context,
+                              tr: 'Doğrula',
+                              en: 'Verify',
+                              de: 'Bestätigen',
+                            )
+                          : _adminWebText(
+                              context,
+                              tr: 'Giriş yap',
+                              en: 'Sign in',
+                              de: 'Anmelden',
+                            ),
+                    ),
                   ),
                 ],
               ),

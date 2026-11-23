@@ -17,7 +17,6 @@ String _locText(
   }
 }
 
-
 class AdminAccountStatusScreen extends StatefulWidget {
   const AdminAccountStatusScreen({
     super.key,
@@ -33,10 +32,8 @@ class AdminAccountStatusScreen extends StatefulWidget {
       _AdminAccountStatusScreenState();
 }
 
-class _AdminAccountStatusScreenState
-    extends State<AdminAccountStatusScreen> {
-  final TextEditingController _reasonController =
-  TextEditingController();
+class _AdminAccountStatusScreenState extends State<AdminAccountStatusScreen> {
+  final TextEditingController _reasonController = TextEditingController();
 
   late String _selectedStatus;
   bool _saving = false;
@@ -62,9 +59,7 @@ class _AdminAccountStatusScreenState
     final String reason = _reasonController.text.trim();
 
     if (_selectedStatus != 'active' && reason.length < 3) {
-      _showMessage(
-        'Hesabı kısıtlamak için açıklama yazmalısın.',
-      );
+      _showMessage('Hesabı kısıtlamak için açıklama yazmalısın.');
       return;
     }
 
@@ -75,14 +70,16 @@ class _AdminAccountStatusScreenState
           title: Text('Hesap Durumunu Güncelle'),
           content: Text(
             'Yeni durum: ${_statusTitle(_selectedStatus)}'
-                '${reason.isEmpty ? '' : '\n\nAçıklama: $reason'}',
+            '${reason.isEmpty ? '' : '\n\nAçıklama: $reason'}',
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _locText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen'),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -104,8 +101,7 @@ class _AdminAccountStatusScreenState
     });
 
     try {
-      final HttpsCallable callable =
-      FirebaseFunctions.instanceFor(
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('processAccountStatus');
 
@@ -113,8 +109,7 @@ class _AdminAccountStatusScreenState
         'uid': widget.userId,
         'status': _selectedStatus,
         'reason': reason,
-        'suspensionDays':
-        _selectedStatus == 'suspended'
+        'suspensionDays': _selectedStatus == 'suspended'
             ? _suspensionDays
             : null,
       });
@@ -125,9 +120,7 @@ class _AdminAccountStatusScreenState
 
       Navigator.of(context).pop(true);
     } catch (error) {
-      _showMessage(
-        'Hesap durumu güncellenemedi: $error',
-      );
+      _showMessage('Hesap durumu güncellenemedi: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -144,11 +137,7 @@ class _AdminAccountStatusScreenState
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   static String _normalizeStatus(String value) {
@@ -196,34 +185,28 @@ class _AdminAccountStatusScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _locText(context, tr: 'Hesap Durumu', en: 'Account Status', de: 'Kontostatus'),
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
+          _locText(
+            context,
+            tr: 'Hesap Durumu',
+            en: 'Account Status',
+            de: 'Kontostatus',
           ),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          32,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: <Widget>[
           Card(
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Text(
                     'Yeni hesap durumu',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 14),
                   RadioGroup<String>(
@@ -247,12 +230,11 @@ class _AdminAccountStatusScreenState
                         ])
                           RadioListTile<String>(
                             value: status,
-                            secondary: Icon(
-                              _statusIcon(status),
-                            ),
+                            secondary: Icon(_statusIcon(status)),
                             title: Text(
                               status == 'active' &&
-                                  _normalizeStatus(widget.currentStatus) != 'active'
+                                      _normalizeStatus(widget.currentStatus) !=
+                                          'active'
                                   ? 'Tekrar Aktif Et'
                                   : _statusTitle(status),
                               style: const TextStyle(
@@ -273,30 +255,21 @@ class _AdminAccountStatusScreenState
                         border: OutlineInputBorder(),
                       ),
                       items: const <DropdownMenuItem<int>>[
-                        DropdownMenuItem<int>(
-                          value: 3,
-                          child: Text('3 gün'),
-                        ),
-                        DropdownMenuItem<int>(
-                          value: 7,
-                          child: Text('7 gün'),
-                        ),
-                        DropdownMenuItem<int>(
-                          value: 15,
-                          child: Text('15 gün'),
-                        ),
+                        DropdownMenuItem<int>(value: 3, child: Text('3 gün')),
+                        DropdownMenuItem<int>(value: 7, child: Text('7 gün')),
+                        DropdownMenuItem<int>(value: 15, child: Text('15 gün')),
                       ],
                       onChanged: _saving
                           ? null
                           : (int? value) {
-                        if (value == null) {
-                          return;
-                        }
+                              if (value == null) {
+                                return;
+                              }
 
-                        setState(() {
-                          _suspensionDays = value;
-                        });
-                      },
+                              setState(() {
+                                _suspensionDays = value;
+                              });
+                            },
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -306,9 +279,13 @@ class _AdminAccountStatusScreenState
                     minLines: 3,
                     maxLines: 5,
                     decoration: InputDecoration(
-                      labelText: _locText(context, tr: 'İşlem açıklaması', en: 'Action description', de: 'Aktionsbeschreibung'),
-                      hintText:
-                      'Örnek: Topluluk kurallarının ihlali',
+                      labelText: _locText(
+                        context,
+                        tr: 'İşlem açıklaması',
+                        en: 'Action description',
+                        de: 'Aktionsbeschreibung',
+                      ),
+                      hintText: 'Örnek: Topluluk kurallarının ihlali',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -319,21 +296,13 @@ class _AdminAccountStatusScreenState
                       onPressed: _saving ? null : _save,
                       icon: _saving
                           ? const SizedBox(
-                        width: 19,
-                        height: 19,
-                        child:
-                        CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : const Icon(
-                        Icons.save_outlined,
-                      ),
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
                       label: Padding(
-                        padding:
-                        const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
                           _saving
                               ? 'Kaydediliyor...'

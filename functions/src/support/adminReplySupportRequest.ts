@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable require-jsdoc */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
@@ -6,6 +7,7 @@ import {
   getAdminRole,
 } from "../security/adminAuthorization";
 import {writeAuditLog} from "../audit/writeAuditLog";
+import {writeUserNotification} from "../notifications/writeUserNotification";
 
 const REGION = "europe-west1";
 
@@ -16,6 +18,7 @@ export const adminReplySupportRequest = onCall(
   },
   async (request) => {
     assertAdminPermission(request, "support.manage");
+    await assertCurrentAdminSession(request);
 
     const adminId = request.auth.uid;
     const adminRole = getAdminRole(request);
@@ -163,6 +166,20 @@ export const adminReplySupportRequest = onCall(
         performedByRole: adminRole,
       },
     });
+
+    if (response && userId) {
+      await writeUserNotification(firestore, {
+        notificationId: `support_${requestId}_answered`,
+        userId,
+        type: "support",
+        title: ticketId ? `Destek talebi ${ticketId}` :
+          "Destek talebin yanıtlandı",
+        message: ticketId ? `${ticketId} numaralı talebin yanıtlandı.` :
+          "Destek talebin yanıtlandı.",
+        route: "support_request",
+        data: {requestId, ticketId},
+      });
+    }
 
     return {success: true};
   },

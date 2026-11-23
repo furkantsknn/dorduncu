@@ -4,22 +4,22 @@
 
 **Yürürlük:** 5 Ekim 2026
 
-Dört. Plus bir Google Play aboneliğidir.
+Dört. Plus, iOS cihazlarda Apple App Store, Android cihazlarda Google Play üzerinden sunulan otomatik yenilenen bir aboneliktir.
 
 # 1. Yenileme
 
-Abonelik, seçilen plan döneminin sonunda Google Play hesabınızdaki ayara göre yenilenebilir. Yenileme ücreti, yenileme anında Google Play’in tahsil ettiği fiyattır.
+Abonelik, mevcut dönemin bitiminden en az 24 saat önce iptal edilmediği sürece seçilen plan döneminin sonunda otomatik olarak yenilenir. Yenileme ücreti, yenileme anında ilgili mağazanın (Apple App Store veya Google Play) tahsil ettiği fiyattır.
 
 # 2. Nereden kapatılır
 
-Otomatik yenileme Dört. içinden kapatılmaz. Google Play uygulamasında veya Play hesabınızdaki abonelikler bölümünden iptal edilir.
+Otomatik yenileme Dört. içinden kapatılmaz. iOS cihazlarda Ayarlar > Apple Kimliği > Abonelikler (veya App Store hesap ayarları) bölümünden, Android cihazlarda Google Play uygulamasındaki Abonelikler bölümünden iptal edilir.
 
 # 3. İptalin etkisi
 
-İptal, o ana kadar ödenmiş dönemin kalan kullanımını kendiliğinden hemen bitirmez. Dönem, Google Play’in bildirdiği süre dolana kadar devam edebilir. Erken kesinti veya ücret iadesi Google Play’in kendi kurallarına bağlıdır.
+İptal, o ana kadar ödenmiş dönemin kalan kullanımını kendiliğinden hemen bitirmez. Dönem, ilgili mağazanın bildirdiği süre dolana kadar devam edebilir. Erken kesinti veya ücret iadesi ilgili mağazanın (Apple App Store veya Google Play) kendi kurallarına bağlıdır.
 
 # 4. Ödeme sorunu
 
-Google Play yenileme ücretini alamazsa abonelik hakkı uzamayabilir. Dört., Play’in bildirmediği bir yenilemeyi aktif saymaz.
+İlgili mağaza yenileme ücretini alamazsa abonelik hakkı uzamayabilir. Dört., mağazanın bildirmediği bir yenilemeyi aktif saymaz.
 
 Destek: destek@dortapp.com

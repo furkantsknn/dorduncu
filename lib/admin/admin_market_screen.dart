@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import '../services/digital_purchase_service.dart';
+import 'admin_gift_operations_screen.dart';
+import 'admin_market_campaigns_screen.dart';
 import 'admin_market_orders_screen.dart';
 
 String _adminMarketText(
@@ -18,7 +21,6 @@ String _adminMarketText(
       return tr;
   }
 }
-
 
 class AdminMarketScreen extends StatefulWidget {
   const AdminMarketScreen({super.key});
@@ -128,12 +130,22 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _adminMarketText(context, tr: 'Market Yönetimi', en: 'Market Management', de: 'Marktverwaltung'),
+          _adminMarketText(
+            context,
+            tr: 'Market Yönetimi',
+            en: 'Market Management',
+            de: 'Marktverwaltung',
+          ),
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: _adminMarketText(context, tr: 'Oyun rozetlerini oluştur', en: 'Create game badges', de: 'Spielabzeichen erstellen'),
+            tooltip: _adminMarketText(
+              context,
+              tr: 'Oyun rozetlerini oluştur',
+              en: 'Create game badges',
+              de: 'Spielabzeichen erstellen',
+            ),
             onPressed: _seedingBadges ? null : _seedBadgeProducts,
             icon: _seedingBadges
                 ? const SizedBox(
@@ -144,7 +156,12 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
                 : const Icon(Icons.auto_awesome_outlined),
           ),
           IconButton(
-            tooltip: _adminMarketText(context, tr: 'Siparişler', en: 'Orders', de: 'Bestellungen'),
+            tooltip: _adminMarketText(
+              context,
+              tr: 'Siparişler',
+              en: 'Orders',
+              de: 'Bestellungen',
+            ),
             onPressed: () {
               Navigator.push<void>(
                 context,
@@ -158,7 +175,12 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
             icon: const Icon(Icons.receipt_long_outlined),
           ),
           IconButton(
-            tooltip: _adminMarketText(context, tr: 'Yeni ürün', en: 'New product', de: 'Neues Produkt'),
+            tooltip: _adminMarketText(
+              context,
+              tr: 'Yeni ürün',
+              en: 'New product',
+              de: 'Neues Produkt',
+            ),
             onPressed: _openProductEditor,
             icon: const Icon(Icons.add_business_outlined),
           ),
@@ -248,6 +270,40 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
 
               return Column(
                 children: <Widget>[
+                  const _CanonicalCatalogSummary(),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      children: <Widget>[
+                        TextButton(
+                          onPressed: kMarketCampaignActionsEnabled
+                              ? () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          const AdminMarketCampaignsScreen(),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          child: const Text('Kampanyalar'),
+                        ),
+                        TextButton(
+                          onPressed: kMarketCampaignActionsEnabled
+                              ? () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          const AdminGiftOperationsScreen(),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          child: const Text('Hediye işlemleri'),
+                        ),
+                      ],
+                    ),
+                  ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                     child: _buildStatistics(allProducts),
@@ -286,7 +342,15 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       scrollDirection: Axis.horizontal,
                       children: <Widget>[
-                        _buildFilter('all', _adminMarketText(context, tr: 'Tümü', en: 'All', de: 'Alle')),
+                        _buildFilter(
+                          'all',
+                          _adminMarketText(
+                            context,
+                            tr: 'Tümü',
+                            en: 'All',
+                            de: 'Alle',
+                          ),
+                        ),
                         _buildFilter('active', 'Aktif'),
                         _buildFilter('inactive', 'Pasif'),
                         _buildFilter('plus', 'Plus'),
@@ -537,6 +601,60 @@ class _AdminMarketScreenState extends State<AdminMarketScreen> {
   }
 }
 
+class _CanonicalCatalogSummary extends StatelessWidget {
+  const _CanonicalCatalogSummary();
+
+  @override
+  Widget build(BuildContext context) {
+    final FirebaseFirestore db = FirebaseFirestore.instance;
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: db.collection('badge_products').snapshots(),
+      builder: (context, badges) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: db.collection('plus_products').snapshots(),
+          builder: (context, plus) {
+            final bool loading = !badges.hasData || !plus.hasData;
+            final bool failed = badges.hasError || plus.hasError;
+            final int badgeCount = badges.data?.docs.length ?? 0;
+            final int plusCount = plus.data?.docs.length ?? 0;
+            final int mapped =
+                badges.data?.docs.where((document) {
+                  final data = document.data();
+                  return (data['googlePlayProductId']?.toString().trim() ?? '')
+                      .isNotEmpty;
+                }).length ??
+                0;
+            return Card(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: failed
+                    ? const Text(
+                        'Kanonik katalog okunamadı; bu durum 0 ürün değildir.',
+                      )
+                    : loading
+                    ? const LinearProgressIndicator()
+                    : Row(
+                        children: <Widget>[
+                          Expanded(child: Text('Kişisel ürünler: $badgeCount')),
+                          Expanded(child: Text('Plus: $plusCount')),
+                          Expanded(
+                            child: Text(
+                              'Play eşlemesi: $mapped/$badgeCount\n'
+                              'Satış durumu: doğrulanmadı',
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 class _AdminMarketProductEditorScreen extends StatefulWidget {
   const _AdminMarketProductEditorScreen({
     required this.productId,
@@ -708,14 +826,28 @@ class _AdminMarketProductEditorScreenState
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Text(_adminMarketText(context, tr: 'Ürünü Sil', en: 'Delete Product', de: 'Produkt löschen')),
+          title: Text(
+            _adminMarketText(
+              context,
+              tr: 'Ürünü Sil',
+              en: 'Delete Product',
+              de: 'Produkt löschen',
+            ),
+          ),
           content: Text('Bu market ürünü kalıcı olarak silinecek.'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: Text(_adminMarketText(context, tr: 'Vazgeç', en: 'Cancel', de: 'Abbrechen')),
+              child: Text(
+                _adminMarketText(
+                  context,
+                  tr: 'Vazgeç',
+                  en: 'Cancel',
+                  de: 'Abbrechen',
+                ),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -776,7 +908,19 @@ class _AdminMarketProductEditorScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? _adminMarketText(context, tr: 'Market Ürününü Düzenle', en: 'Edit Market Product', de: 'Marktprodukt bearbeiten') : _adminMarketText(context, tr: 'Market Ürünü Ekle', en: 'Add Market Product', de: 'Marktprodukt hinzufügen'),
+          _isEditing
+              ? _adminMarketText(
+                  context,
+                  tr: 'Market Ürününü Düzenle',
+                  en: 'Edit Market Product',
+                  de: 'Marktprodukt bearbeiten',
+                )
+              : _adminMarketText(
+                  context,
+                  tr: 'Market Ürünü Ekle',
+                  en: 'Add Market Product',
+                  de: 'Marktprodukt hinzufügen',
+                ),
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: <Widget>[
@@ -800,7 +944,12 @@ class _AdminMarketProductEditorScreenState
                   DropdownButtonFormField<String>(
                     initialValue: _productType,
                     decoration: InputDecoration(
-                      labelText: _adminMarketText(context, tr: 'Ürün türü', en: 'Product type', de: 'Produkttyp'),
+                      labelText: _adminMarketText(
+                        context,
+                        tr: 'Ürün türü',
+                        en: 'Product type',
+                        de: 'Produkttyp',
+                      ),
                       border: OutlineInputBorder(),
                     ),
                     items: const <DropdownMenuItem<String>>[
@@ -834,7 +983,12 @@ class _AdminMarketProductEditorScreenState
                     controller: _titleController,
                     enabled: !_saving,
                     decoration: InputDecoration(
-                      labelText: _adminMarketText(context, tr: 'Ürün adı', en: 'Product name', de: 'Produktname'),
+                      labelText: _adminMarketText(
+                        context,
+                        tr: 'Ürün adı',
+                        en: 'Product name',
+                        de: 'Produktname',
+                      ),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -843,7 +997,12 @@ class _AdminMarketProductEditorScreenState
                     controller: _codeController,
                     enabled: !_saving,
                     decoration: InputDecoration(
-                      labelText: _adminMarketText(context, tr: 'Ürün kodu', en: 'Product code', de: 'Produktcode'),
+                      labelText: _adminMarketText(
+                        context,
+                        tr: 'Ürün kodu',
+                        en: 'Product code',
+                        de: 'Produktcode',
+                      ),
                       hintText: 'Örnek: plus_monthly',
                       border: OutlineInputBorder(),
                     ),
@@ -855,14 +1014,26 @@ class _AdminMarketProductEditorScreenState
                     minLines: 3,
                     maxLines: 6,
                     decoration: InputDecoration(
-                      labelText: _adminMarketText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'),
+                      labelText: _adminMarketText(
+                        context,
+                        tr: 'Açıklama',
+                        en: 'Description',
+                        de: 'Beschreibung',
+                      ),
                       border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 14),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(_adminMarketText(context, tr: 'Ürün aktif', en: 'Product active', de: 'Produkt aktiv')),
+                    title: Text(
+                      _adminMarketText(
+                        context,
+                        tr: 'Ürün aktif',
+                        en: 'Product active',
+                        de: 'Produkt aktiv',
+                      ),
+                    ),
                     value: _active,
                     onChanged: _saving
                         ? null
@@ -962,7 +1133,14 @@ class _AdminMarketProductEditorScreenState
                       label: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          _saving ? 'Kaydediliyor...' : _adminMarketText(context, tr: 'Ürünü Kaydet', en: 'Save Product', de: 'Produkt speichern'),
+                          _saving
+                              ? 'Kaydediliyor...'
+                              : _adminMarketText(
+                                  context,
+                                  tr: 'Ürünü Kaydet',
+                                  en: 'Save Product',
+                                  de: 'Produkt speichern',
+                                ),
                         ),
                       ),
                     ),

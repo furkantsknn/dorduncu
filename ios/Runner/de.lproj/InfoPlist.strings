@@ -1,0 +1,5 @@
+CFBundleDisplayName = "Dört.";
+NSCameraUsageDescription = "Der Kamerazugriff wird benötigt, damit du Profil- und Verifizierungsfotos aufnehmen kannst.";
+NSPhotoLibraryUsageDescription = "Der Zugriff auf die Fotomediathek wird benötigt, damit du Profil- und Verifizierungsbilder auswählen kannst.";
+NSPhotoLibraryAddUsageDescription = "Die Berechtigung wird benötigt, um ausgewählte oder erstellte Bilder in deiner Fotomediathek zu speichern.";
+NSLocationWhenInUseUsageDescription = "Der Standortzugriff wird benötigt, um Events in deiner Nähe anzuzeigen und die Karte auf deinen Bereich auszurichten.";

@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 /* eslint-disable max-len */
 import {
   onCall,
@@ -53,6 +54,7 @@ const BADGE_PRODUCTS: BadgeSeedItem[] = [
   {id: "binicilik", name: "Binicilik", emoji: "🏇", categoryId: "premium_sporlar", sortOrder: 28},
   {id: "kayak", name: "Kayak", emoji: "⛷️", categoryId: "premium_sporlar", sortOrder: 29},
   {id: "snowboard", name: "Snowboard", emoji: "🏂", categoryId: "premium_sporlar", sortOrder: 30},
+  {id: "paintball", name: "Paintball", emoji: "🎯", categoryId: "premium_sporlar", sortOrder: 31},
 ];
 
 /**
@@ -77,6 +79,7 @@ export const seedBadgeProducts = onCall(
   },
   async (request) => {
     assertAdminPermission(request, "content.manage");
+    await assertCurrentAdminSession(request);
 
     const uid = request.auth.uid;
     const collection = firestore.collection("badge_products");
@@ -112,6 +115,8 @@ export const seedBadgeProducts = onCall(
         productType: "game_badge",
         label: "official",
         catalogStatus: "canonical",
+        plusPriceKurus: 39900,
+        plusGooglePlayOfferId: current.plusGooglePlayOfferId ?? "",
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: uid,
       };
@@ -120,10 +125,10 @@ export const seedBadgeProducts = onCall(
 
       if (!snapshot?.exists) {
         payload.imageUrl = "";
-        payload.priceKurus = 29900;
+        payload.priceKurus = 49900;
         payload.createdAt = FieldValue.serverTimestamp();
       } else if (current.priceKurus == null) {
-        payload.priceKurus = 29900;
+        payload.priceKurus = 49900;
       }
 
       batch.set(collection.doc(product.id), payload, {merge: true});

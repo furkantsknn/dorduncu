@@ -2,6 +2,48 @@ import {
   CallableRequest,
   HttpsError,
 } from "firebase-functions/https";
+import {getAuth, UserRecord} from "firebase-admin/auth";
+import {getFirestore} from "firebase-admin/firestore";
+
+/** Rejects disabled, revoked or stale-role sessions before privileged I/O.
+ * @param {CallableRequest<unknown>} request Authenticated callable request.
+ * @return {Promise<void>} Resolves for the current Auth identity only.
+ */
+export async function assertCurrentAdminSession(
+  request: CallableRequest<unknown>,
+): Promise<void> {
+  assertAdminPanelAccess(request);
+  let user: UserRecord;
+  try {
+    user = await getAuth().getUser(request.auth.uid);
+  } catch {
+    throw new HttpsError("permission-denied", "Admin session unavailable.");
+  }
+  const profile = await getFirestore().collection("users")
+    .doc(request.auth.uid).get();
+  const blocked = !profile.exists || profile.get("disabled") === true ||
+    ["suspended", "disabled", "blocked", "banned", "deleted",
+      "deletionRequested", "deleting"]
+      .includes(String(profile.get("accountStatus") ?? "")) ||
+    ["pending", "processing", "failed", "completed"].includes(
+      String(profile.get("deletionRequestStatus") ?? ""),
+    );
+  const roleChanged = profile.exists && profile.get("role") != null &&
+    profile.get("role") !== getAdminRole(request);
+  const current = {
+    ...request,
+    auth: {...request.auth, token: user.customClaims ?? {}},
+  } as CallableRequest<unknown>;
+  const validAfter = Date.parse(user.tokensValidAfterTime ?? "") / 1000;
+  if (user.disabled || blocked || roleChanged ||
+      getAdminRole(current) !== getAdminRole(request) ||
+      (Number.isFinite(validAfter) &&
+       Number(request.auth.token.auth_time ?? 0) < validAfter)) {
+    throw new HttpsError(
+      "permission-denied", "Admin session changed. Sign in again.",
+    );
+  }
+}
 
 export const adminRoles = [
   "moderator",

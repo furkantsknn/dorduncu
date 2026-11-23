@@ -1,4 +1,4 @@
-/* eslint-disable require-jsdoc */
+/* eslint-disable max-len, require-jsdoc */
 import {
   HttpsError,
   onCall,
@@ -9,6 +9,10 @@ import {
   Timestamp,
   getFirestore,
 } from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
+import {createHash} from "crypto";
+import {hasEventChatAccess} from "../chat/eventChatAccessPolicy";
+import {allocateSupportNumber} from "../admin/managementNumberPolicy";
 
 const REGION = "europe-west1";
 const COOLDOWN_MS = 30 * 1000;
@@ -43,6 +47,7 @@ interface CreateSupportRequestData {
   relatedEventId?: unknown;
   relatedMessageId?: unknown;
   attachmentUrls?: unknown;
+  clientRequestId?: unknown;
 }
 
 export const createSupportRequest = onCall(
@@ -60,6 +65,11 @@ export const createSupportRequest = onCall(
 
     const data = request.data as CreateSupportRequestData;
     const uid = request.auth.uid;
+    const clientRequestId = readRequiredString(
+      data.clientRequestId,
+      "İstek kimliği gereklidir.",
+      128,
+    );
 
     const category = readRequiredString(
       data.category,
@@ -153,6 +163,7 @@ export const createSupportRequest = onCall(
 
     const firestore = getFirestore();
     const evidenceSnapshot: Record<string, unknown> = {};
+    const privateEvidence: Record<string, unknown> = {};
 
     if (relatedUserId) {
       const userSnapshot = await firestore
@@ -169,15 +180,21 @@ export const createSupportRequest = onCall(
 
       const userData = userSnapshot.data() ?? {};
 
+      const profilePhoto = String(
+        userData.profilFotografi ??
+        userData.avatarUrl ??
+        "",
+      ).trim();
       evidenceSnapshot.user = {
         uid: relatedUserId,
         profileName: String(userData.profilAdi ?? ""),
-        profilePhoto: String(
-          userData.profilFotografi ??
-          userData.avatarUrl ??
-          "",
-        ),
       };
+      if (category === "inappropriate_image") {
+        privateEvidence.profileImage = await resolveReportedProfileImage(
+          profilePhoto,
+          relatedUserId,
+        );
+      }
     }
 
     let eventSnapshotData: Record<string, unknown> | null = null;
@@ -226,9 +243,14 @@ export const createSupportRequest = onCall(
         );
       }
 
-      const messageSnapshot = await firestore
-        .collection("events")
-        .doc(relatedEventId)
+      const chatAccess = await hasEventChatAccess(firestore, uid, relatedEventId);
+      if (!chatAccess) {
+        throw new HttpsError(
+          "permission-denied",
+          "Bu sohbet için şikâyet oluşturma yetkiniz yok.",
+        );
+      }
+      const messageSnapshot = await chatAccess.eventReference
         .collection("messages")
         .doc(relatedMessageId)
         .get();
@@ -241,10 +263,22 @@ export const createSupportRequest = onCall(
       }
 
       const messageData = messageSnapshot.data() ?? {};
-
+      const storedEventId = String(messageData.eventId ?? "").trim();
+      if (storedEventId && storedEventId !== relatedEventId) {
+        throw new HttpsError("permission-denied", "Şikâyet hedefi doğrulanamadı.");
+      }
+      const senderId = String(messageData.senderUid ?? messageData.senderId ?? "").trim();
+      if (!senderId || (relatedUserId && senderId !== relatedUserId)) {
+        throw new HttpsError("permission-denied", "Şikâyet hedefi doğrulanamadı.");
+      }
       evidenceSnapshot.message = {
         messageId: relatedMessageId,
-        senderId: String(messageData.senderId ?? ""),
+        senderId,
+      };
+      privateEvidence.message = {
+        eventId: relatedEventId,
+        messageId: relatedMessageId,
+        senderId,
         text: String(
           messageData.text ??
           messageData.message ??
@@ -254,9 +288,11 @@ export const createSupportRequest = onCall(
       };
     }
 
+    const requestDocumentId = createHash("sha256")
+      .update(`${uid}:${clientRequestId}`).digest("hex").slice(0, 40);
     const requestReference = firestore
       .collection("support_requests")
-      .doc();
+      .doc(requestDocumentId);
 
     const rateReference = firestore
       .collection("support_rate_limits")
@@ -266,7 +302,13 @@ export const createSupportRequest = onCall(
     const currentHour = Math.floor(nowMs / (60 * 60 * 1000));
 
     await firestore.runTransaction(async (transaction) => {
-      const rateSnapshot = await transaction.get(rateReference);
+      const existingRequest = await transaction.get(requestReference);
+      if (existingRequest.exists) return;
+      const year = new Date(nowMs).getUTCFullYear();
+      const [rateSnapshot, ticketId] = await Promise.all([
+        transaction.get(rateReference),
+        allocateSupportNumber(firestore, transaction, year),
+      ]);
       const rateData = rateSnapshot.data() ?? {};
 
       const lastCreatedAt = rateData.lastCreatedAt;
@@ -293,7 +335,6 @@ export const createSupportRequest = onCall(
         );
       }
 
-      const ticketId = buildTicketId(requestReference.id);
       const priorityScore = calculatePriority(category, urgency);
 
       transaction.set(
@@ -301,6 +342,8 @@ export const createSupportRequest = onCall(
         {
           schemaVersion: 1,
           source: "mobile_app",
+          clientRequestIdHash: createHash("sha256")
+            .update(clientRequestId).digest("hex"),
           userId: uid,
           category,
           subject,
@@ -331,6 +374,21 @@ export const createSupportRequest = onCall(
           satisfactionScore: null,
         },
       );
+
+      if (Object.keys(privateEvidence).length > 0) {
+        transaction.create(
+          firestore.collection("moderation_report_evidence").doc(requestReference.id),
+          {
+            requestId: requestReference.id,
+            reporterUid: uid,
+            relatedUserId: relatedUserId || null,
+            relatedEventId: relatedEventId || null,
+            relatedMessageId: relatedMessageId || null,
+            evidence: privateEvidence,
+            createdAt: FieldValue.serverTimestamp(),
+          },
+        );
+      }
 
       transaction.set(
         requestReference.collection("history").doc(),
@@ -389,6 +447,64 @@ export const createSupportRequest = onCall(
     };
   },
 );
+
+async function resolveReportedProfileImage(
+  reference: string,
+  targetUid: string,
+): Promise<Record<string, unknown>> {
+  const bucket = getStorage().bucket();
+  const parsed = parseStorageReference(reference);
+  if (!parsed.path || parsed.bucket && parsed.bucket !== bucket.name ||
+      !parsed.path.startsWith(`profile_photos/${targetUid}/`)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Şikâyet edilen profil görseli güvenilir biçimde doğrulanamadı.",
+    );
+  }
+  try {
+    const [metadata] = await bucket.file(parsed.path).getMetadata();
+    const generation = String(metadata.generation ?? "").trim();
+    if (!generation) throw new Error("missing-generation");
+    return {
+      bucket: bucket.name,
+      path: parsed.path,
+      generation,
+      contentType: String(metadata.contentType ?? "application/octet-stream"),
+      profileReference: reference,
+    };
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError(
+      "failed-precondition",
+      "Şikâyet edilen profil görseli güvenilir biçimde doğrulanamadı.",
+    );
+  }
+}
+
+function parseStorageReference(reference: string): {bucket: string; path: string} {
+  const value = reference.trim();
+  if (!value) return {bucket: "", path: ""};
+  if (value.startsWith("profile_photos/")) return {bucket: "", path: value};
+  if (value.startsWith("gs://")) {
+    const parts = value.slice(5).split("/");
+    return {bucket: parts.shift() ?? "", path: parts.join("/")};
+  }
+  try {
+    const url = new URL(value);
+    const marker = "/o/";
+    const index = url.pathname.indexOf(marker);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const bucketIndex = pathParts.indexOf("b");
+    const bucket = url.hostname === "storage.googleapis.com" ?
+      pathParts[0] ?? "" :
+      bucketIndex >= 0 ? pathParts[bucketIndex + 1] ?? "" :
+        url.searchParams.get("bucket") ?? "";
+    const path = index >= 0 ? decodeURIComponent(url.pathname.slice(index + marker.length)) : "";
+    return {bucket, path};
+  } catch {
+    return {bucket: "", path: ""};
+  }
+}
 
 function validateRequiredReferences(params: {
   category: string;
@@ -459,12 +575,6 @@ function calculatePriority(
     (categoryPriority[category] ?? 20) +
       (urgencyBoost[urgency] ?? 0),
   );
-}
-
-function buildTicketId(documentId: string): string {
-  const year = new Date().getUTCFullYear();
-  const shortId = documentId.substring(0, 8).toUpperCase();
-  return `SUP-${year}-${shortId}`;
 }
 
 function readRequiredString(

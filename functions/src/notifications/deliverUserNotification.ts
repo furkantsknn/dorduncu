@@ -1,15 +1,12 @@
 /* eslint-disable max-len */
 import {
-  FieldValue,
   getFirestore,
 } from "firebase-admin/firestore";
 import {
   onDocumentCreated,
 } from "firebase-functions/v2/firestore";
+import {processPushDelivery} from "./processPushDelivery";
 import {
-  deliverPushNotification,
-  evaluateNotificationPreferences,
-  nextRetryDate,
   NotificationDeliveryInput,
   queuePushDelivery,
 } from "./notificationDelivery";
@@ -23,6 +20,7 @@ export const deliverUserNotification = onDocumentCreated(
   {
     document: "users/{uid}/notifications/{notificationId}",
     region: REGION,
+    retry: true,
   },
   async (event) => {
     const snapshot = event.data;
@@ -47,82 +45,28 @@ export const deliverUserNotification = onDocumentCreated(
     }
 
     const firestore = getFirestore();
-    const userSnapshot = await firestore
-      .collection("users")
-      .doc(uid)
-      .get();
-
-    if (!userSnapshot.exists) {
-      await snapshot.ref.update({
-        pushDeliveryStatus: "user_missing",
-        pushDeliveryUpdatedAt: FieldValue.serverTimestamp(),
-      });
-      return;
-    }
-
-    const input = toDeliveryInput(
-      uid,
-      notificationId,
-      data,
-    );
-
-    const decision = evaluateNotificationPreferences(
-      userSnapshot.data() ?? {},
-      input.type,
-      new Date(),
-    );
-
-    if (!decision.enabled) {
-      await snapshot.ref.update({
-        pushDeliveryStatus: "suppressed_preference",
-        pushDeliveryUpdatedAt: FieldValue.serverTimestamp(),
-      });
-      return;
-    }
-
-    if (decision.quietUntil) {
-      await queuePushDelivery(
-        firestore,
-        input,
-        decision.quietUntil,
-      );
-
-      await snapshot.ref.update({
-        pushDeliveryStatus: "queued_quiet_hours",
-        pushDeliverAfter: decision.quietUntil,
-        pushDeliveryUpdatedAt: FieldValue.serverTimestamp(),
-      });
-      return;
-    }
-
-    const result = await deliverPushNotification(
-      firestore,
-      input,
-    );
-
-    if (result.retryTokenHashes.length > 0) {
-      const retryAt = nextRetryDate(0, new Date());
-
-      if (retryAt) {
-        await queuePushDelivery(
-          firestore,
-          input,
-          retryAt,
-          0,
-          result.retryTokenHashes,
-        );
-      }
-    }
-
-    await snapshot.ref.update({
-      pushDeliveryStatus:
-        result.delivered > 0 ? "delivered" : "no_active_device",
-      pushDeliveredCount: result.delivered,
-      pushRetryTokenCount: result.retryTokenHashes.length,
-      pushDeliveryUpdatedAt: FieldValue.serverTimestamp(),
-    });
+    const input = toDeliveryInput(uid, notificationId, data);
+    const ref = await queuePushDelivery(firestore, input, new Date());
+    await processPushDelivery(ref);
   },
 );
+
+/**
+ * Returns an accurate state for the initial FCM attempt.
+ *
+ * @param {number} deliveredCount Successful device count.
+ * @param {number} retryTokenCount Transiently failed device count.
+ * @return {string} Persisted delivery state.
+ */
+export function initialDeliveryStatus(
+  deliveredCount: number,
+  retryTokenCount: number,
+): string {
+  if (retryTokenCount > 0) {
+    return deliveredCount > 0 ? "partial_retry_scheduled" : "retry_scheduled";
+  }
+  return deliveredCount > 0 ? "delivered" : "no_active_device";
+}
 
 /**
  * Converts Firestore notification data to a delivery payload.

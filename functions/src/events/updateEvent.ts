@@ -4,9 +4,64 @@ import {
   Timestamp,
   getFirestore,
 } from "firebase-admin/firestore";
+import {approximateCoordinate} from "./createEvent";
 import {assertEventNotPast} from "./eventLifecycle";
+import {isPlusMembershipActive} from "../users/plusMembership";
+import {
+  evaluateEventSchedule,
+  eventStartIsUnchanged,
+  EVENT_FREE_TODAY_CODE,
+} from "./eventSchedulePolicy";
+import {
+  evaluateSoughtPlayerCount,
+  PLUS_PLAYER_LIMIT_CODE,
+  soughtPlayerCountIsUnchanged,
+} from "./plusPlayerLimit";
+import {getEventCategory, getEventGame} from "./eventCatalog";
 
 const REGION = "europe-west1";
+
+/**
+ * Reads a Firestore timestamp as epoch milliseconds.
+ *
+ * @param {unknown} value Stored start or date.
+ * @return {number | null} Milliseconds, when the value is a timestamp.
+ */
+function timestampMillis(value: unknown): number | null {
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  return null;
+}
+
+/**
+ * Validates an optional coordinate from the edit request.
+ *
+ * @param {unknown} value Supplied coordinate.
+ * @param {string} fieldName Field label for the error.
+ * @param {number} limit Absolute maximum.
+ * @return {number | null} Coordinate, or null when not supplied.
+ */
+function optionalCoordinate(
+  value: unknown,
+  fieldName: string,
+  limit: number,
+): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    Math.abs(value) > limit
+  ) {
+    throw new HttpsError("invalid-argument", `${fieldName} geçerli değil.`);
+  }
+
+  return value;
+}
 
 export const updateEvent = onCall(
   {
@@ -89,27 +144,71 @@ export const updateEvent = onCall(
       updatedAt: FieldValue.serverTimestamp(),
     };
 
-    if (typeof input.game === "string") {
-      publicUpdates.oyun = input.game.trim();
+    if (input.gameId !== undefined) {
+      const gameId = String(input.gameId ?? "").trim();
+      const game = getEventGame(gameId);
+      const category = game ? getEventCategory(game.categoryId) : null;
+      if (!game || !category || game.id !== gameId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Geçerli bir oyun veya spor seçilmelidir.",
+        );
+      }
+      publicUpdates.gameId = game.id;
+      publicUpdates.gameName = game.name;
+      publicUpdates.categoryId = category.id;
+      publicUpdates.categoryName = category.name;
+      publicUpdates.oyun = `${game.emoji} ${game.name}`;
     }
+
+    let plusActive: boolean | undefined;
+
+    const readPlusActive = async (): Promise<boolean> => {
+      if (plusActive !== undefined) {
+        return plusActive;
+      }
+
+      const userSnapshot = await firestore
+        .collection("users")
+        .doc(uid)
+        .get();
+      plusActive = userSnapshot.exists &&
+        isPlusMembershipActive(userSnapshot.data() ?? {});
+      return plusActive;
+    };
 
     if (input.playerCount !== undefined) {
       const playerCount = Number(input.playerCount);
+      const playerChanged = !soughtPlayerCountIsUnchanged(
+        playerCount,
+        eventData.oyuncuSayisi ?? eventData.playerCount,
+      );
 
-      if (
-        !Number.isInteger(playerCount) ||
-        playerCount < 1 ||
-        playerCount > 4
-      ) {
-        throw new HttpsError(
-          "invalid-argument",
-          "Oyuncu sayısı 1 ile 4 arasında olmalıdır.",
+      if (playerChanged) {
+        const playerLimit = evaluateSoughtPlayerCount(
+          playerCount,
+          await readPlusActive(),
         );
-      }
 
-      publicUpdates.oyuncuSayisi = playerCount;
-      publicUpdates.oyuncuSayisiMetni =
-        `${playerCount} Oyuncu`;
+        if (playerLimit === "invalid_range") {
+          throw new HttpsError(
+            "invalid-argument",
+            "Oyuncu sayısı pozitif bir tam sayı olmalıdır.",
+          );
+        }
+
+        if (playerLimit === "plus_required") {
+          throw new HttpsError(
+            "permission-denied",
+            "2 veya daha fazla oyuncu için Plus üyelik gerekir.",
+            {code: PLUS_PLAYER_LIMIT_CODE},
+          );
+        }
+
+        publicUpdates.oyuncuSayisi = playerCount;
+        publicUpdates.oyuncuSayisiMetni =
+          `${playerCount} Oyuncu`;
+      }
     }
 
     if (typeof input.memberPreference === "string") {
@@ -132,21 +231,58 @@ export const updateEvent = onCall(
         );
       }
 
-      const eventDate = new Date(milliseconds);
+      const storedStart = timestampMillis(eventData.startAt) ??
+        timestampMillis(eventData.tarih);
+      const dateChanged = !eventStartIsUnchanged(
+        milliseconds,
+        storedStart,
+      );
 
-      if (eventDate.getTime() < Date.now()) {
-        throw new HttpsError(
-          "invalid-argument",
-          "Geçmiş tarih seçilemez.",
+      if (dateChanged) {
+        const schedule = evaluateEventSchedule(
+          milliseconds,
+          Date.now(),
+          await readPlusActive(),
         );
-      }
 
-      publicUpdates.tarih =
-        Timestamp.fromDate(eventDate);
+        if (schedule === "past") {
+          throw new HttpsError(
+            "invalid-argument",
+            "Geçmiş tarih seçilemez.",
+          );
+        }
+
+        if (schedule === "free_not_today") {
+          throw new HttpsError(
+            "permission-denied",
+            "Ücretsiz üyelikte etkinlik yalnızca bugün için açılabilir.",
+            {code: EVENT_FREE_TODAY_CODE},
+          );
+        }
+
+        const eventDate = Timestamp.fromMillis(milliseconds);
+        publicUpdates.tarih = eventDate;
+        publicUpdates.startAt = eventDate;
+      }
     }
 
     if (typeof input.city === "string") {
       publicUpdates.sehir = input.city.trim();
+    }
+
+    if (typeof input.district === "string") {
+      publicUpdates.ilce = input.district.trim();
+    }
+
+    const latitude = optionalCoordinate(input.latitude, "Enlem", 90);
+    const longitude = optionalCoordinate(input.longitude, "Boylam", 180);
+
+    if (latitude !== null) {
+      publicUpdates.approxLatitude = approximateCoordinate(latitude);
+    }
+
+    if (longitude !== null) {
+      publicUpdates.approxLongitude = approximateCoordinate(longitude);
     }
 
     const updatesPrivateLocation =
@@ -190,12 +326,12 @@ export const updateEvent = onCall(
         privateUpdates.adres = input.address.trim();
       }
 
-      if (typeof input.latitude === "number") {
-        privateUpdates.latitude = input.latitude;
+      if (latitude !== null) {
+        privateUpdates.latitude = latitude;
       }
 
-      if (typeof input.longitude === "number") {
-        privateUpdates.longitude = input.longitude;
+      if (longitude !== null) {
+        privateUpdates.longitude = longitude;
       }
 
       batch.set(

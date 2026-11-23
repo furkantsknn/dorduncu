@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/market_badge_display.dart';
 import '../models/user_model.dart';
 import '../widgets/market_badge_strip.dart';
+import '../widgets/market_palette.dart';
+import '../widgets/plus_membership_label.dart';
+import '../widgets/profile_menu_tile.dart';
+import '../widgets/game_catalog_icon.dart';
 import '../services/user_service.dart';
+import '../services/digital_purchase_service.dart';
 import '../services/friend_service.dart';
 import '../utils/game_catalog.dart';
+import '../utils/game_experience.dart';
 import '../utils/support_categories.dart';
 import 'create_support_request_screen.dart';
+import 'gift_flow_screen.dart';
 
 String _publicProfileText(
   BuildContext context, {
@@ -25,6 +33,15 @@ String _publicProfileText(
   }
 }
 
+bool isOwnPublicProfile({
+  required String? signedInUid,
+  required String profileUid,
+}) {
+  final String current = signedInUid?.trim() ?? '';
+  final String owner = profileUid.trim();
+  return current.isNotEmpty && owner.isNotEmpty && current == owner;
+}
+
 class PublicProfileScreen extends StatelessWidget {
   const PublicProfileScreen({
     super.key,
@@ -37,181 +54,197 @@ class PublicProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MarketPalette palette = MarketPalette.of(context);
+    final bool isOwnProfile = isOwnPublicProfile(
+      signedInUid: FirebaseAuth.instance.currentUser?.uid,
+      profileUid: userId,
+    );
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: palette.background,
       appBar: AppBar(
-        title: const Text(
-          'Oyuncu Profili',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        title: Text(
+          _publicProfileText(
+            context,
+            tr: 'Oyuncu profili',
+            en: 'Player profile',
+            de: 'Spielerprofil',
+          ),
+          style: profileMenuTitleStyle(context),
         ),
         centerTitle: true,
         actions: <Widget>[
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              switch (value) {
-                case 'report_user':
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CreateSupportRequestScreen(
-                        category: SupportCategory.userReport,
-                        relatedUserId: userId,
-                      ),
-                    ),
-                  );
-                  break;
-
-                case 'report_photo':
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CreateSupportRequestScreen(
-                        category: SupportCategory.inappropriateImage,
-                        relatedUserId: userId,
-                      ),
-                    ),
-                  );
-                  break;
-
-                case 'block_user':
-                  final bool alreadyBlocked = await FriendService.instance
-                      .isBlocked(userId);
-
-                  if (!context.mounted) {
-                    break;
-                  }
-
-                  if (alreadyBlocked) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          _publicProfileText(
-                            context,
-                            tr: 'Bu kullanıcı zaten engellenmiş.',
-                            en: 'This user is already blocked.',
-                            de: 'Dieser Nutzer ist bereits blockiert.',
-                          ),
+          if (!isOwnProfile)
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                switch (value) {
+                  case 'report_user':
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CreateSupportRequestScreen(
+                          category: SupportCategory.userReport,
+                          relatedUserId: userId,
+                          relatedUserName: initialUser?.displayName,
+                          relatedUserAvatarUrl: initialUser?.profilFotografi,
                         ),
                       ),
                     );
                     break;
-                  }
 
-                  final bool? confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) {
-                      return AlertDialog(
-                        title: Text(
-                          _publicProfileText(
-                            context,
-                            tr: 'Kullanıcıyı engelle',
-                            en: 'Block user',
-                            de: 'Nutzer blockieren',
-                          ),
+                  case 'report_photo':
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CreateSupportRequestScreen(
+                          category: SupportCategory.inappropriateImage,
+                          relatedUserId: userId,
+                          relatedUserName: initialUser?.displayName,
+                          relatedUserAvatarUrl: initialUser?.profilFotografi,
                         ),
-                        content: const Text(
-                          'Bu kullanıcıyı engellediğinde engellenen '
-                          'kullanıcılar listesinden yönetebilirsin.',
-                        ),
-                        actions: <Widget>[
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.pop(dialogContext, false),
-                            child: Text(
-                              _publicProfileText(
-                                context,
-                                tr: 'Vazgeç',
-                                en: 'Cancel',
-                                de: 'Abbrechen',
-                              ),
-                            ),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(dialogContext, true),
-                            child: const Text('Engelle'),
-                          ),
-                        ],
-                      );
-                    },
-                  );
+                      ),
+                    );
+                    break;
 
-                  if (confirmed == true) {
-                    await FriendService.instance.blockUser(userId);
+                  case 'block_user':
+                    final bool alreadyBlocked = await FriendService.instance
+                        .isBlocked(userId);
 
-                    if (context.mounted) {
+                    if (!context.mounted) {
+                      break;
+                    }
+
+                    if (alreadyBlocked) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
                             _publicProfileText(
                               context,
-                              tr: 'Kullanıcı engellendi.',
-                              en: 'User blocked.',
-                              de: 'Nutzer blockiert.',
+                              tr: 'Bu kullanıcı zaten engellenmiş.',
+                              en: 'This user is already blocked.',
+                              de: 'Dieser Nutzer ist bereits blockiert.',
                             ),
                           ),
                         ),
                       );
+                      break;
                     }
-                  }
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'report_user',
-                child: Row(
-                  children: [
-                    Icon(Icons.person_off_outlined),
-                    SizedBox(width: 12),
-                    Text(
-                      _publicProfileText(
-                        context,
-                        tr: 'Kullanıcıyı Şikâyet Et',
-                        en: 'Report User',
-                        de: 'Nutzer melden',
+
+                    final bool? confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) {
+                        return AlertDialog(
+                          title: Text(
+                            _publicProfileText(
+                              context,
+                              tr: 'Kullanıcıyı engelle',
+                              en: 'Block user',
+                              de: 'Nutzer blockieren',
+                            ),
+                          ),
+                          content: const Text(
+                            'Bu kullanıcıyı engellediğinde engellenen '
+                            'kullanıcılar listesinden yönetebilirsin.',
+                          ),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              child: Text(
+                                _publicProfileText(
+                                  context,
+                                  tr: 'Vazgeç',
+                                  en: 'Cancel',
+                                  de: 'Abbrechen',
+                                ),
+                              ),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              child: const Text('Engelle'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+
+                    if (confirmed == true) {
+                      await FriendService.instance.blockUser(userId);
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _publicProfileText(
+                                context,
+                                tr: 'Kullanıcı engellendi.',
+                                en: 'User blocked.',
+                                de: 'Nutzer blockiert.',
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'report_user',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_off_outlined),
+                      SizedBox(width: 12),
+                      Text(
+                        _publicProfileText(
+                          context,
+                          tr: 'Kullanıcıyı Şikâyet Et',
+                          en: 'Report User',
+                          de: 'Nutzer melden',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'report_photo',
-                child: Row(
-                  children: [
-                    Icon(Icons.image_not_supported_outlined),
-                    SizedBox(width: 12),
-                    Text(
-                      _publicProfileText(
-                        context,
-                        tr: 'Profil Fotoğrafını Şikâyet Et',
-                        en: 'Report Profile Photo',
-                        de: 'Profilfoto melden',
+                PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'report_photo',
+                  child: Row(
+                    children: [
+                      Icon(Icons.image_not_supported_outlined),
+                      SizedBox(width: 12),
+                      Text(
+                        _publicProfileText(
+                          context,
+                          tr: 'Profil Fotoğrafını Şikâyet Et',
+                          en: 'Report Profile Photo',
+                          de: 'Profilfoto melden',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'block_user',
-                child: Row(
-                  children: [
-                    Icon(Icons.block_outlined),
-                    SizedBox(width: 12),
-                    Text(
-                      _publicProfileText(
-                        context,
-                        tr: 'Kullanıcıyı Engelle',
-                        en: 'Block User',
-                        de: 'Nutzer blockieren',
+                PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'block_user',
+                  child: Row(
+                    children: [
+                      Icon(Icons.block_outlined),
+                      SizedBox(width: 12),
+                      Text(
+                        _publicProfileText(
+                          context,
+                          tr: 'Kullanıcıyı Engelle',
+                          en: 'Block User',
+                          de: 'Nutzer blockieren',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
       body: StreamBuilder<Map<String, dynamic>?>(
@@ -258,6 +291,7 @@ class PublicProfileScreen extends StatelessWidget {
 
               return _PublicProfileBody(
                 user: user,
+                isOwnProfile: isOwnProfile,
                 marketBadges: MarketBadgeDisplay.listFrom(
                   snapshot.data?['marketBadges'],
                 ),
@@ -269,10 +303,15 @@ class PublicProfileScreen extends StatelessWidget {
 }
 
 class _PublicProfileBody extends StatelessWidget {
-  const _PublicProfileBody({required this.user, required this.marketBadges});
+  const _PublicProfileBody({
+    required this.user,
+    required this.marketBadges,
+    required this.isOwnProfile,
+  });
 
   final UserModel user;
   final List<MarketBadgeDisplay> marketBadges;
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -296,8 +335,10 @@ class _PublicProfileBody extends StatelessWidget {
                 const SizedBox(height: 14),
                 _ProfileStatistics(user: user),
                 const SizedBox(height: 16),
-                _FriendActionCard(user: user),
-                const SizedBox(height: 14),
+                if (!isOwnProfile) ...<Widget>[
+                  _FriendActionCard(user: user),
+                  const SizedBox(height: 14),
+                ],
                 if (user.hakkimda.trim().isNotEmpty) ...[
                   const SizedBox(height: 14),
                   _AboutCard(text: user.hakkimda.trim()),
@@ -366,7 +407,6 @@ class _PublicProfileBody extends StatelessWidget {
                     en: 'Other',
                     de: 'Andere',
                   )),
-        categoryEmoji: category?.emoji ?? '🎯',
         skills: sortedSkills,
       );
     }).toList();
@@ -397,28 +437,25 @@ class _ProfileHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
+    final MarketPalette palette = MarketPalette.of(context);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[colors.primaryContainer, colors.secondaryContainer],
-        ),
-        borderRadius: BorderRadius.circular(28),
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.line),
       ),
       child: Column(
         children: <Widget>[
           _ProfileAvatar(user: user),
           const SizedBox(height: 14),
-          Text(
-            user.displayName,
-            textAlign: TextAlign.center,
+          ProfileNameRow(
+            name: user.displayName,
+            plusActive: user.isPlusActive,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: colors.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
+              color: palette.ink,
             ),
           ),
           if (user.fullName.isNotEmpty &&
@@ -427,10 +464,7 @@ class _ProfileHero extends StatelessWidget {
             Text(
               user.fullName,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.onPrimaryContainer.withValues(alpha: 0.72),
-                fontWeight: FontWeight.w600,
-              ),
+              style: profileMenuSubtitleStyle(context),
             ),
           ],
           if (user.resolvedCity.isNotEmpty) ...[
@@ -441,17 +475,16 @@ class _ProfileHero extends StatelessWidget {
                 Icon(
                   Icons.location_on_outlined,
                   size: 18,
-                  color: colors.onPrimaryContainer,
+                  color: palette.accent,
                 ),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text(
                     user.resolvedCity,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.onPrimaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: profileMenuSubtitleStyle(
+                      context,
+                    ).copyWith(color: palette.ink),
                   ),
                 ),
               ],
@@ -464,19 +497,14 @@ class _ProfileHero extends StatelessWidget {
             runSpacing: 8,
             children: <Widget>[
               if (user.oyuncuRozeti)
-                const _ProfileChip(
-                  label: 'Oyuncu Rozeti',
-                  icon: Icons.sports_esports_rounded,
-                ),
-              if (user.isPlusActive)
                 _ProfileChip(
                   label: _publicProfileText(
                     context,
-                    tr: 'Plus Üye',
-                    en: 'Plus Member',
-                    de: 'Plus-Mitglied',
+                    tr: 'Oyuncu',
+                    en: 'Player',
+                    de: 'Spieler',
                   ),
-                  icon: Icons.workspace_premium_rounded,
+                  icon: Icons.sports_esports_rounded,
                 ),
               if (user.verified)
                 _ProfileChip(
@@ -530,14 +558,7 @@ class _ProfileAvatar extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-            color: Colors.black.withValues(alpha: 0.14),
-          ),
-        ],
+        color: MarketPalette.of(context).raised,
       ),
       child: ClipOval(
         child: photoUrl.isEmpty
@@ -593,26 +614,25 @@ class _ProfileChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
+    final MarketPalette palette = MarketPalette.of(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.86),
+        color: palette.raised,
         borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: palette.line),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 16, color: colors.primary),
+          Icon(icon, size: 16, color: palette.accent),
           const SizedBox(width: 5),
           Text(
             label,
-            style: TextStyle(
-              color: colors.onSurface,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+            style: profileMenuSubtitleStyle(
+              context,
+            ).copyWith(color: palette.ink),
           ),
         ],
       ),
@@ -648,7 +668,12 @@ class _ProfileStatistics extends StatelessWidget {
           child: _StatisticCard(
             icon: Icons.emoji_events_outlined,
             value: '${user.completedEventCount}',
-            label: 'Tamamlanan etkinlik',
+            label: _publicProfileText(
+              context,
+              tr: 'Geçmiş etkinlik',
+              en: 'Past events',
+              de: 'Vergangene Veranstaltungen',
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -724,25 +749,14 @@ class _AboutCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                const Icon(
-                  Icons.person_outline_rounded,
-                  color: Color(0xffFF9800),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _publicProfileText(
-                    context,
-                    tr: 'Hakkında',
-                    en: 'About',
-                    de: 'Über',
-                  ),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+            ProfileHeading(
+              icon: Icons.person_outline_rounded,
+              title: _publicProfileText(
+                context,
+                tr: 'Hakkında',
+                en: 'About',
+                de: 'Über',
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -767,20 +781,9 @@ class _SectionHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            height: 1.35,
-          ),
-        ),
+        Text(title, style: profileMenuTitleStyle(context)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: profileMenuSubtitleStyle(context)),
       ],
     );
   }
@@ -803,7 +806,7 @@ class _GameCategoryCard extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(group.categoryEmoji, style: const TextStyle(fontSize: 24)),
+                GameCatalogIcon(categoryId: group.categoryId),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
@@ -854,10 +857,6 @@ class _GameSkillTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GameDefinition? game =
-        GameCatalog.gameById(skill.gameId) ??
-        GameCatalog.gameByLegacyValue(skill.gameName);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -871,10 +870,7 @@ class _GameSkillTile extends StatelessWidget {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                game?.emoji ?? '🎯',
-                style: const TextStyle(fontSize: 20),
-              ),
+              child: GameCatalogIcon(gameIdOrName: skill.gameId, size: 20),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -889,12 +885,15 @@ class _GameSkillTile extends StatelessWidget {
                 color: _skillBackground(skill.level),
                 borderRadius: BorderRadius.circular(99),
               ),
-              child: Text(
-                '${skill.levelLabel} · %${skill.level}',
-                style: TextStyle(
-                  color: _skillForeground(skill.level),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
+              child: Tooltip(
+                message: selfDeclaredExperienceText(context, skill.level),
+                child: Text(
+                  gameExperienceLabel(context, skill.level),
+                  style: TextStyle(
+                    color: _skillForeground(skill.level),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
@@ -1191,13 +1190,11 @@ class _GameCategoryGroup {
   const _GameCategoryGroup({
     required this.categoryId,
     required this.categoryName,
-    required this.categoryEmoji,
     required this.skills,
   });
 
   final String categoryId;
   final String categoryName;
-  final String categoryEmoji;
   final List<UserGameSkill> skills;
 }
 
@@ -1220,7 +1217,12 @@ class _FriendActionCard extends StatelessWidget {
 
         switch (status) {
           case FriendRequestStatus.none:
-            text = "Arkadaş Ekle";
+            text = _publicProfileText(
+              context,
+              tr: 'Arkadaş Ekle',
+              en: 'Add Friend',
+              de: 'Freund hinzufügen',
+            );
             icon = Icons.person_add_alt_1_rounded;
             onPressed = () async {
               await FriendService.instance.sendRequest(user.uid);
@@ -1374,6 +1376,57 @@ class _FriendActionCard extends StatelessWidget {
                 await FriendService.instance.removeFriend(user.uid);
               }
             };
+        }
+
+        if (status == FriendRequestStatus.friends) {
+          return Column(
+            children: <Widget>[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  icon: Icon(icon),
+                  onPressed: onPressed,
+                  label: Text(text),
+                ),
+              ),
+              if (kGiftActionsEnabled) ...<Widget>[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.card_giftcard_outlined),
+                    label: Text(
+                      _publicProfileText(
+                        context,
+                        tr: 'Hediye et',
+                        en: 'Send a gift',
+                        de: 'Verschenken',
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => GiftFlowScreen(
+                            kind: GiftKind.badge,
+                            productId: '',
+                            title: _publicProfileText(
+                              context,
+                              tr: 'Arkadaşına hediye',
+                              en: 'Gift for your friend',
+                              de: 'Geschenk für den Freund',
+                            ),
+                            recipientUid: user.uid,
+                            recipientName: user.displayName,
+                            recipientAvatarUrl: user.profilFotografi,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          );
         }
 
         return SizedBox(

@@ -9,13 +9,64 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../widgets/birth_date_picker_screen.dart';
-import 'home_screen.dart';
+import '../widgets/game_catalog_icon.dart';
 import 'avatar_picker_sheet.dart';
 import '../utils/game_catalog.dart';
+import '../utils/game_experience.dart';
 import '../utils/turkey_location_service.dart';
 import '../services/language_controller.dart';
 import '../services/session_service.dart';
+import '../services/user_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+
+@visibleForTesting
+enum ProfileCreationServerState { missing, pending, active, restricted }
+
+@visibleForTesting
+class ProfileCreationCoordinator {
+  static Future<AuthDestination?> complete({
+    required AuthSessionBinding binding,
+    required Future<bool> Function(AuthSessionBinding binding) isSessionCurrent,
+    Future<ProfileCreationServerState> Function()? readProfileState,
+    required Future<void> Function() writeProfile,
+    Future<void> Function()? uploadAssets,
+    Future<void> Function()? finalizeProfile,
+    required Future<void> Function() saveSessionMetadata,
+    required Future<void> Function()? submitVerification,
+    required Future<AuthDestination> Function() resolveDestination,
+  }) async {
+    Future<bool> current() async => await isSessionCurrent(binding);
+    if (!await current()) return null;
+    final ProfileCreationServerState state = readProfileState == null
+        ? ProfileCreationServerState.missing
+        : await readProfileState();
+    if (!await current()) return null;
+    if (state == ProfileCreationServerState.restricted) {
+      throw StateError('Account is not eligible for profile creation.');
+    }
+    if (state != ProfileCreationServerState.active) {
+      await writeProfile();
+      if (!await current()) return null;
+      if (uploadAssets != null) {
+        await uploadAssets();
+        if (!await current()) return null;
+      }
+      if (finalizeProfile != null) {
+        await finalizeProfile();
+        if (!await current()) return null;
+      }
+    }
+    await saveSessionMetadata();
+    if (!await current()) return null;
+    if (submitVerification != null) {
+      await submitVerification();
+      if (!await current()) return null;
+    }
+    final AuthDestination destination = await resolveDestination();
+    if (!await current()) return null;
+    return destination;
+  }
+}
 
 class CreateProfileScreen extends StatefulWidget {
   const CreateProfileScreen({super.key});
@@ -387,58 +438,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       return;
     }
 
-    final User? user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      showMessage(text.userSessionNotFound);
-      return;
-    }
-
+    // The files are uploaded only after a rules-validated pendingProfile
+    // document is created in createProfile(). This keeps onboarding closed to
+    // arbitrary Auth users without pretending the profile is complete.
     setState(() {
-      loading = true;
+      verificationUploaded = true;
+      verificationSkipped = false;
     });
-
-    try {
-      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-
-      final String basePath = "verification_documents/${user.uid}";
-
-      identityFrontPath = await uploadPrivateVerificationFile(
-        file: File(identityFront!.path!),
-        storagePath:
-            "$basePath/identity_front_$timestamp.${getFileExtension(identityFront!.name)}",
-      );
-
-      selfiePath = await uploadPrivateVerificationFile(
-        file: File(selfiePhoto!.path),
-        storagePath: "$basePath/selfie_$timestamp.jpg",
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        loading = false;
-        verificationUploaded = true;
-        verificationSkipped = false;
-      });
-
-      pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        loading = false;
-      });
-
-      showMessage(text.documentUploadError(error));
-    }
+    pageController.nextPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   void skipVerification() {
@@ -475,6 +485,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       showMessage(text.userSessionNotFound);
       return;
     }
+    final AuthSessionBinding? authBinding =
+        await SessionService.captureAuthSession(user: user);
+    if (authBinding == null) {
+      showMessage(text.userSessionNotFound);
+      return;
+    }
 
     if (birthDate == null) {
       showMessage(text.birthDateNotFound);
@@ -486,18 +502,6 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     });
 
     try {
-      String profilePhotoUrl = "";
-
-      if (profilePhoto != null) {
-        final String timestamp = DateTime.now().millisecondsSinceEpoch
-            .toString();
-
-        profilePhotoUrl = await uploadFile(
-          file: File(profilePhoto!.path),
-          storagePath: "profile_photos/${user.uid}/profile_$timestamp.jpg",
-        );
-      }
-
       final String name = nameController.text.trim();
 
       final String surname = surnameController.text.trim();
@@ -505,18 +509,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       final String profileName = "$name ${surname[0].toUpperCase()}.";
 
       final bool verificationRequested =
-          verificationUploaded &&
-          identityFrontPath != null &&
-          selfiePath != null;
+          verificationUploaded && identityFront != null && selfiePhoto != null;
 
       final SessionInfo session =
           await SessionService.getOrCreateCurrentSession();
+      if (!await SessionService.isAuthSessionCurrent(authBinding)) return;
 
       await user.getIdToken(true);
-      final String verifiedPhone =
-          FirebaseAuth.instance.currentUser?.phoneNumber?.trim() ?? '';
+      if (!await SessionService.isAuthSessionCurrent(authBinding)) return;
+      final String verifiedPhone = user.phoneNumber?.trim() ?? '';
 
-      await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
+      final Map<String, dynamic> profileData = <String, dynamic>{
         "uid": user.uid,
         "ad": name,
         "soyad": surname,
@@ -528,52 +531,112 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         "sehir": cityController.text.trim(),
         "ilce": districtController.text.trim(),
         "hakkimda": aboutController.text.trim(),
-        "profilFotografi": profilePhotoUrl,
-        "avatarUrl": profilePhotoUrl.isEmpty ? selectedAvatarUrl : "",
+        "profilFotografi": "",
+        "avatarUrl": selectedAvatarUrl,
         "latitude": 0.0,
         "longitude": 0.0,
         "puan": 0.0,
         "plus": false,
-        "accountStatus": "active",
+        "accountStatus": "pendingProfile",
         "lastLoginAt": FieldValue.serverTimestamp(),
         "lastLoginPlatform": session.platform,
         "lastLoginAppVersion": session.appVersion,
         "lastDeviceId": session.deviceId,
         "verified": false,
-        "verificationStatus": verificationRequested ? "pending" : "none",
-        "verificationSkipped": verificationSkipped || !verificationRequested,
+        "verificationStatus": "none",
+        "verificationSkipped": true,
         "oyunlar": selectedGameNames,
         "gameIds": selectedGameLevels.keys.toList(),
         "gameSkills": selectedGameSkillsMap,
-        "onboardingCompleted": true,
+        "onboardingCompleted": false,
         "olusturmaTarihi": FieldValue.serverTimestamp(),
         "guncellemeTarihi": FieldValue.serverTimestamp(),
-      });
+      };
+      String profilePhotoUrl = "";
+      final DocumentReference<Map<String, dynamic>> profileReference =
+          FirebaseFirestore.instance.collection("users").doc(user.uid);
 
-      await SessionService.saveSessionMetadata(session);
+      final AuthDestination?
+      destination = await ProfileCreationCoordinator.complete(
+        binding: authBinding,
+        isSessionCurrent: SessionService.isAuthSessionCurrent,
+        readProfileState: () async {
+          final DocumentSnapshot<Map<String, dynamic>> snapshot =
+              await profileReference.get(
+                const GetOptions(source: Source.server),
+              );
+          if (!snapshot.exists) return ProfileCreationServerState.missing;
+          final String status =
+              snapshot.data()?['accountStatus']?.toString() ?? '';
+          if (status == 'pendingProfile') {
+            return ProfileCreationServerState.pending;
+          }
+          if (status == 'active') return ProfileCreationServerState.active;
+          return ProfileCreationServerState.restricted;
+        },
+        writeProfile: () => profileReference.set(profileData),
+        uploadAssets: () async {
+          final String timestamp = DateTime.now().millisecondsSinceEpoch
+              .toString();
+          if (profilePhoto != null) {
+            profilePhotoUrl = await uploadFile(
+              file: File(profilePhoto!.path),
+              storagePath: "profile_photos/${user.uid}/profile_$timestamp.jpg",
+            );
+            if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+              return;
+            }
+          }
 
-      if (verificationRequested) {
-        final HttpsCallable callable = FirebaseFunctions.instanceFor(
-          region: 'europe-west1',
-        ).httpsCallable('submitVerification');
-
-        await callable.call(<String, dynamic>{
-          'identityFrontPath': identityFrontPath,
-          'selfiePath': selfiePath,
-        });
-      }
+          if (verificationRequested) {
+            final String basePath = "verification_documents/${user.uid}";
+            identityFrontPath = await uploadPrivateVerificationFile(
+              file: File(identityFront!.path!),
+              storagePath:
+                  "$basePath/identity_front_$timestamp.${getFileExtension(identityFront!.name)}",
+            );
+            if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+              return;
+            }
+            selfiePath = await uploadPrivateVerificationFile(
+              file: File(selfiePhoto!.path),
+              storagePath: "$basePath/selfie_$timestamp.jpg",
+            );
+            if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+              return;
+            }
+          }
+        },
+        finalizeProfile: () => profileReference.update(<String, dynamic>{
+          "profilFotografi": profilePhotoUrl,
+          "avatarUrl": profilePhotoUrl.isEmpty ? selectedAvatarUrl : "",
+          "accountStatus": "active",
+          "onboardingCompleted": true,
+          "verificationStatus": "none",
+          "verificationSkipped": true,
+          "guncellemeTarihi": FieldValue.serverTimestamp(),
+        }),
+        saveSessionMetadata: () => SessionService.saveSessionMetadata(session),
+        submitVerification: verificationRequested
+            ? () async {
+                final HttpsCallable callable = FirebaseFunctions.instanceFor(
+                  region: 'europe-west1',
+                ).httpsCallable('submitVerification');
+                await callable.call(<String, dynamic>{
+                  'identityFrontPath': identityFrontPath,
+                  'selfiePath': selfiePath,
+                });
+              }
+            : null,
+        resolveDestination: () => UserService.getAuthDestination(user: user),
+      );
+      if (destination == null) return;
 
       if (!mounted) {
         return;
       }
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(userName: profileName),
-        ),
-        (route) => false,
-      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
     } catch (error) {
       if (!mounted) {
         return;
@@ -583,7 +646,24 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         loading = false;
       });
 
-      showMessage(text.profileCreationError(error));
+      final User? currentUser = FirebaseAuth.instance.currentUser;
+      final bool sameSession =
+          currentUser != null &&
+          await SessionService.isAuthSessionCurrent(authBinding);
+      bool profileIsActive = false;
+      if (sameSession) {
+        final DocumentSnapshot<Map<String, dynamic>> snapshot =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get(const GetOptions(source: Source.server));
+        profileIsActive = snapshot.data()?['accountStatus'] == 'active';
+      }
+      showMessage(
+        profileIsActive
+            ? text.profileCreatedFollowUpError(error)
+            : text.profileCreationError(error),
+      );
     }
   }
 
@@ -1297,13 +1377,19 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${category.emoji} ${category.name}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: <Widget>[
+              GameCatalogIcon(categoryId: category.id, color: Colors.orange),
+              const SizedBox(width: 9),
+              Text(
+                category.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           ...category.games.map(_gameSkillCard),
@@ -1344,7 +1430,10 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
             borderRadius: BorderRadius.circular(10),
             child: Row(
               children: [
-                Text(game.emoji, style: const TextStyle(fontSize: 24)),
+                GameCatalogIcon(
+                  gameIdOrName: game.id,
+                  color: selected ? Colors.orange : Colors.white70,
+                ),
                 const SizedBox(width: 11),
                 Expanded(
                   child: Text(
@@ -1384,14 +1473,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '%${skill.value}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              text.skillLabel(skill.value),
+                              gameExperienceLabel(context, skill.value),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 11),
@@ -1634,11 +1716,11 @@ class _CreateProfileText {
   String skillLabel(int value) {
     switch (value) {
       case 30:
-        return _value(tr: 'Başlangıç', en: 'Beginner', de: 'Anfänger');
+        return _value(tr: 'Acemi', en: 'Beginner', de: 'Anfänger');
       case 60:
         return _value(tr: 'Orta', en: 'Intermediate', de: 'Mittel');
       case 90:
-        return _value(tr: 'İleri', en: 'Advanced', de: 'Fortgeschritten');
+        return _value(tr: 'Usta', en: 'Expert', de: 'Experte');
       default:
         return _value(tr: 'Seviye', en: 'Level', de: 'Stufe');
     }
@@ -1660,6 +1742,12 @@ class _CreateProfileText {
     tr: 'Profil oluşturulurken bir hata oluştu: $error',
     en: 'An error occurred while creating the profile: $error',
     de: 'Beim Erstellen des Profils ist ein Fehler aufgetreten: $error',
+  );
+
+  String profileCreatedFollowUpError(Object error) => _value(
+    tr: 'Profilin oluşturuldu. Oturum veya doğrulama adımı tamamlanamadı; tekrar deneyebilirsin: $error',
+    en: 'Your profile was created. The session or verification step did not finish; you can retry: $error',
+    de: 'Dein Profil wurde erstellt. Der Sitzungs- oder Verifizierungsschritt wurde nicht abgeschlossen; du kannst es erneut versuchen: $error',
   );
 
   String get createProfile => _value(

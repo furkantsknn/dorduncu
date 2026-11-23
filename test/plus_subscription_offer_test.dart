@@ -41,9 +41,17 @@ void main() {
     expect(selection.offerToken, 'token-standard');
     expect(selection.formattedPrice, '₺49,99');
     expect(selection.billingPeriod, 'P1M');
-    expect(selection.periodLabel, 'Aylık (P1M)');
+    expect(selection.periodLabel, 'Aylık');
+    expect(selection.periodLabel.contains('P1M'), isFalse);
+    expect(plusBillingPeriodLabel('P1M', languageCode: 'en'), 'Monthly');
+    expect(plusBillingPeriodLabel('P1M', languageCode: 'de'), 'Monatlich');
+    expect(plusPricePeriodSuffix('P1M'), '/ay');
+    expect(plusPricePeriodSuffix('P1M', languageCode: 'en'), '/month');
     expect(selection.productDetails.price, '₺49,99');
-    expect(selection.productDetails.offerToken, selection.offerToken);
+    expect(
+      (selection.productDetails as GooglePlayProductDetails).offerToken,
+      selection.offerToken,
+    );
 
     final GooglePlayPurchaseParam param = purchaseParamForSelectedPlusOffer(
       selection,

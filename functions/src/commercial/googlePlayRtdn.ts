@@ -7,6 +7,14 @@ import {
 import {defineString} from "firebase-functions/params";
 import {onMessagePublished} from "firebase-functions/v2/pubsub";
 
+import {
+  badgeRemains,
+  revokeBadgeGrant,
+} from "./giftPurchasePolicy";
+import {
+  evaluatePlusAccess,
+  revokeGiftDuration,
+} from "./plusEntitlementPolicy";
 import {firestore} from "../config/firebaseAdmin";
 import {
   writeAuditLogInTransaction,
@@ -70,14 +78,16 @@ interface TokenRegistry {
   googlePlayProductId: string;
   kind:
     "plus_subscription" |
-    "badge_non_consumable";
+    "badge_non_consumable" |
+    "badge_gift" |
+    "plus_gift";
   latestOperationId: string;
 }
 
 /**
  * Processes Google Play Real-time Developer Notifications.
  *
- * Topic name expected at deploy time: google-play-rtdn.
+ * Topic name expected at deploy time: dorduncu-google-play-rtdn.
  * The Play Console Pub/Sub subscription will be connected during release
  * configuration, not during source-only stage work.
  */
@@ -112,10 +122,7 @@ export const processGooglePlayRtdn = onMessagePublished(
     const packageName =
       String(notification.packageName ?? "").trim();
 
-    if (
-      packageName &&
-      packageName !== androidPackageName.value()
-    ) {
+    if (packageName !== androidPackageName.value()) {
       await eventReference.set(
         {
           eventId,
@@ -293,6 +300,12 @@ async function handleSubscriptionNotification(
         .collection("google_play_lifecycle_events")
         .doc(eventId);
 
+      const lifecycleSnapshot =
+        await transaction.get(lifecycleReference);
+      if (lifecycleSnapshot.exists) {
+        return;
+      }
+
       const userSnapshot =
         await transaction.get(userReference);
 
@@ -303,52 +316,49 @@ async function handleSubscriptionNotification(
           userData.plusGooglePlayTokenHash ?? "",
         ).trim();
 
-      if (
-        status.hasEntitlement &&
-        status.expiryTime != null
-      ) {
+      const giftValue = userData.plusGiftExpiresAt;
+      const giftExpiry = giftValue instanceof Timestamp ?
+        giftValue.toDate() :
+        null;
+      const subscriptionExpiry =
+        status.hasEntitlement && status.expiryTime != null ?
+          status.expiryTime :
+          null;
+      const shouldWriteSubscription =
+        subscriptionExpiry != null ||
+        currentTokenHash === tokenHash;
+
+      if (shouldWriteSubscription) {
+        const access = evaluatePlusAccess({
+          plusFlag: true,
+          subscriptionExpiresAtMs:
+            subscriptionExpiry?.getTime() ?? null,
+          giftExpiresAtMs: giftExpiry?.getTime() ?? null,
+          subscriptionState: status.subscriptionState,
+          nowMs: Date.now(),
+        });
+
         transaction.set(
           userReference,
           {
-            plus: true,
-            isPlus: true,
-            plusGooglePlayTokenHash:
-              tokenHash,
+            plus: access.active,
+            isPlus: access.active,
+            plusGooglePlayTokenHash: tokenHash,
             plusGooglePlayProductId:
               registry.googlePlayProductId,
             plusSubscriptionState:
               status.subscriptionState,
-            plusExpiresAt:
-              Timestamp.fromDate(
-                status.expiryTime,
-              ),
-            plusUpdatedAt:
-              FieldValue.serverTimestamp(),
-            updatedAt:
-              FieldValue.serverTimestamp(),
+            plusSubscriptionExpiresAt:
+              subscriptionExpiry == null ?
+                null :
+                Timestamp.fromDate(subscriptionExpiry),
+            plusExpiresAt: access.expiresAtMs == null ?
+              null :
+              Timestamp.fromMillis(access.expiresAtMs),
+            plusUpdatedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           },
-          {
-            merge: true,
-          },
-        );
-      } else if (
-        currentTokenHash === tokenHash
-      ) {
-        transaction.set(
-          userReference,
-          {
-            plus: false,
-            isPlus: false,
-            plusSubscriptionState:
-              status.subscriptionState,
-            plusUpdatedAt:
-              FieldValue.serverTimestamp(),
-            updatedAt:
-              FieldValue.serverTimestamp(),
-          },
-          {
-            merge: true,
-          },
+          {merge: true},
         );
       }
 
@@ -576,6 +586,26 @@ async function handleVoidedPurchase(
     return;
   }
 
+  if (registry.kind === "plus_gift") {
+    await revokePlusGift(
+      eventId,
+      tokenHash,
+      registry,
+      notification,
+    );
+    return;
+  }
+
+  if (registry.kind === "badge_gift") {
+    await revokeBadgeGift(
+      eventId,
+      tokenHash,
+      registry,
+      notification,
+    );
+    return;
+  }
+
   const fullRefund =
     notification.refundType === 1;
   const entitlementUid =
@@ -596,6 +626,12 @@ async function handleVoidedPurchase(
       const lifecycleReference = firestore
         .collection("google_play_lifecycle_events")
         .doc(eventId);
+
+      const lifecycleSnapshot =
+        await transaction.get(lifecycleReference);
+      if (lifecycleSnapshot.exists) {
+        return;
+      }
 
       const badgeSnapshot =
         await transaction.get(
@@ -624,7 +660,11 @@ async function handleVoidedPurchase(
           source === "google_play_purchase" ||
           source === "google_play_gift";
 
-        if (grantedByThisPlayPurchase) {
+        const hasIndependentAdminState =
+          badgeSnapshot.data()?.adminGranted === true ||
+          badgeSnapshot.data()?.adminBlocked === true;
+
+        if (grantedByThisPlayPurchase && !hasIndependentAdminState) {
           transaction.delete(
             ownedBadgeReference,
           );
@@ -633,8 +673,7 @@ async function handleVoidedPurchase(
           transaction.set(
             ownedBadgeReference,
             {
-              googlePlayEntitled:
-                FieldValue.delete(),
+              googlePlayEntitled: false,
               googlePlayProductId:
                 FieldValue.delete(),
               googlePlayOperationId:
@@ -1073,6 +1112,196 @@ async function completeRtdnEvent(
 }
 
 /**
+ * Revokes only the Plus time that came from one gift purchase.
+ * @param {string} eventId RTDN event id.
+ * @param {string} tokenHash Token hash.
+ * @param {TokenRegistry} registry Token registry.
+ * @param {object} notification Voided purchase notification.
+ * @return {Promise<void>} Completion promise.
+ */
+async function revokePlusGift(
+  eventId: string,
+  tokenHash: string,
+  registry: TokenRegistry,
+  notification: {orderId?: string; refundType?: number},
+): Promise<void> {
+  const tokenReference = firestore
+    .collection("google_play_purchase_tokens")
+    .doc(tokenHash);
+  const tokenSnapshot = await tokenReference.get();
+  const tokenData = tokenSnapshot.data() ?? {};
+  const recipientUid = String(
+    tokenData.recipientUid ?? registry.uid,
+  ).trim();
+  const grantId = String(tokenData.giftGrantId ?? "").trim();
+  const fullRefund = notification.refundType === 1;
+
+  await firestore.runTransaction(async (transaction) => {
+    const userReference = firestore.collection("users").doc(recipientUid);
+    const userSnapshot = await transaction.get(userReference);
+    const userData = userSnapshot.data() ?? {};
+    const rawGrants = Array.isArray(userData.plusGiftGrants) ?
+      userData.plusGiftGrants as Array<Record<string, unknown>> :
+      [];
+    const grants = rawGrants.map((grant) => ({
+      id: String(grant.id ?? ""),
+      durationMs: Number(grant.durationMs ?? 0),
+      revoked: grant.revoked === true,
+    }));
+    const originValue = userData.plusGiftOriginAt;
+    const originMs = originValue instanceof Timestamp ?
+      originValue.toMillis() :
+      Date.now();
+    const giftExpiresAtMs = fullRefund ?
+      revokeGiftDuration({
+        grants,
+        revokeId: grantId,
+        originMs,
+        nowMs: Date.now(),
+      }) :
+      (
+        userData.plusGiftExpiresAt instanceof Timestamp ?
+          userData.plusGiftExpiresAt.toMillis() :
+          null
+      );
+    const subscriptionValue = userData.plusSubscriptionExpiresAt;
+    const access = evaluatePlusAccess({
+      plusFlag: true,
+      subscriptionExpiresAtMs:
+        subscriptionValue instanceof Timestamp ?
+          subscriptionValue.toMillis() :
+          null,
+      giftExpiresAtMs,
+      subscriptionState: String(userData.plusSubscriptionState ?? ""),
+      nowMs: Date.now(),
+    });
+    const nextGrants = rawGrants.map((grant) => (
+      String(grant.id ?? "") === grantId && fullRefund ?
+        {...grant, revoked: true} :
+        grant
+    ));
+
+    transaction.set(userReference, {
+      plus: access.active,
+      isPlus: access.active,
+      plusGiftExpiresAt: giftExpiresAtMs == null ?
+        null :
+        Timestamp.fromMillis(giftExpiresAtMs),
+      plusExpiresAt: access.expiresAtMs == null ?
+        null :
+        Timestamp.fromMillis(access.expiresAtMs),
+      plusGiftGrants: nextGrants,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    transaction.set(tokenReference, {
+      active: fullRefund ? false : true,
+      latestRefundType: notification.refundType ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    transaction.create(
+      firestore.collection("google_play_lifecycle_events").doc(eventId),
+      {
+        eventId,
+        provider: "google_play",
+        kind: "plus_gift",
+        uid: registry.uid,
+        recipientUid,
+        productId: registry.productId,
+        fullRefund,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+    );
+  });
+}
+
+/**
+ * Revokes one gifted badge without removing another grant.
+ * @param {string} eventId RTDN event id.
+ * @param {string} tokenHash Token hash.
+ * @param {TokenRegistry} registry Token registry.
+ * @param {object} notification Voided purchase notification.
+ * @return {Promise<void>} Completion promise.
+ */
+async function revokeBadgeGift(
+  eventId: string,
+  tokenHash: string,
+  registry: TokenRegistry,
+  notification: {orderId?: string; refundType?: number},
+): Promise<void> {
+  const tokenReference = firestore
+    .collection("google_play_purchase_tokens")
+    .doc(tokenHash);
+  const tokenSnapshot = await tokenReference.get();
+  const recipientUid = String(
+    tokenSnapshot.data()?.recipientUid ?? registry.uid,
+  ).trim();
+  const fullRefund = notification.refundType === 1;
+
+  await firestore.runTransaction(async (transaction) => {
+    const badgeReference = firestore
+      .collection("users")
+      .doc(recipientUid)
+      .collection("owned_badges")
+      .doc(registry.productId);
+    const badgeSnapshot = await transaction.get(badgeReference);
+    const badge = badgeSnapshot.data() ?? {};
+    const giftTokenHashes = Array.isArray(badge.giftTokenHashes) ?
+      badge.giftTokenHashes.map((value: unknown) => String(value)) :
+      [];
+    const decision = revokeBadgeGrant({
+      personalTokenHash: String(badge.personalTokenHash ?? ""),
+      giftTokenHashes,
+    }, tokenHash, fullRefund);
+
+    if (!badgeSnapshot.exists) {
+      transaction.set(tokenReference, {
+        active: fullRefund ? false : true,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      return;
+    }
+
+    if (badgeRemains(decision.state)) {
+      transaction.set(badgeReference, {
+        personalTokenHash: decision.state.personalTokenHash,
+        giftTokenHashes: decision.state.giftTokenHashes,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    } else if (decision.revokeGift || decision.revokePersonal) {
+      if (badge.adminGranted === true || badge.adminBlocked === true) {
+        transaction.set(badgeReference, {
+          personalTokenHash: decision.state.personalTokenHash,
+          giftTokenHashes: decision.state.giftTokenHashes,
+          googlePlayEntitled: false,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } else {
+        transaction.delete(badgeReference);
+      }
+    }
+
+    transaction.set(tokenReference, {
+      active: fullRefund ? false : true,
+      latestRefundType: notification.refundType ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    transaction.create(
+      firestore.collection("google_play_lifecycle_events").doc(eventId),
+      {
+        eventId,
+        provider: "google_play",
+        kind: "badge_gift",
+        uid: registry.uid,
+        recipientUid,
+        productId: registry.productId,
+        removed: !badgeRemains(decision.state),
+        createdAt: FieldValue.serverTimestamp(),
+      },
+    );
+  });
+}
+
+/**
  * Normalizes server-only token registry data.
  *
  * @param {Record<string, unknown>} data Registry data.
@@ -1104,7 +1333,9 @@ function normalizeTokenRegistry(
 
   if (
     kindValue !== "plus_subscription" &&
-    kindValue !== "badge_non_consumable"
+    kindValue !== "badge_non_consumable" &&
+    kindValue !== "badge_gift" &&
+    kindValue !== "plus_gift"
   ) {
     throw new Error(
       "Google Play token registry has invalid kind.",

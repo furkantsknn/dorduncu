@@ -15,6 +15,8 @@ import {
   writeUserNotification,
 } from "../notifications/writeUserNotification";
 import {writeAuditLog} from "../audit/writeAuditLog";
+import {isPlusMembershipActive} from "../users/plusMembership";
+import {syncEventQuotaInTransaction} from "./eventOpenQuotaPolicy";
 
 const REGION = "europe-west1";
 
@@ -101,6 +103,19 @@ export const cancelUnpaidEvent = onCall(
           "Ödeme alınmış etkinlik bu yöntemle iptal edilemez.",
         );
       }
+
+      const organizerSnapshot = await transaction.get(
+        firestore.collection("users").doc(organizerId),
+      );
+      await syncEventQuotaInTransaction(
+        transaction,
+        firestore,
+        organizerId,
+        Date.now(),
+        isPlusMembershipActive(organizerSnapshot.data() ?? {}),
+        undefined,
+        eventId,
+      );
 
       affectedUserIds = [
         ...new Set([

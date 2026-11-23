@@ -13,8 +13,7 @@ class AdminWalletManagementScreen extends StatefulWidget {
 
 class _AdminWalletManagementScreenState
     extends State<AdminWalletManagementScreen> {
-  final TextEditingController _searchController =
-  TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   String _searchText = '';
   String _selectedFilter = 'all';
@@ -31,274 +30,193 @@ class _AdminWalletManagementScreenState
       appBar: AppBar(
         title: const Text(
           'Cüzdan Yönetimi',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('wallets')
-            .snapshots(),
-        builder: (
-            BuildContext context,
-            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-            snapshot,
+        stream: FirebaseFirestore.instance.collection('wallets').snapshots(),
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
             ) {
-          if (snapshot.hasError) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Cüzdanlar yüklenirken bir hata oluştu.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Cüzdanlar yüklenirken bir hata oluştu.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<
-              QueryDocumentSnapshot<Map<String, dynamic>>>
-          allWallets = snapshot.data!.docs;
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              allWallets = snapshot.data!.docs;
 
-          final List<
-              QueryDocumentSnapshot<Map<String, dynamic>>>
-          visibleWallets = allWallets.where((document) {
-            final Map<String, dynamic> data = document.data();
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              visibleWallets = allWallets.where((document) {
+                final Map<String, dynamic> data = document.data();
 
-            final int availableBalance =
-            _readInt(data, 'availableBalanceKurus');
+                final int availableBalance = _readInt(
+                  data,
+                  'availableBalanceKurus',
+                );
 
-            final int pendingBalance =
-            _readInt(data, 'pendingBalanceKurus');
+                final int pendingBalance = _readInt(
+                  data,
+                  'pendingBalanceKurus',
+                );
 
-            final bool isFrozen = data['isFrozen'] == true;
+                final bool isFrozen = data['isFrozen'] == true;
 
-            switch (_selectedFilter) {
-              case 'positive':
-                if (availableBalance <= 0) {
-                  return false;
+                switch (_selectedFilter) {
+                  case 'positive':
+                    if (availableBalance <= 0) {
+                      return false;
+                    }
+                  case 'pending':
+                    if (pendingBalance <= 0) {
+                      return false;
+                    }
+                  case 'frozen':
+                    if (!isFrozen) {
+                      return false;
+                    }
+                  case 'all':
+                    break;
                 }
-              case 'pending':
-                if (pendingBalance <= 0) {
-                  return false;
+
+                if (_searchText.isEmpty) {
+                  return true;
                 }
-              case 'frozen':
-                if (!isFrozen) {
-                  return false;
-                }
-              case 'all':
-                break;
-            }
 
-            if (_searchText.isEmpty) {
-              return true;
-            }
+                final String query = _searchText.toLowerCase();
 
-            final String query =
-            _searchText.toLowerCase();
+                final String userId = document.id.toLowerCase();
 
-            final String userId =
-            document.id.toLowerCase();
+                final String ownerId =
+                    data['userId']?.toString().toLowerCase() ?? '';
 
-            final String ownerId =
-                data['userId']
-                    ?.toString()
-                    .toLowerCase() ??
-                    '';
+                return userId.contains(query) || ownerId.contains(query);
+              }).toList();
 
-            return userId.contains(query) ||
-                ownerId.contains(query);
-          }).toList();
+              visibleWallets.sort((a, b) {
+                final int aBalance = _readInt(
+                  a.data(),
+                  'availableBalanceKurus',
+                );
 
-          visibleWallets.sort((a, b) {
-            final int aBalance = _readInt(
-              a.data(),
-              'availableBalanceKurus',
-            );
+                final int bBalance = _readInt(
+                  b.data(),
+                  'availableBalanceKurus',
+                );
 
-            final int bBalance = _readInt(
-              b.data(),
-              'availableBalanceKurus',
-            );
+                return bBalance.compareTo(aBalance);
+              });
 
-            return bBalance.compareTo(aBalance);
-          });
-
-          return Column(
-            children: <Widget>[
-              Padding(
-                padding:
-                const EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  10,
-                ),
-                child: _buildStatistics(allWallets),
-              ),
-              Padding(
-                padding:
-                const EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  12,
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (String value) {
-                    setState(() {
-                      _searchText = value.trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText:
-                    'Kullanıcı kimliği ara',
-                    prefixIcon:
-                    const Icon(Icons.search),
-                    suffixIcon: _searchText.isEmpty
-                        ? null
-                        : IconButton(
-                      tooltip:
-                      'Aramayı temizle',
-                      onPressed: () {
-                        _searchController
-                            .clear();
-
+              return Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                    child: _buildStatistics(allWallets),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (String value) {
                         setState(() {
-                          _searchText = '';
+                          _searchText = value.trim();
                         });
                       },
-                      icon: const Icon(
-                        Icons.close,
-                      ),
-                    ),
-                    border:
-                    const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 48,
-                child: ListView(
-                  padding:
-                  const EdgeInsets.symmetric(
-                    horizontal: 16,
-                  ),
-                  scrollDirection:
-                  Axis.horizontal,
-                  children: <Widget>[
-                    _buildFilter(
-                      'all',
-                      'Tümü',
-                    ),
-                    _buildFilter(
-                      'positive',
-                      'Bakiyesi Olan',
-                    ),
-                    _buildFilter(
-                      'pending',
-                      'Bekleyen Kazanç',
-                    ),
-                    _buildFilter(
-                      'frozen',
-                      'Dondurulan',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: visibleWallets.isEmpty
-                    ? const Center(
-                  child: Padding(
-                    padding:
-                    EdgeInsets.all(24),
-                    child: Text(
-                      'Bu filtreye uygun cüzdan bulunamadı.',
-                      textAlign:
-                      TextAlign.center,
-                      style: TextStyle(
-                        fontWeight:
-                        FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                )
-                    : ListView.separated(
-                  padding:
-                  const EdgeInsets
-                      .fromLTRB(
-                    16,
-                    0,
-                    16,
-                    32,
-                  ),
-                  itemCount:
-                  visibleWallets.length,
-                  separatorBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    return const SizedBox(
-                      height: 10,
-                    );
-                  },
-                  itemBuilder: (
-                      BuildContext context,
-                      int index,
-                      ) {
-                    final QueryDocumentSnapshot<
-                        Map<String,
-                            dynamic>>
-                    document =
-                    visibleWallets[
-                    index];
+                      decoration: InputDecoration(
+                        hintText: 'Kullanıcı kimliği ara',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchText.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Aramayı temizle',
+                                onPressed: () {
+                                  _searchController.clear();
 
-                    return _buildWalletCard(
-                      context,
-                      document,
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                                  setState(() {
+                                    _searchText = '';
+                                  });
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 48,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      children: <Widget>[
+                        _buildFilter('all', 'Tümü'),
+                        _buildFilter('positive', 'Bakiyesi Olan'),
+                        _buildFilter('pending', 'Bekleyen Kazanç'),
+                        _buildFilter('frozen', 'Dondurulan'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: visibleWallets.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Bu filtreye uygun cüzdan bulunamadı.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                            itemCount: visibleWallets.length,
+                            separatorBuilder:
+                                (BuildContext context, int index) {
+                                  return const SizedBox(height: 10);
+                                },
+                            itemBuilder: (BuildContext context, int index) {
+                              final QueryDocumentSnapshot<Map<String, dynamic>>
+                              document = visibleWallets[index];
+
+                              return _buildWalletCard(context, document);
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
       ),
     );
   }
 
   Widget _buildStatistics(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>>
-      wallets,
-      ) {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> wallets,
+  ) {
     int totalAvailable = 0;
     int totalPending = 0;
     int frozenCount = 0;
 
-    for (final QueryDocumentSnapshot<
-        Map<String, dynamic>> document
-    in wallets) {
-      final Map<String, dynamic> data =
-      document.data();
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+        in wallets) {
+      final Map<String, dynamic> data = document.data();
 
-      totalAvailable += _readInt(
-        data,
-        'availableBalanceKurus',
-      );
+      totalAvailable += _readInt(data, 'availableBalanceKurus');
 
-      totalPending += _readInt(
-        data,
-        'pendingBalanceKurus',
-      );
+      totalPending += _readInt(data, 'pendingBalanceKurus');
 
       if (data['isFrozen'] == true) {
         frozenCount++;
@@ -313,8 +231,7 @@ class _AdminWalletManagementScreenState
               child: _StatisticCard(
                 title: 'Cüzdan',
                 value: '${wallets.length}',
-                icon: Icons
-                    .account_balance_wallet_outlined,
+                icon: Icons.account_balance_wallet_outlined,
               ),
             ),
             const SizedBox(width: 8),
@@ -334,8 +251,7 @@ class _AdminWalletManagementScreenState
               child: _StatisticCard(
                 title: 'Toplam Bakiye',
                 value: _money(totalAvailable),
-                icon:
-                Icons.payments_outlined,
+                icon: Icons.payments_outlined,
               ),
             ),
             const SizedBox(width: 8),
@@ -343,8 +259,7 @@ class _AdminWalletManagementScreenState
               child: _StatisticCard(
                 title: 'Bekleyen',
                 value: _money(totalPending),
-                icon:
-                Icons.hourglass_top_outlined,
+                icon: Icons.hourglass_top_outlined,
               ),
             ),
           ],
@@ -353,10 +268,7 @@ class _AdminWalletManagementScreenState
     );
   }
 
-  Widget _buildFilter(
-      String value,
-      String label,
-      ) {
+  Widget _buildFilter(String value, String label) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
@@ -372,41 +284,24 @@ class _AdminWalletManagementScreenState
   }
 
   Widget _buildWalletCard(
-      BuildContext context,
-      QueryDocumentSnapshot<Map<String, dynamic>>
-      document,
-      ) {
-    final Map<String, dynamic> data =
-    document.data();
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final Map<String, dynamic> data = document.data();
 
-    final String userId =
-    data['userId']?.toString().trim().isNotEmpty ==
-        true
+    final String userId = data['userId']?.toString().trim().isNotEmpty == true
         ? data['userId'].toString().trim()
         : document.id;
 
-    final int availableBalance = _readInt(
-      data,
-      'availableBalanceKurus',
-    );
+    final int availableBalance = _readInt(data, 'availableBalanceKurus');
 
-    final int pendingBalance = _readInt(
-      data,
-      'pendingBalanceKurus',
-    );
+    final int pendingBalance = _readInt(data, 'pendingBalanceKurus');
 
-    final int refundBalance = _readInt(
-      data,
-      'refundBalanceKurus',
-    );
+    final int refundBalance = _readInt(data, 'refundBalanceKurus');
 
-    final int frozenBalance = _readInt(
-      data,
-      'frozenBalanceKurus',
-    );
+    final int frozenBalance = _readInt(data, 'frozenBalanceKurus');
 
-    final bool isFrozen =
-        data['isFrozen'] == true;
+    final bool isFrozen = data['isFrozen'] == true;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -415,11 +310,8 @@ class _AdminWalletManagementScreenState
           Navigator.push<void>(
             context,
             MaterialPageRoute<void>(
-              builder:
-                  (BuildContext context) {
-                return AdminUserDetailScreen(
-                  userId: userId,
-                );
+              builder: (BuildContext context) {
+                return AdminUserDetailScreen(userId: userId);
               },
             ),
           );
@@ -427,39 +319,32 @@ class _AdminWalletManagementScreenState
         child: Padding(
           padding: const EdgeInsets.all(15),
           child: Row(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               CircleAvatar(
                 radius: 27,
                 child: Icon(
                   isFrozen
-                      ? Icons
-                      .lock_outline
-                      : Icons
-                      .account_balance_wallet_outlined,
+                      ? Icons.lock_outline
+                      : Icons.account_balance_wallet_outlined,
                 ),
               ),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     const Text(
                       'Kullanıcı Cüzdanı',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                        FontWeight.w900,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 5),
                     SelectableText(
                       userId,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 9),
                     Wrap(
@@ -467,40 +352,29 @@ class _AdminWalletManagementScreenState
                       runSpacing: 7,
                       children: <Widget>[
                         _InfoLabel(
-                          text:
-                          'Bakiye: ${_money(availableBalance)}',
-                          icon: Icons
-                              .payments_outlined,
+                          text: 'Bakiye: ${_money(availableBalance)}',
+                          icon: Icons.payments_outlined,
                         ),
                         if (pendingBalance > 0)
                           _InfoLabel(
-                            text:
-                            'Bekleyen: ${_money(pendingBalance)}',
-                            icon: Icons
-                                .hourglass_top_outlined,
+                            text: 'Bekleyen: ${_money(pendingBalance)}',
+                            icon: Icons.hourglass_top_outlined,
                           ),
                         if (refundBalance > 0)
                           _InfoLabel(
-                            text:
-                            'İade: ${_money(refundBalance)}',
-                            icon: Icons
-                                .currency_exchange_outlined,
+                            text: 'İade: ${_money(refundBalance)}',
+                            icon: Icons.currency_exchange_outlined,
                           ),
                         if (frozenBalance > 0)
                           _InfoLabel(
-                            text:
-                            'Dondurulan: ${_money(frozenBalance)}',
-                            icon:
-                            Icons.ac_unit_outlined,
+                            text: 'Dondurulan: ${_money(frozenBalance)}',
+                            icon: Icons.ac_unit_outlined,
                           ),
                         _InfoLabel(
-                          text: isFrozen
-                              ? 'Cüzdan donduruldu'
-                              : 'Cüzdan aktif',
+                          text: isFrozen ? 'Cüzdan donduruldu' : 'Cüzdan aktif',
                           icon: isFrozen
                               ? Icons.lock_outline
-                              : Icons
-                              .check_circle_outline,
+                              : Icons.check_circle_outline,
                         ),
                       ],
                     ),
@@ -516,10 +390,7 @@ class _AdminWalletManagementScreenState
     );
   }
 
-  static int _readInt(
-      Map<String, dynamic> data,
-      String key,
-      ) {
+  static int _readInt(Map<String, dynamic> data, String key) {
     return (data[key] as num?)?.toInt() ?? 0;
   }
 
@@ -544,11 +415,7 @@ class _StatisticCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 13,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
         child: Column(
           children: <Widget>[
             Icon(icon),
@@ -558,8 +425,7 @@ class _StatisticCard extends StatelessWidget {
                 value,
                 style: const TextStyle(
                   fontSize: 19,
-                  fontWeight:
-                  FontWeight.w900,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
@@ -567,9 +433,7 @@ class _StatisticCard extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -579,10 +443,7 @@ class _StatisticCard extends StatelessWidget {
 }
 
 class _InfoLabel extends StatelessWidget {
-  const _InfoLabel({
-    required this.text,
-    required this.icon,
-  });
+  const _InfoLabel({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -590,17 +451,10 @@ class _InfoLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .secondaryContainer,
-        borderRadius:
-        BorderRadius.circular(20),
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -609,11 +463,7 @@ class _InfoLabel extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight:
-              FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           ),
         ],
       ),

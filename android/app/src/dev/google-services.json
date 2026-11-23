@@ -1,0 +1,94 @@
+{
+  "project_info": {
+    "project_number": "256435983692",
+    "project_id": "dorduncu-8e599",
+    "storage_bucket": "dorduncu-8e599.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256435983692:android:91eb5d3dbe06a349c9abe9",
+        "android_client_info": {
+          "package_name": "com.dortapp.dort"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbFBDxTH6tEpYRRbds4fSSUlNgaJlLLwM"
+        },
+        {
+          "current_key": "AIzaSyDOka84sY7csc9N5d-CSqUE_ClNnASCR8s"
+        },
+        {
+          "current_key": "AIzaSyCK3FLXlRUkTBxCHpWoAbUa580uYMNB4Zg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256435983692:android:fd6cbd747cdb02d2c9abe9",
+        "android_client_info": {
+          "package_name": "com.dortapp.dort.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbFBDxTH6tEpYRRbds4fSSUlNgaJlLLwM"
+        },
+        {
+          "current_key": "AIzaSyDOka84sY7csc9N5d-CSqUE_ClNnASCR8s"
+        },
+        {
+          "current_key": "AIzaSyCK3FLXlRUkTBxCHpWoAbUa580uYMNB4Zg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256435983692:android:75907774816e0110c9abe9",
+        "android_client_info": {
+          "package_name": "com.example.dorduncu"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "256435983692-8q62gp0fvo5s55ddiraupok3t7l912im.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dorduncu",
+            "certificate_hash": "f639cd5a4d8f886f5976c332652b149ff95b9ad2"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbFBDxTH6tEpYRRbds4fSSUlNgaJlLLwM"
+        },
+        {
+          "current_key": "AIzaSyDOka84sY7csc9N5d-CSqUE_ClNnASCR8s"
+        },
+        {
+          "current_key": "AIzaSyCK3FLXlRUkTBxCHpWoAbUa580uYMNB4Zg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/firebase_auth_language.dart';
 
 String _adminWebText(
   BuildContext context, {
@@ -16,7 +17,6 @@ String _adminWebText(
       return tr;
   }
 }
-
 
 class AdminMfaEnrollmentScreen extends StatefulWidget {
   const AdminMfaEnrollmentScreen({super.key});
@@ -42,6 +42,7 @@ class _State extends State<AdminMfaEnrollmentScreen> {
 
   Future<void> _send() async {
     final User? user = FirebaseAuth.instance.currentUser;
+    final String authLanguage = Localizations.localeOf(context).languageCode;
 
     if (user == null || _phone.text.trim().isEmpty) {
       return;
@@ -55,6 +56,10 @@ class _State extends State<AdminMfaEnrollmentScreen> {
     try {
       final MultiFactorSession session = await user.multiFactor.getSession();
 
+      await applyFirebaseAuthLanguage(
+        FirebaseAuth.instance,
+        authLanguage,
+      );
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: _phone.text.trim(),
         multiFactorSession: session,
@@ -125,7 +130,12 @@ class _State extends State<AdminMfaEnrollmentScreen> {
 
       await user.multiFactor.enroll(
         assertion,
-        displayName: _adminWebText(context, tr: 'Dört. Yönetim SMS', en: 'Dört. Admin SMS', de: 'Dört. Admin-SMS'),
+        displayName: _adminWebText(
+          context,
+          tr: 'Dört. Yönetim SMS',
+          en: 'Dört. Admin SMS',
+          de: 'Dört. Admin-SMS',
+        ),
       );
 
       await user.getIdToken(true);
@@ -151,7 +161,14 @@ class _State extends State<AdminMfaEnrollmentScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_adminWebText(context, tr: 'İki Aşamalı Doğrulama', en: 'Two-Factor Authentication', de: 'Zwei-Faktor-Authentifizierung')),
+        title: Text(
+          _adminWebText(
+            context,
+            tr: 'İki Aşamalı Doğrulama',
+            en: 'Two-Factor Authentication',
+            de: 'Zwei-Faktor-Authentifizierung',
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: FirebaseAuth.instance.signOut,
@@ -170,7 +187,12 @@ class _State extends State<AdminMfaEnrollmentScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    _adminWebText(context, tr: 'Yönetim paneli için SMS ikinci faktörü zorunludur.', en: 'SMS as a second factor is required for the admin panel.', de: 'SMS als zweiter Faktor ist für den Admin-Bereich erforderlich.'),
+                    _adminWebText(
+                      context,
+                      tr: 'Yönetim paneli için SMS ikinci faktörü zorunludur.',
+                      en: 'SMS as a second factor is required for the admin panel.',
+                      de: 'SMS als zweiter Faktor ist für den Admin-Bereich erforderlich.',
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 20),
@@ -207,7 +229,19 @@ class _State extends State<AdminMfaEnrollmentScreen> {
                         ? _verify
                         : _send,
                     child: Text(
-                      sent ? _adminWebText(context, tr: 'Doğrula ve etkinleştir', en: 'Verify and enable', de: 'Bestätigen und aktivieren') : _adminWebText(context, tr: 'SMS kodu gönder', en: 'Send SMS code', de: 'SMS-Code senden'),
+                      sent
+                          ? _adminWebText(
+                              context,
+                              tr: 'Doğrula ve etkinleştir',
+                              en: 'Verify and enable',
+                              de: 'Bestätigen und aktivieren',
+                            )
+                          : _adminWebText(
+                              context,
+                              tr: 'SMS kodu gönder',
+                              en: 'Send SMS code',
+                              de: 'SMS-Code senden',
+                            ),
                     ),
                   ),
                 ],

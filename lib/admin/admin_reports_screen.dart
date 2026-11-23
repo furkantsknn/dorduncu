@@ -16,7 +16,6 @@ String _locText(
   }
 }
 
-
 class AdminReportsScreen extends StatelessWidget {
   const AdminReportsScreen({super.key});
 
@@ -85,12 +84,7 @@ class _ReportTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: Icon(icon),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
       ),

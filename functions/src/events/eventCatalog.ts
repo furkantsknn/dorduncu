@@ -257,6 +257,12 @@ readonly EventCategoryDefinition[] = [
         emoji: "🏂",
         categoryId: "premium_sporlar",
       },
+      {
+        id: "paintball",
+        name: "Paintball",
+        emoji: "🎯",
+        categoryId: "premium_sporlar",
+      },
     ],
   },
 ];

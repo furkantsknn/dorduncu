@@ -8,11 +8,20 @@
           "fileOutput": "android/app/google-services.json"
         }
       },
+      "ios": {
+        "default": {
+          "projectId": "dorduncu-8e599",
+          "appId": "1:256435983692:ios:1a131b9593b6bd12c9abe9",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
       "dart": {
         "lib/firebase_options.dart": {
           "projectId": "dorduncu-8e599",
           "configurations": {
-            "android": "1:256435983692:android:91eb5d3dbe06a349c9abe9"
+            "android": "1:256435983692:android:91eb5d3dbe06a349c9abe9",
+            "ios": "1:256435983692:ios:1a131b9593b6bd12c9abe9"
           }
         }
       }
@@ -43,8 +52,33 @@
       ]
     }
   ],
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "functions": {
+      "port": 5001
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
+    "singleProjectMode": true
+  },
   "hosting": {
     "public": "public",
+    "rewrites": [
+      {
+        "source": "/privacy",
+        "destination": "/privacy.html"
+      }
+    ],
     "ignore": [
       "firebase.json",
       "**/.*",

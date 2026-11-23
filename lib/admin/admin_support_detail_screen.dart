@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'admin_user_number.dart';
 
 String _locText(
   BuildContext context, {
@@ -17,7 +18,6 @@ String _locText(
       return tr;
   }
 }
-
 
 class AdminSupportDetailScreen extends StatefulWidget {
   const AdminSupportDetailScreen({super.key, required this.requestId});
@@ -147,6 +147,50 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
     }
   }
 
+  Future<void> _removeReportedContent() async {
+    if (_saving) return;
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (BuildContext dialogContext) => AlertDialog(
+            title: const Text('Bildirilen içeriği kaldır'),
+            content: const Text(
+              'İçerik kullanıcı erişiminden kaldırılır; özgün kayıt yalnız '
+              'yetkili delil kaydında korunur. Devam edilsin mi?',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('İçeriği kaldır'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('adminRemoveReportedContent')
+          .call<void>(<String, dynamic>{'requestId': widget.requestId});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bildirilen içerik kaldırıldı.')),
+        );
+      }
+    } on FirebaseFunctionsException catch (error) {
+      _showError(error.message ?? 'İçerik kaldırılamadı.');
+    } catch (_) {
+      _showError('İçerik kaldırılamadı.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _loadPrivateAdminNotes() async {
     try {
       final DocumentSnapshot<Map<String, dynamic>> snapshot =
@@ -183,7 +227,16 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
           ) {
             if (snapshot.hasError) {
               return Scaffold(
-                appBar: AppBar(title: Text(_locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'))),
+                appBar: AppBar(
+                  title: Text(
+                    _locText(
+                      context,
+                      tr: 'Talep Detayı',
+                      en: 'Request Details',
+                      de: 'Anfragedetails',
+                    ),
+                  ),
+                ),
                 body: const Center(
                   child: Text('Destek talebi yüklenirken bir hata oluştu.'),
                 ),
@@ -192,7 +245,16 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
 
             if (!snapshot.hasData) {
               return Scaffold(
-                appBar: AppBar(title: Text(_locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'))),
+                appBar: AppBar(
+                  title: Text(
+                    _locText(
+                      context,
+                      tr: 'Talep Detayı',
+                      en: 'Request Details',
+                      de: 'Anfragedetails',
+                    ),
+                  ),
+                ),
                 body: const Center(child: CircularProgressIndicator()),
               );
             }
@@ -204,8 +266,26 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
 
             if (!document.exists || data == null) {
               return Scaffold(
-                appBar: AppBar(title: Text(_locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'))),
-                body: Center(child: Text(_locText(context, tr: 'Destek talebi bulunamadı.', en: 'Support request not found.', de: 'Support-Anfrage nicht gefunden.'))),
+                appBar: AppBar(
+                  title: Text(
+                    _locText(
+                      context,
+                      tr: 'Talep Detayı',
+                      en: 'Request Details',
+                      de: 'Anfragedetails',
+                    ),
+                  ),
+                ),
+                body: Center(
+                  child: Text(
+                    _locText(
+                      context,
+                      tr: 'Destek talebi bulunamadı.',
+                      en: 'Support request not found.',
+                      de: 'Support-Anfrage nicht gefunden.',
+                    ),
+                  ),
+                ),
               );
             }
 
@@ -228,6 +308,7 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
             final String urgency = data['urgency']?.toString() ?? 'normal';
 
             final String userId = data['userId']?.toString() ?? '';
+            final String ticketId = data['ticketId']?.toString().trim() ?? '';
 
             final String relatedUserId =
                 data['relatedUserId']?.toString() ?? '';
@@ -238,6 +319,14 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
             final String relatedMessageId =
                 data['relatedMessageId']?.toString() ?? '';
 
+            final bool canRemoveReportedContent =
+                (category == 'message_report' &&
+                    relatedEventId.isNotEmpty &&
+                    relatedMessageId.isNotEmpty) ||
+                (category == 'inappropriate_image' && relatedUserId.isNotEmpty);
+            final bool reportedContentRemoved =
+                data['moderatedContentStatus']?.toString() == 'removed';
+
             final List<String> attachmentUrls = List<String>.from(
               data['attachmentUrls'] ?? const <String>[],
             );
@@ -245,7 +334,12 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
             return Scaffold(
               appBar: AppBar(
                 title: Text(
-                  _locText(context, tr: 'Talep Detayı', en: 'Request Details', de: 'Anfragedetails'),
+                  _locText(
+                    context,
+                    tr: 'Talep Detayı',
+                    en: 'Request Details',
+                    de: 'Anfragedetails',
+                  ),
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 actions: <Widget>[
@@ -277,13 +371,14 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
                     context: context,
                     title: 'Talep bilgileri',
                     children: <Widget>[
-                      _DetailRow(label: 'Talep numarası', value: document.id),
-                      _DetailRow(label: 'Oluşturan kullanıcı', value: userId),
+                      AdminUserNumber(uid: userId),
+                      _DetailRow(
+                        label: 'Talep numarası',
+                        value: ticketId.isEmpty ? 'Henüz atanmadı' : ticketId,
+                      ),
+                      AdminUserIdentity(uid: userId, compact: true),
                       if (relatedUserId.isNotEmpty)
-                        _DetailRow(
-                          label: 'İlgili kullanıcı',
-                          value: relatedUserId,
-                        ),
+                        AdminUserIdentity(uid: relatedUserId, compact: true),
                       if (relatedEventId.isNotEmpty)
                         _DetailRow(
                           label: 'İlgili etkinlik',
@@ -299,7 +394,12 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
                   const SizedBox(height: 14),
                   _buildInformationCard(
                     context: context,
-                    title: _locText(context, tr: 'Açıklama', en: 'Description', de: 'Beschreibung'),
+                    title: _locText(
+                      context,
+                      tr: 'Açıklama',
+                      en: 'Description',
+                      de: 'Beschreibung',
+                    ),
                     children: <Widget>[
                       Text(
                         description.isEmpty
@@ -318,6 +418,20 @@ class _AdminSupportDetailScreenState extends State<AdminSupportDetailScreen> {
                   ],
                   const SizedBox(height: 14),
                   _buildStatusCard(context: context, currentStatus: status),
+                  if (canRemoveReportedContent) ...<Widget>[
+                    const SizedBox(height: 14),
+                    FilledButton.tonalIcon(
+                      onPressed: _saving || reportedContentRemoved
+                          ? null
+                          : _removeReportedContent,
+                      icon: const Icon(Icons.visibility_off_outlined),
+                      label: Text(
+                        reportedContentRemoved
+                            ? 'Bildirilen içerik kaldırıldı'
+                            : 'Bildirilen içeriği kaldır',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   _buildAdminResponseCard(context),
                   const SizedBox(height: 14),

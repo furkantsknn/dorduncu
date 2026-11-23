@@ -3,6 +3,9 @@ import {
   onCall,
 } from "firebase-functions/v2/https";
 import {
+  assertCurrentAdminSession, assertAdminPermission,
+} from "../security/adminAuthorization";
+import {
   FieldValue,
 } from "firebase-admin/firestore";
 
@@ -10,7 +13,19 @@ import {firestore} from "../config/firebaseAdmin";
 import {
   assertVerificationAssignment,
 } from "../security/assertVerificationAssignment";
-import {writeAuditLog} from "../audit/writeAuditLog";
+import {
+  writeAuditLog,
+  writeAuditLogInTransaction,
+} from "../audit/writeAuditLog";
+import {
+  identityKeyFromData,
+  ownerApprovedFromUser,
+  planIdentityReservationRelease,
+} from "./identityReservationPolicy";
+import {
+  assertDecisionWriteAllowed,
+  verificationDecisionRetentionFields,
+} from "./verificationRetentionPolicy";
 
 interface ProcessVerificationRequest {
   requestId?: unknown;
@@ -25,6 +40,8 @@ export const processVerification = onCall(
     enforceAppCheck: true,
   },
   async (request) => {
+    assertAdminPermission(request, "verification.review");
+    await assertCurrentAdminSession(request);
     const data =
       request.data as ProcessVerificationRequest;
 
@@ -118,6 +135,11 @@ export const processVerification = onCall(
         ?.toString()
         .trim() ?? "";
 
+    const observedSubmission =
+      requestData.submissionId
+        ?.toString()
+        .trim() ?? "";
+
     const identityUniquenessStatus =
   requestData.identityUniquenessCheck
     ?.status
@@ -170,6 +192,23 @@ export const processVerification = onCall(
             );
         }
 
+        const liveRequestSnapshot =
+          await transaction.get(
+            requestReference,
+          );
+        const liveUserSnapshot =
+          await transaction.get(
+            userReference,
+          );
+        const liveSubmission =
+          liveRequestSnapshot
+            .data()
+            ?.submissionId
+            ?.toString()
+            .trim() ?? "";
+        const liveRequestData = liveRequestSnapshot.data() ?? {};
+        assertDecisionWriteAllowed(liveRequestData, observedSubmission);
+
         if (
           status === "approved" &&
           identityReference
@@ -205,6 +244,9 @@ export const processVerification = onCall(
                 FieldValue.serverTimestamp(),
               updatedAt:
                 FieldValue.serverTimestamp(),
+              ...(observedSubmission ?
+                {submissionId: observedSubmission} :
+                {}),
             },
             {
               merge: true,
@@ -213,32 +255,46 @@ export const processVerification = onCall(
         }
 
         if (
-          (
-            status === "rejected" ||
-            status === "revision"
-          ) &&
+          status === "rejected" &&
           identityReference &&
-          identitySnapshot?.exists
+          identitySnapshot?.exists &&
+          liveSubmission === observedSubmission
         ) {
-          const identityData =
-            identitySnapshot.data() ?? {};
+          const plan =
+            planIdentityReservationRelease({
+              key: identityKeyFromData(
+                identitySnapshot.data(),
+                true,
+              ),
+              request: {
+                uid,
+                status: "rejected",
+                submissionId: observedSubmission,
+              },
+              ownerApproved:
+                ownerApprovedFromUser(
+                  liveUserSnapshot.data(),
+                ),
+            });
 
-          const ownerUid =
-            identityData.uid
-              ?.toString()
-              .trim() ?? "";
-
-          const identityStatus =
-            identityData.status
-              ?.toString()
-              .trim() ?? "";
-
-          if (
-            ownerUid === uid &&
-            identityStatus !== "approved"
-          ) {
+          if (plan.release) {
             transaction.delete(
               identityReference,
+            );
+            writeAuditLogInTransaction(
+              firestore,
+              transaction,
+              {
+                action:
+                  "verification_identity_reservation_released",
+                performedBy:
+                  request.auth?.uid ?? "",
+                targetUid: uid,
+                metadata: {
+                  requestStatus: "rejected",
+                  outcome: "released",
+                },
+              },
             );
           }
         }
@@ -247,6 +303,7 @@ export const processVerification = onCall(
           requestReference,
           {
             status,
+            ...verificationDecisionRetentionFields(status),
             decisionReason,
             decisionSource: "admin",
             reasonCode:

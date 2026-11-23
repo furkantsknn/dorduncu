@@ -1,5 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Revoked Play or App Store badges stay in the collection but are not ownership.
+/// Mirrors `functions/src/market/badgeEntitlementPolicy.ts`.
+bool ownedBadgeIsEntitled(Map<String, dynamic>? data) {
+  if (data?['adminBlocked'] == true) return false;
+  if (data?['adminGranted'] == true) return true;
+  final bool hasPlayField = data != null && data.containsKey('googlePlayEntitled');
+  final bool hasAppleField = data != null && data.containsKey('appleEntitled');
+  if (!hasPlayField && !hasAppleField) {
+    return true;
+  }
+  return data['googlePlayEntitled'] == true || data['appleEntitled'] == true;
+}
+
+bool ownedBadgeIsAdminBlocked(Map<String, dynamic>? data) =>
+    data?['adminBlocked'] == true;
+
 class MarketBadgeDisplay {
   const MarketBadgeDisplay({
     required this.badgeId,

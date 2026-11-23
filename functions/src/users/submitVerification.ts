@@ -16,6 +16,9 @@ import {
   rotateDownloadToken,
   verificationObjectPath,
 } from "./verificationDocumentStorage";
+import {
+  VerificationObjectVersion,
+} from "./verificationCleanupPolicy";
 
 interface SubmitVerificationRequest {
   identityFrontPath?: unknown;
@@ -94,6 +97,7 @@ export const submitVerification = onCall(
       identityFrontPath,
       selfiePath,
     ];
+    const submissionId = randomUUID();
 
     if (
       documentPaths.some(
@@ -108,7 +112,7 @@ export const submitVerification = onCall(
     }
 
     try {
-      await Promise.all(
+      const versions = await Promise.all(
         documentPaths.map(
           (path) =>
             assertVerificationObject(path),
@@ -121,7 +125,18 @@ export const submitVerification = onCall(
             rotateDownloadToken(path),
         ),
       );
+
+      await commitVerificationSubmission({
+        uid,
+        submissionId,
+        identityFrontPath,
+        selfiePath,
+        versions,
+      });
     } catch (error) {
+      if (error instanceof HttpsError) {
+        throw error;
+      }
       console.error(
         "Verification Storage doğrulaması başarısız.",
         error,
@@ -134,14 +149,37 @@ export const submitVerification = onCall(
       );
     }
 
-    const userReference =
-      firestore
-        .collection("users")
-        .doc(uid);
+    return {
+      success: true,
+      requestId: uid,
+    };
+  },
+);
 
-    const userSnapshot =
-      await userReference.get();
+interface CommitSubmissionInput {
+  uid: string;
+  submissionId: string;
+  identityFrontPath: string;
+  selfiePath: string;
+  versions: VerificationObjectVersion[];
+}
 
+/**
+ * Commits a submission while preventing reuse of an earlier object path.
+ * @param {CommitSubmissionInput} input Immutable submission input.
+ * @return {Promise<void>} Completion promise.
+ */
+export async function commitVerificationSubmission(
+  input: CommitSubmissionInput,
+): Promise<void> {
+  const userReference = firestore.collection("users").doc(input.uid);
+  const requestReference = firestore
+    .collection("verification_requests")
+    .doc(input.uid);
+
+  await firestore.runTransaction(async (transaction) => {
+    const userSnapshot = await transaction.get(userReference);
+    const requestSnapshot = await transaction.get(requestReference);
     if (!userSnapshot.exists) {
       throw new HttpsError(
         "failed-precondition",
@@ -149,13 +187,16 @@ export const submitVerification = onCall(
       );
     }
 
-    const userData =
-      userSnapshot.data() ?? {};
-
+    const userData = userSnapshot.data() ?? {};
+    if (userData.accountStatus !== "active") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Hesap doğrulama başvurusu için etkin olmalıdır.",
+      );
+    }
     if (
       userData.verified === true ||
-      userData.verificationStatus ===
-        "approved"
+      userData.verificationStatus === "approved"
     ) {
       throw new HttpsError(
         "failed-precondition",
@@ -163,124 +204,96 @@ export const submitVerification = onCall(
       );
     }
 
-    const verificationReference =
-      firestore
-        .collection(
-          "verification_requests",
-        )
-        .doc(uid);
+    const previous = requestSnapshot.data() ?? {};
+    const previousPaths = new Set([
+      previous.identityFrontPath,
+      previous.identityBackPath,
+      previous.criminalRecordPath,
+      previous.selfiePath,
+    ].filter((value): value is string =>
+      typeof value === "string" && value.length > 0,
+    ));
+    const sameSubmissionObjects =
+      previous.identityFrontPath === input.identityFrontPath &&
+      previous.selfiePath === input.selfiePath &&
+      ["pending", "approved", "rejected"].includes(
+        String(previous.status ?? ""),
+      );
+    if (sameSubmissionObjects) {
+      // A callable response may be lost after the transaction commits. The
+      // same immutable object pair is an idempotent retry, not a new request.
+      return;
+    }
+    if (
+      previousPaths.has(input.identityFrontPath) ||
+      previousPaths.has(input.selfiePath)
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Yeni başvuru için yeni belge yüklemeleri gerekiyor.",
+      );
+    }
 
-    const batch =
-      firestore.batch();
-
-    batch.set(
-      verificationReference,
-      {
-        uid,
-        ad:
-          userData.ad ?? "",
-        soyad:
-          userData.soyad ?? "",
-        telefon:
-          userData.telefon ?? "",
-        dogumTarihi:
-          userData.dogumTarihi ?? null,
-
-        identityFrontPath,
-        selfiePath,
-
-        identityFrontUrl:
-          FieldValue.delete(),
-        identityBackPath:
-          FieldValue.delete(),
-        criminalRecordPath:
-          FieldValue.delete(),
-        identityBackUrl:
-          FieldValue.delete(),
-        criminalRecordUrl:
-          FieldValue.delete(),
-        selfieUrl:
-          FieldValue.delete(),
-        identityBackCheck:
-          FieldValue.delete(),
-        criminalRecordCheck:
-          FieldValue.delete(),
-
-        status: "pending",
-        submissionId: randomUUID(),
-
-        automaticCheckStatus:
-          "pending",
-        reasonCode: FieldValue.delete(),
-        decisionSource: FieldValue.delete(),
-        decidedAt: FieldValue.delete(),
-        rejectionReason: FieldValue.delete(),
-
-        identityFrontCheck: {
-          status: "pending",
-          reason: "",
-        },
-
-        selfieCheck: {
-          status: "pending",
-          reason: "",
-        },
-
-        identityUniquenessCheck: {
-          status: "pending",
-          reason: "",
-        },
-
-        automaticCheckCompletedAt:
-          null,
-
-        documentRetentionPolicy:
-          "final_decision_30_days",
-        deletionRequestedAt:
-          FieldValue.delete(),
-        deletionStatus:
-          FieldValue.delete(),
-        documentsDeletedAt:
-          FieldValue.delete(),
-
-        createdAt:
-          FieldValue.serverTimestamp(),
-
-        updatedAt:
-          FieldValue.serverTimestamp(),
-      },
-      {
-        merge: true,
-      },
+    const versionByPath = new Map(
+      input.versions.map((version) => [version.path, version.generation]),
     );
-
-    batch.set(
-      userReference,
-      {
-        verified: false,
-        verificationStatus:
-          "pending",
-        verificationReasonCode:
-          FieldValue.delete(),
-        verificationDecisionSource:
-          FieldValue.delete(),
-        verificationDecidedAt:
-          FieldValue.delete(),
-        verificationRejectionReason:
-          FieldValue.delete(),
-        guncellemeTarihi:
-          FieldValue.serverTimestamp(),
+    transaction.set(requestReference, {
+      uid: input.uid,
+      ad: userData.ad ?? "",
+      soyad: userData.soyad ?? "",
+      telefon: userData.telefon ?? "",
+      dogumTarihi: userData.dogumTarihi ?? null,
+      identityFrontPath: input.identityFrontPath,
+      selfiePath: input.selfiePath,
+      verificationDocumentObjects: {
+        identityFrontPath: {
+          path: input.identityFrontPath,
+          generation: versionByPath.get(input.identityFrontPath),
+        },
+        selfiePath: {
+          path: input.selfiePath,
+          generation: versionByPath.get(input.selfiePath),
+        },
       },
-      {
-        merge: true,
-      },
-    );
+      identityFrontUrl: FieldValue.delete(),
+      identityBackPath: FieldValue.delete(),
+      criminalRecordPath: FieldValue.delete(),
+      identityBackUrl: FieldValue.delete(),
+      criminalRecordUrl: FieldValue.delete(),
+      selfieUrl: FieldValue.delete(),
+      identityBackCheck: FieldValue.delete(),
+      criminalRecordCheck: FieldValue.delete(),
+      status: "pending",
+      submissionId: input.submissionId,
+      automaticCheckStatus: "pending",
+      reasonCode: FieldValue.delete(),
+      decisionSource: FieldValue.delete(),
+      decidedAt: FieldValue.delete(),
+      decisionVersion: FieldValue.delete(),
+      retentionStartedAt: FieldValue.delete(),
+      legacyCleanupStatus: FieldValue.delete(),
+      rejectionReason: FieldValue.delete(),
+      identityFrontCheck: {status: "pending", reason: ""},
+      selfieCheck: {status: "pending", reason: ""},
+      identityUniquenessCheck: {status: "pending", reason: ""},
+      automaticCheckCompletedAt: null,
+      documentRetentionPolicy: "final_decision_30_days",
+      deletionRequestedAt: FieldValue.delete(),
+      deletionStatus: FieldValue.delete(),
+      documentDeletionOperation: FieldValue.delete(),
+      documentsDeletedAt: FieldValue.delete(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
 
-    await batch.commit();
-
-    return {
-      success: true,
-      requestId: uid,
-    };
-  },
-);
+    transaction.set(userReference, {
+      verified: false,
+      verificationStatus: "pending",
+      verificationReasonCode: FieldValue.delete(),
+      verificationDecisionSource: FieldValue.delete(),
+      verificationDecidedAt: FieldValue.delete(),
+      verificationRejectionReason: FieldValue.delete(),
+      guncellemeTarihi: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
+}

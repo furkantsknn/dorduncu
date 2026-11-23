@@ -10,8 +10,8 @@ class LegalVersions {
         LegalDocumentDefinition(
           type: LegalDocumentType.kvkkNotice,
           code: 'kvkk_notice',
-          version: currentVersion,
-          effectiveDate: DateTime(2026, 10, 5),
+          version: '1.0.1',
+          effectiveDate: DateTime(2026, 10, 19),
           acceptanceRequirement: LegalAcceptanceRequirement.informational,
           requiresReacceptance: false,
           assetName: 'kvkk_notice',
@@ -19,8 +19,8 @@ class LegalVersions {
         LegalDocumentDefinition(
           type: LegalDocumentType.privacyPolicy,
           code: 'privacy_policy',
-          version: currentVersion,
-          effectiveDate: DateTime(2026, 10, 5),
+          version: '1.0.1',
+          effectiveDate: DateTime(2026, 10, 19),
           acceptanceRequirement: LegalAcceptanceRequirement.informational,
           requiresReacceptance: false,
           assetName: 'privacy_policy',
@@ -46,8 +46,8 @@ class LegalVersions {
         LegalDocumentDefinition(
           type: LegalDocumentType.accountSuspension,
           code: 'account_policy',
-          version: currentVersion,
-          effectiveDate: DateTime(2026, 10, 5),
+          version: '1.0.1',
+          effectiveDate: DateTime(2026, 10, 19),
           acceptanceRequirement: LegalAcceptanceRequirement.none,
           requiresReacceptance: false,
           assetName: 'account_policy',
@@ -73,8 +73,8 @@ class LegalVersions {
         LegalDocumentDefinition(
           type: LegalDocumentType.plusSubscription,
           code: 'plus_subscription',
-          version: currentVersion,
-          effectiveDate: DateTime(2026, 10, 5),
+          version: '1.0.2',
+          effectiveDate: DateTime(2026, 10, 12),
           acceptanceRequirement: LegalAcceptanceRequirement.contextual,
           requiresReacceptance: true,
           assetName: 'plus_subscription',

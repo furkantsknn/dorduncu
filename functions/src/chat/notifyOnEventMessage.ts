@@ -1,3 +1,4 @@
+/* eslint-disable valid-jsdoc, require-jsdoc */
 import {
   onDocumentCreated,
 } from "firebase-functions/v2/firestore";
@@ -46,35 +47,11 @@ export const notifyOnEventMessage = onDocumentCreated(
     }
 
     const eventData = eventSnapshot.data() ?? {};
-    const recipientIds = new Set<string>([
-      String(eventData.olusturanUid ?? "").trim(),
-      ...readStringList(eventData.selectedPlayerIds),
-      ...readStringList(eventData.katilanlar),
-      ...readStringList(eventData.participantIds),
-      ...readStringList(eventData.chatMemberUids),
-    ]);
-
-    recipientIds.delete("");
-    recipientIds.delete(senderUid);
+    const recipientIds = new Set(chatRecipientIds(eventData, senderUid));
 
     if (recipientIds.size === 0) {
       return;
     }
-
-    const senderName = String(
-      messageData.senderName ?? "Bir kullanıcı",
-    ).trim();
-
-    const rawText = String(messageData.text ?? "").trim();
-    const preview = rawText.length > 120 ?
-      `${rawText.substring(0, 117)}...` :
-      rawText;
-
-    const eventTitle = String(
-      eventData.oyun ??
-      eventData.title ??
-      "Etkinlik",
-    ).trim();
 
     const recipients = await filterPaymentEligibleRecipients(
       eventId,
@@ -95,33 +72,74 @@ export const notifyOnEventMessage = onDocumentCreated(
       return;
     }
 
+    const userSnapshots = await firestore.getAll(...allowedRecipients.map(
+      (userId) => firestore.collection("users").doc(userId),
+    ));
+    const languageByUser = new Map(userSnapshots.map((userSnapshot) => [
+      userSnapshot.id,
+      String(userSnapshot.data()?.languageCode ??
+        userSnapshot.data()?.preferredLanguage ?? "tr"),
+    ]));
+
     await Promise.all(
       allowedRecipients.map(
-        async (userId) => writeUserNotification(
-          firestore,
-          {
+        async (userId) => {
+          const content = chatNotificationContent(languageByUser.get(userId));
+          return writeUserNotification(firestore, {
+            notificationId: chatNotificationId(eventId, snapshot.id),
             userId,
             actorId: senderUid,
-            actorName: senderName,
             eventId,
-            eventTitle,
             type: "message",
-            title: "Yeni mesaj",
-            message: preview.length > 0 ?
-              `${senderName}: ${preview}` :
-              `${senderName} yeni bir mesaj gönderdi.`,
+            title: content.title,
+            message: content.message,
             route: "event_chat",
-            data: {
-              eventId,
-              messageId: snapshot.id,
-              senderUid,
-            },
-          },
-        ),
+            data: chatNotificationData(eventId),
+          });
+        },
       ),
     );
   },
 );
+
+export function chatNotificationContent(language?: string): {
+  title: string; message: string;
+} {
+  switch (String(language ?? "tr").toLowerCase().split("-")[0]) {
+  case "en":
+    return {title: "New message", message: "You have a new message."};
+  case "de":
+    return {title: "Neue Nachricht", message: "Du hast eine neue Nachricht."};
+  default:
+    return {title: "Yeni mesaj", message: "Yeni bir mesajın var."};
+  }
+}
+
+export function chatNotificationData(eventId: string): Record<string, string> {
+  return {eventId: eventId.trim()};
+}
+
+/** Returns unique chat recipients excluding the sender. */
+export function chatRecipientIds(
+  eventData: Record<string, unknown>,
+  senderUid: string,
+): string[] {
+  const ids = new Set<string>([
+    String(eventData.olusturanUid ?? "").trim(),
+    ...readStringList(eventData.selectedPlayerIds),
+    ...readStringList(eventData.katilanlar),
+    ...readStringList(eventData.participantIds),
+    ...readStringList(eventData.chatMemberUids),
+  ]);
+  ids.delete("");
+  ids.delete(senderUid.trim());
+  return [...ids];
+}
+
+/** Stable per-message id makes Firestore trigger retries idempotent. */
+export function chatNotificationId(eventId: string, messageId: string): string {
+  return `chat_${eventId.trim()}_${messageId.trim()}`;
+}
 
 /**
  * Filters notification recipients by canonical payment access.

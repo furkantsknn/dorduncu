@@ -1,0 +1,102 @@
+definitions:
+  ios_env: &ios_env
+    groups:
+      - dort_ios_firebase
+    vars:
+      BUNDLE_ID: "com.dortapp.dort"
+      XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+      XCODE_PROJECT: "ios/Runner.xcodeproj"
+      XCODE_SCHEME: "Runner"
+      APP_STORE_APPLE_ID: $APP_STORE_APPLE_ID
+    flutter: stable
+    xcode: latest
+    cocoapods: default
+
+  ios_build_scripts: &ios_build_scripts
+    - name: Verify iOS Firebase configuration and Phone Auth URL schemes
+      script: |
+        set -euo pipefail
+        if [[ -n "${GOOGLE_SERVICE_INFO_PLIST_B64:-}" ]]; then
+          echo "$GOOGLE_SERVICE_INFO_PLIST_B64" | base64 --decode > ios/Runner/GoogleService-Info.plist
+        fi
+        bash scripts/ios_firebase_configure.sh ios/Runner/GoogleService-Info.plist ios/Runner/Info.plist
+
+    - name: Get Flutter packages and run static checks
+      script: |
+        set -euo pipefail
+        flutter pub get
+        flutter analyze
+        CI_TESTS=()
+        while IFS= read -r test_file; do
+          CI_TESTS+=("$test_file")
+        done < <(find test -maxdepth 1 -name '*_test.dart' \
+          ! -name '*_visual_preview_test.dart' \
+          ! -name 'gift_flow_screen_test.dart' | sort)
+        flutter test "${CI_TESTS[@]}"
+
+    - name: Set up iOS code signing via App Store Connect API
+      script: |
+        set -euo pipefail
+        keychain initialize
+        app-store-connect fetch-signing-files "$BUNDLE_ID" \
+          --type IOS_APP_STORE \
+          --create
+        keychain add-certificates
+        xcode-project use-profiles
+
+    - name: Resolve iOS build number
+      script: |
+        set -euo pipefail
+        PUBSPEC_BUILD="$(awk '/^version:/ {split($2, a, "+"); print a[2]}' pubspec.yaml)"
+        LATEST_TF="0"
+        if [[ -n "${APP_STORE_APPLE_ID:-}" ]]; then
+          LATEST_TF="$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)"
+        fi
+        NEXT_BUILD="$((LATEST_TF + 1))"
+        if [[ "$PUBSPEC_BUILD" -gt "$NEXT_BUILD" ]]; then
+          NEXT_BUILD="$PUBSPEC_BUILD"
+        fi
+        echo "NEXT_IOS_BUILD_NUMBER=$NEXT_BUILD" >> "$CM_ENV"
+        echo "Using iOS build number: $NEXT_BUILD"
+
+    - name: Build signed iOS IPA (TestFlight target)
+      script: |
+        set -euo pipefail
+        flutter build ipa --release \
+          --build-number="$NEXT_IOS_BUILD_NUMBER" \
+          --dart-define=DISTRIBUTION_TARGET=test \
+          --export-options-plist=/Users/builder/export_options.plist
+
+workflows:
+  ios-testflight-build:
+    name: Dört. iOS Signed Build (Verify Only - No Upload)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: dort_app_store_connect
+    environment: *ios_env
+    scripts: *ios_build_scripts
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+  ios-testflight-upload:
+    name: Dört. iOS TestFlight Upload (Manual Trigger Only)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: dort_app_store_connect
+    environment: *ios_env
+    scripts: *ios_build_scripts
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers
+        submit_to_app_store: false

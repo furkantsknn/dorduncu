@@ -1,3 +1,4 @@
+import {assertCurrentAdminSession} from "../security/adminAuthorization";
 import {FieldValue} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 
@@ -25,6 +26,7 @@ export const adminSetGooglePlayProductId = onCall(
   },
   async (request) => {
     assertAdminPanelAccess(request);
+    await assertCurrentAdminSession(request);
 
     const allowed =
       hasAdminPermission(request, "content.manage") ||
@@ -60,6 +62,34 @@ export const adminSetGooglePlayProductId = onCall(
     }
 
     const googlePlayProductId = optionalPlayId(data.googlePlayProductId);
+    const giftProvided = Object.prototype.hasOwnProperty.call(
+      data,
+      "giftGooglePlayProductId",
+    );
+    const optionProvided = Object.prototype.hasOwnProperty.call(
+      data,
+      "googlePlayPurchaseOptionId",
+    );
+    const giftOptionProvided = Object.prototype.hasOwnProperty.call(
+      data,
+      "giftGooglePlayPurchaseOptionId",
+    );
+    const plusOfferProvided = Object.prototype.hasOwnProperty.call(
+      data,
+      "plusGooglePlayOfferId",
+    );
+    const giftGooglePlayProductId = giftProvided ?
+      optionalPlayId(data.giftGooglePlayProductId) :
+      undefined;
+    const googlePlayPurchaseOptionId = optionProvided ?
+      optionalPlayId(data.googlePlayPurchaseOptionId) :
+      undefined;
+    const giftGooglePlayPurchaseOptionId = giftOptionProvided ?
+      optionalPlayId(data.giftGooglePlayPurchaseOptionId) :
+      undefined;
+    const plusGooglePlayOfferId = plusOfferProvided ?
+      optionalPlayId(data.plusGooglePlayOfferId) :
+      undefined;
     const basePlanProvided = Object.prototype.hasOwnProperty.call(
       data,
       "googlePlayBasePlanId",
@@ -86,16 +116,48 @@ export const adminSetGooglePlayProductId = onCall(
     const previous = String(
       current.data()?.googlePlayProductId ?? "",
     ).trim();
+    const previousGift = String(
+      current.data()?.giftGooglePlayProductId ?? "",
+    ).trim();
+    const previousOption = String(
+      current.data()?.googlePlayPurchaseOptionId ?? "",
+    ).trim();
+    const previousGiftOption = String(
+      current.data()?.giftGooglePlayPurchaseOptionId ?? "",
+    ).trim();
+    const previousPlusOffer = String(
+      current.data()?.plusGooglePlayOfferId ?? "",
+    ).trim();
     const previousBasePlan = String(
       current.data()?.googlePlayBasePlanId ?? "",
     ).trim();
     const nextBasePlan = googlePlayBasePlanId ?? previousBasePlan;
+    const nextGift = giftGooglePlayProductId ?? previousGift;
+    const nextOption = googlePlayPurchaseOptionId ?? previousOption;
+    const nextGiftOption =
+      giftGooglePlayPurchaseOptionId ?? previousGiftOption;
+    const nextPlusOffer = plusGooglePlayOfferId ?? previousPlusOffer;
 
     if (
       previous === googlePlayProductId &&
-      previousBasePlan === nextBasePlan
+      previousBasePlan === nextBasePlan &&
+      previousGift === nextGift &&
+      previousOption === nextOption &&
+      previousGiftOption === nextGiftOption &&
+      previousPlusOffer === nextPlusOffer
     ) {
       return {success: true, unchanged: true};
+    }
+
+    if (
+      googlePlayProductId &&
+      nextGift &&
+      googlePlayProductId === nextGift
+    ) {
+      throw new HttpsError(
+        "already-exists",
+        "Hediye ürün kimliği kişisel ürünle aynı olamaz.",
+      );
     }
 
     if (googlePlayProductId) {
@@ -103,6 +165,16 @@ export const adminSetGooglePlayProductId = onCall(
         googlePlayProductId,
         collectionName,
         productId,
+        "googlePlayProductId",
+      );
+    }
+
+    if (nextGift) {
+      await assertPlayIdIsUnique(
+        nextGift,
+        collectionName,
+        productId,
+        "giftGooglePlayProductId",
       );
     }
 
@@ -111,6 +183,21 @@ export const adminSetGooglePlayProductId = onCall(
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: request.auth.uid,
     };
+
+    if (giftProvided) {
+      payload.giftGooglePlayProductId = nextGift;
+    }
+
+    if (optionProvided) {
+      payload.googlePlayPurchaseOptionId = nextOption;
+    }
+
+    if (giftOptionProvided) {
+      payload.giftGooglePlayPurchaseOptionId = nextGiftOption;
+    }
+    if (collectionName === "badge_products" && plusOfferProvided) {
+      payload.plusGooglePlayOfferId = nextPlusOffer;
+    }
 
     if (collectionName === "plus_products" && basePlanProvided) {
       payload.googlePlayBasePlanId = nextBasePlan;
@@ -128,6 +215,10 @@ export const adminSetGooglePlayProductId = onCall(
         googlePlayProductId,
         previousGooglePlayBasePlanId: previousBasePlan,
         googlePlayBasePlanId: nextBasePlan,
+        giftGooglePlayProductId: nextGift,
+        googlePlayPurchaseOptionId: nextOption,
+        giftGooglePlayPurchaseOptionId: nextGiftOption,
+        plusGooglePlayOfferId: nextPlusOffer,
       },
     });
 
@@ -140,29 +231,41 @@ export const adminSetGooglePlayProductId = onCall(
  * @param {string} googlePlayProductId Play product id.
  * @param {string} collectionName Catalog being edited.
  * @param {string} productId Internal product id.
+ * @param {string} field Field being written.
  * @return {Promise<void>} Completes when the id is unique.
  */
 async function assertPlayIdIsUnique(
   googlePlayProductId: string,
   collectionName: string,
   productId: string,
+  field: "googlePlayProductId" | "giftGooglePlayProductId",
 ): Promise<void> {
-  const [plusSnapshot, badgeSnapshot] = await Promise.all([
-    firestore
-      .collection("plus_products")
-      .where("googlePlayProductId", "==", googlePlayProductId)
-      .limit(5)
-      .get(),
-    firestore
-      .collection("badge_products")
-      .where("googlePlayProductId", "==", googlePlayProductId)
-      .limit(5)
-      .get(),
-  ]);
+  const fields = ["googlePlayProductId", "giftGooglePlayProductId"];
+  const collections = ["plus_products", "badge_products"];
+  const snapshots = await Promise.all(
+    collections.flatMap((name) =>
+      fields.map((candidate) =>
+        firestore
+          .collection(name)
+          .where(candidate, "==", googlePlayProductId)
+          .limit(5)
+          .get(),
+      ),
+    ),
+  );
+  const labeled = collections.flatMap((name) =>
+    fields.map((candidate) => ({name, candidate})),
+  );
+  const conflict = snapshots.some((snapshot, index) =>
+    snapshot.docs.some((document) => {
+      const label = labeled[index];
+      const sameSlot = document.ref.parent.id === collectionName &&
+        document.id === productId &&
+        label.candidate === field &&
+        label.name === collectionName;
 
-  const conflict = [...plusSnapshot.docs, ...badgeSnapshot.docs].some(
-    (document) =>
-      !(document.ref.parent.id === collectionName && document.id === productId),
+      return !sameSlot;
+    }),
   );
 
   if (conflict) {
