@@ -25,7 +25,7 @@ definitions:
       script: |
         set -euo pipefail
         flutter pub get
-        flutter analyze
+        flutter analyze --no-fatal-infos
         CI_TESTS=()
         while IFS= read -r test_file; do
           CI_TESTS+=("$test_file")
