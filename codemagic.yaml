@@ -24,6 +24,10 @@ definitions:
     - name: Get Flutter packages and run static checks
       script: |
         set -euo pipefail
+        rm -rf ios/Flutter/ephemeral/Packages \
+          ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+          ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+          "$HOME/Library/Caches/org.swift.swiftpm"
         flutter pub get
         flutter analyze --no-fatal-infos
         CI_TESTS=()
