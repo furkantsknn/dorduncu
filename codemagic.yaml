@@ -37,9 +37,176 @@ definitions:
     - name: Set up iOS code signing via App Store Connect API
       script: |
         set -euo pipefail
+        umask 077
+
+        CERT_KEY_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dort_cert_key.XXXXXX")"
+        CERT_KEY_RAW="${CERT_KEY_DIR}/raw_key.pem"
+        CERT_KEY_FILE="${CERT_KEY_DIR}/certificate_private_key.pem"
+
+        cleanup_cert_key() {
+          python3 - "$CERT_KEY_DIR" <<'PY' >/dev/null 2>&1 || true
+        import os, shutil, sys
+        target_dir = sys.argv[1]
+        if os.path.isdir(target_dir):
+            for root, _, files in os.walk(target_dir):
+                for name in files:
+                    path = os.path.join(root, name)
+                    try:
+                        size = os.path.getsize(path)
+                        with open(path, "r+b") as f:
+                            f.write(b"\x00" * size)
+                            f.flush()
+                            os.fsync(f.fileno())
+                    except Exception:
+                        pass
+            shutil.rmtree(target_dir, ignore_errors=True)
+        PY
+          rm -rf "$CERT_KEY_DIR" 2>/dev/null || true
+        }
+        trap cleanup_cert_key EXIT INT TERM
+
+        python3 - "$CERT_KEY_RAW" <<'PY'
+        import base64, os, re, sys
+
+        out_path = sys.argv[1]
+        raw = os.environ.get("CERTIFICATE_PRIVATE_KEY")
+        if not raw or not raw.strip():
+            print(
+                "ERROR: CERTIFICATE_PRIVATE_KEY is unset or empty. "
+                "Add the 2048-bit RSA PEM private key to the Codemagic environment variable group (dort_ios_firebase).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        notes = []
+        text = raw
+        cleaned = re.sub(r"[\ufeff\u200b\u200c\u200d]", "", text)
+        if cleaned != text:
+            text = cleaned
+            notes.append("stripped_invisible_unicode")
+
+        text = text.strip()
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+            text = text[1:-1].strip()
+            notes.append("stripped_wrapping_quotes")
+
+        if "\r" in text:
+            text = text.replace("\r\n", "\n").replace("\r", "\n")
+            notes.append("normalized_crlf")
+
+        if "\\n" in text and "\n" not in text:
+            text = text.replace("\\r\\n", "\n").replace("\\n", "\n")
+            notes.append("expanded_escaped_newlines")
+
+        if "-----BEGIN " not in text:
+            compact = re.sub(r"\s+", "", text)
+            if len(compact) >= 64 and re.fullmatch(r"[A-Za-z0-9+/=]+", compact):
+                try:
+                    decoded = base64.b64decode(compact, validate=True).decode("utf-8")
+                    if "-----BEGIN " in decoded:
+                        text = decoded.replace("\r\n", "\n").replace("\r", "\n").strip()
+                        notes.append("decoded_base64_pem")
+                except Exception:
+                    pass
+
+        match = re.search(
+            r"-----BEGIN ([A-Z0-9 ]+)-----(.*?)-----END \1-----",
+            text,
+            re.DOTALL,
+        )
+        if not match:
+            has_begin = "-----BEGIN " in text
+            has_end = "-----END " in text
+            print(
+                f"ERROR: CERTIFICATE_PRIVATE_KEY does not contain a complete PEM block "
+                f"(raw_len={len(raw)}, has_begin={has_begin}, has_end={has_end}, notes={notes or ['none']}). "
+                "Ensure the full key including BEGIN and END lines is stored without truncation.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        label = match.group(1).strip()
+        body_raw = match.group(2)
+
+        if "ENCRYPTED" in label or "Proc-Type:" in body_raw or "DEK-Info:" in body_raw:
+            print(
+                f"ERROR: CERTIFICATE_PRIVATE_KEY appears encrypted (header='BEGIN {label}'). "
+                "Codemagic requires an unencrypted 2048-bit RSA PEM private key.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        if label not in ("RSA PRIVATE KEY", "PRIVATE KEY"):
+            print(
+                f"ERROR: Unsupported PEM header 'BEGIN {label}'. "
+                "Expected 'BEGIN RSA PRIVATE KEY' (2048-bit RSA PKCS#1 PEM) or 'BEGIN PRIVATE KEY' (unencrypted RSA PKCS#8 PEM).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        body_b64 = re.sub(r"\s+", "", body_raw)
+        if not body_b64 or not re.fullmatch(r"[A-Za-z0-9+/=]+", body_b64):
+            print(
+                f"ERROR: CERTIFICATE_PRIVATE_KEY body contains invalid Base64 characters "
+                f"(header='BEGIN {label}', body_chars={len(body_b64)}, notes={notes or ['none']}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        try:
+            base64.b64decode(body_b64, validate=True)
+        except Exception:
+            print(
+                f"ERROR: CERTIFICATE_PRIVATE_KEY body failed Base64 decoding "
+                f"(header='BEGIN {label}', body_chars={len(body_b64)}, notes={notes or ['none']}). "
+                "The stored key may be truncated or corrupted.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        wrapped = "\n".join(body_b64[i:i + 64] for i in range(0, len(body_b64), 64))
+        canonical_pem = f"-----BEGIN {label}-----\n{wrapped}\n-----END {label}-----\n"
+        if canonical_pem != raw:
+            notes.append("canonicalized_pem_wrapping")
+
+        fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(canonical_pem.encode("ascii"))
+
+        print(
+            f"Prepared temporary PEM key: header='BEGIN {label}', "
+            f"lines={canonical_pem.count(chr(10))}, bytes={len(canonical_pem)}, "
+            f"normalizations={','.join(notes) if notes else 'none'}"
+        )
+        PY
+
+        HEADER_LINE="$(head -n 1 "$CERT_KEY_RAW")"
+        if [[ "$HEADER_LINE" == "-----BEGIN RSA PRIVATE KEY-----" ]]; then
+          cp "$CERT_KEY_RAW" "$CERT_KEY_FILE"
+          chmod 600 "$CERT_KEY_FILE"
+        else
+          if ! openssl rsa -in "$CERT_KEY_RAW" -traditional -out "$CERT_KEY_FILE" >/dev/null 2>&1; then
+            if ! openssl rsa -in "$CERT_KEY_RAW" -out "$CERT_KEY_FILE" >/dev/null 2>&1; then
+              echo "ERROR: OpenSSL could not parse CERTIFICATE_PRIVATE_KEY as an RSA private key (it may be an EC/App Store Connect .p8 API key instead of the 2048-bit RSA signing certificate key)." >&2
+              exit 1
+            fi
+          fi
+          chmod 600 "$CERT_KEY_FILE"
+          echo "Converted PKCS#8 RSA key to PKCS#1 (BEGIN RSA PRIVATE KEY)."
+        fi
+
+        if ! openssl rsa -in "$CERT_KEY_FILE" -check -noout >/dev/null 2>&1; then
+          echo "ERROR: OpenSSL RSA key validation failed (openssl rsa -check). Verify CERTIFICATE_PRIVATE_KEY contains the complete unencrypted 2048-bit RSA private key." >&2
+          exit 1
+        fi
+
+        KEY_BITS="$(openssl pkey -in "$CERT_KEY_FILE" -text_pub -noout 2>/dev/null | awk -F'[()]' '/Public-Key:/ {print $2; exit}')"
+        echo "OpenSSL validation passed: RSA key ok (${KEY_BITS:-unknown size})."
+
         keychain initialize
         app-store-connect fetch-signing-files "$BUNDLE_ID" \
           --type IOS_APP_STORE \
+          --certificate-key="@file:${CERT_KEY_FILE}" \
           --create
         keychain add-certificates
         xcode-project use-profiles
