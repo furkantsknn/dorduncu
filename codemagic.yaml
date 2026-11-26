@@ -7,7 +7,6 @@ definitions:
       XCODE_WORKSPACE: "ios/Runner.xcworkspace"
       XCODE_PROJECT: "ios/Runner.xcodeproj"
       XCODE_SCHEME: "Runner"
-      APP_STORE_APPLE_ID: $APP_STORE_APPLE_ID
     flutter: stable
     xcode: latest
     cocoapods: default
@@ -218,22 +217,175 @@ definitions:
     - name: Resolve iOS build number
       script: |
         set -euo pipefail
-        PUBSPEC_BUILD="$(awk '/^version:/ {split($2, a, "+"); print a[2]}' pubspec.yaml)"
-        LATEST_TF="0"
-        if [[ -n "${APP_STORE_APPLE_ID:-}" ]]; then
-          LATEST_TF="$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)"
+
+        PUBSPEC_FULL_VERSION="$(awk '/^version:/ {print $2; exit}' pubspec.yaml | tr -d '\r')"
+        PUBSPEC_VERSION="${PUBSPEC_FULL_VERSION%%+*}"
+        PUBSPEC_BUILD="${PUBSPEC_FULL_VERSION#*+}"
+        if [[ -z "$PUBSPEC_VERSION" || "$PUBSPEC_BUILD" == "$PUBSPEC_FULL_VERSION" || ! "$PUBSPEC_BUILD" =~ ^[0-9]+$ || "$PUBSPEC_BUILD" -le 0 ]]; then
+          echo "ERROR: Invalid version format in pubspec.yaml: '$PUBSPEC_FULL_VERSION' (expected '<name>+<positive-int>')." >&2
+          exit 1
         fi
-        NEXT_BUILD="$((LATEST_TF + 1))"
-        if [[ "$PUBSPEC_BUILD" -gt "$NEXT_BUILD" ]]; then
-          NEXT_BUILD="$PUBSPEC_BUILD"
+
+        RESOLVED_APP_ID="${APP_STORE_APPLE_ID:-}"
+        if [[ -n "$RESOLVED_APP_ID" ]]; then
+          if [[ ! "$RESOLVED_APP_ID" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: APP_STORE_APPLE_ID must be a numeric Apple App ID (got an invalid non-numeric value)." >&2
+            exit 1
+          fi
+        else
+          echo "APP_STORE_APPLE_ID is not set; resolving Apple App ID from App Store Connect for bundle ID '$BUNDLE_ID'..."
+          APPS_JSON="$(app-store-connect apps list \
+            --bundle-id-identifier "$BUNDLE_ID" \
+            --strict-match-identifier \
+            --json)" || {
+            echo "ERROR: Failed to query App Store Connect apps list for bundle ID '$BUNDLE_ID'." >&2
+            exit 1
+          }
+          RESOLVED_APP_ID="$(python3 - "$BUNDLE_ID" "$APPS_JSON" <<'PY'
+        import json, sys
+
+        bundle_id, raw_json = sys.argv[1], sys.argv[2]
+        try:
+            payload = json.loads(raw_json)
+        except Exception as exc:
+            print(f"ERROR: Could not parse App Store Connect apps list JSON: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        apps = payload if isinstance(payload, list) else ([payload] if isinstance(payload, dict) else None)
+        if apps is None:
+            print("ERROR: Unexpected App Store Connect apps list payload shape.", file=sys.stderr)
+            sys.exit(1)
+
+        matched_ids = [
+            str(app.get("id", "")).strip()
+            for app in apps
+            if isinstance(app, dict)
+            and str((app.get("attributes") or {}).get("bundleId", "")).strip() == bundle_id
+            and str(app.get("id", "")).strip().isdigit()
+        ]
+        if len(matched_ids) != 1:
+            print(
+                f"ERROR: Expected exactly 1 App Store Connect app matching '{bundle_id}', found {len(matched_ids)}. "
+                "Set numeric APP_STORE_APPLE_ID in the Codemagic environment group if needed.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        print(matched_ids[0])
+        PY
+          )"
         fi
+
+        echo "Querying App Store Connect highest uploaded iOS build number for App ID $RESOLVED_APP_ID..."
+
+        LATEST_TRACK_RAW="$(app-store-connect get-latest-build-number "$RESOLVED_APP_ID" \
+          --platform IOS \
+          --all-versions)" || {
+          echo "ERROR: Failed to query latest iOS build number via 'app-store-connect get-latest-build-number'. Refusing to fall back to 0." >&2
+          exit 1
+        }
+
+        BUILDS_JSON="$(app-store-connect builds list \
+          --app-id "$RESOLVED_APP_ID" \
+          --platform IOS \
+          --json)" || {
+          echo "ERROR: Failed to list uploaded iOS builds via 'app-store-connect builds list'. Refusing to fall back to 0." >&2
+          exit 1
+        }
+
+        NEXT_BUILD="$(python3 - "$PUBSPEC_BUILD" "$LATEST_TRACK_RAW" "$BUILDS_JSON" <<'PY'
+        import json, re, sys
+
+        pubspec_build = int(sys.argv[1])
+        latest_track_raw = sys.argv[2].strip()
+        builds_raw = sys.argv[3].strip()
+
+        def parse_build_int(value: str, source: str) -> int:
+            cleaned = value.strip()
+            if not cleaned:
+                return 0
+            if cleaned.isdigit():
+                return int(cleaned)
+            match = re.fullmatch(r"([0-9]+)(?:\.[0-9]+)*", cleaned)
+            if match:
+                return int(match.group(1))
+            print(f"ERROR: Unparseable build number '{cleaned}' returned by {source}.", file=sys.stderr)
+            sys.exit(1)
+
+        track_max = 0
+        if latest_track_raw:
+            lines = [line.strip() for line in latest_track_raw.splitlines() if line.strip()]
+            if len(lines) != 1:
+                print(
+                    f"ERROR: Expected a single build number line from get-latest-build-number, got {len(lines)} lines.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            track_max = parse_build_int(lines[0], "get-latest-build-number")
+
+        if not builds_raw:
+            print("ERROR: Empty JSON output from 'app-store-connect builds list'. Refusing to fall back to 0.", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            payload = json.loads(builds_raw)
+        except Exception as exc:
+            print(f"ERROR: Could not parse 'app-store-connect builds list' JSON: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        builds = payload if isinstance(payload, list) else ([payload] if isinstance(payload, dict) else None)
+        if builds is None:
+            print("ERROR: Unexpected JSON payload shape from 'app-store-connect builds list'.", file=sys.stderr)
+            sys.exit(1)
+
+        builds_max = 0
+        for item in builds:
+            if not isinstance(item, dict):
+                print("ERROR: Unexpected build entry in 'app-store-connect builds list'.", file=sys.stderr)
+                sys.exit(1)
+            attrs = item.get("attributes") or {}
+            version = str(attrs.get("version", "")).strip()
+            if not version:
+                print("ERROR: Missing attributes.version in 'app-store-connect builds list' entry.", file=sys.stderr)
+                sys.exit(1)
+            parsed = parse_build_int(version, "builds list")
+            if parsed > builds_max:
+                builds_max = parsed
+
+        apple_highest = max(track_max, builds_max)
+        next_build = max(pubspec_build, apple_highest + 1)
+
+        if next_build <= apple_highest:
+            print(
+                f"ERROR: Computed next build ({next_build}) is not greater than Apple highest build ({apple_highest}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        print(
+            f"Resolved iOS build numbers: pubspec={pubspec_build}, "
+            f"apple_track_max={track_max}, apple_builds_list_max={builds_max} (count={len(builds)}), "
+            f"apple_highest={apple_highest} -> next={next_build}",
+            file=sys.stderr,
+        )
+        print(next_build)
+        PY
+        )"
+
+        if [[ -z "$NEXT_BUILD" || ! "$NEXT_BUILD" =~ ^[0-9]+$ ]]; then
+          echo "ERROR: Failed to compute a valid numeric NEXT_IOS_BUILD_NUMBER." >&2
+          exit 1
+        fi
+
+        echo "NEXT_IOS_BUILD_NAME=$PUBSPEC_VERSION" >> "$CM_ENV"
         echo "NEXT_IOS_BUILD_NUMBER=$NEXT_BUILD" >> "$CM_ENV"
-        echo "Using iOS build number: $NEXT_BUILD"
+        echo "Using iOS build version: ${PUBSPEC_VERSION}+${NEXT_BUILD}"
 
     - name: Build signed iOS IPA (TestFlight target)
       script: |
         set -euo pipefail
         flutter build ipa --release \
+          --build-name="$NEXT_IOS_BUILD_NAME" \
           --build-number="$NEXT_IOS_BUILD_NUMBER" \
           --dart-define=DISTRIBUTION_TARGET=test \
           --export-options-plist=/Users/builder/export_options.plist
