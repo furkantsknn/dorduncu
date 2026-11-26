@@ -113,4 +113,33 @@ void main() {
     expect(display.showRejected, isTrue);
     expect(display.reason, 'Belge okunmuyor');
   });
+
+  test('passed basic checks never imply selfie identity matching', () {
+    final VerificationAdminLabels labels = presentVerificationAdmin(
+      status: 'pending',
+      automaticCheckStatus: 'passed',
+      reasonCode: '',
+      decisionSource: 'automatic',
+    );
+
+    expect(labels.applicationStatus, 'İnceleme bekliyor');
+    expect(labels.analysisStatus, contains('yüz eşleşmesi yapılmadı'));
+    expect(labels.identityRejection, isFalse);
+  });
+
+  test('biometric and queue reason codes map to clear admin labels', () {
+    expect(
+      verificationAdminReasonLabel('face_mismatch_requires_review'),
+      contains('insan incelemesi'),
+    );
+    expect(
+      verificationAdminReasonLabel('selfie_liveness_retry'),
+      contains('yeniden çekim'),
+    );
+    expect(
+      verificationAdminReasonLabel('analysis_retries_exhausted'),
+      contains('manuel inceleme'),
+    );
+    expect(verificationReasonIsTechnical('analysis_retries_exhausted'), isTrue);
+  });
 }

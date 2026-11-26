@@ -7,6 +7,7 @@ import {
 } from "firebase-functions/v2/firestore";
 import {
   FieldValue,
+  Timestamp,
 } from "firebase-admin/firestore";
 import vision from "@google-cloud/vision";
 
@@ -41,6 +42,9 @@ import {
   assertDecisionWriteAllowed,
   verificationDecisionRetentionFields,
 } from "./verificationRetentionPolicy";
+import {
+  evaluateVerificationQueueRecovery,
+} from "./verificationQueuePolicy";
 
 interface AnalyzeVerificationRequest {
   requestId?: unknown;
@@ -482,10 +486,12 @@ async function analyzeSelfie(
 /**
  * Runs verification analysis.
  * @param {string} requestId Verification request id.
+ * @param {boolean} allowManualRerun Allow admin to re-run pending analysis.
  * @return {Promise<void>} Completion promise.
  */
 export async function runVerificationAnalysis(
   requestId: string,
+  allowManualRerun = false,
 ): Promise<void> {
   if (process.env.FUNCTIONS_EMULATOR === "true" ||
       process.env.FIRESTORE_EMULATOR_HOST) {
@@ -574,11 +580,51 @@ export async function runVerificationAnalysis(
           return false;
         }
 
-        if (
-          freshData.status !== "pending" ||
-          freshData.automaticCheckStatus !==
-            "pending"
-        ) {
+        const currentStatus =
+          freshData.status?.toString().trim() ?? "";
+        const currentCheckStatus =
+          freshData.automaticCheckStatus?.toString().trim() ?? "";
+        const attemptCount = Number(
+          freshData.automaticCheckAttemptCount ?? 0,
+        );
+        const startedAt =
+          freshData.automaticCheckStartedAt instanceof Timestamp ?
+            freshData.automaticCheckStartedAt.toMillis() :
+            null;
+        const updatedAt =
+          freshData.updatedAt instanceof Timestamp ?
+            freshData.updatedAt.toMillis() :
+            null;
+
+        const queueDecision = evaluateVerificationQueueRecovery({
+          status: currentStatus,
+          automaticCheckStatus: currentCheckStatus,
+          attemptCount,
+          processingStartedAtMs: startedAt,
+          lastAttemptAtMs: updatedAt,
+          nowMs: Date.now(),
+        });
+
+        const manualEligible =
+          allowManualRerun &&
+          currentStatus === "pending" &&
+          currentCheckStatus !== "processing";
+
+        if (queueDecision.action === "escalate_manual_review" &&
+            !manualEligible) {
+          transaction.update(
+            verificationReference,
+            {
+              automaticCheckStatus: "needs_review",
+              reasonCode: queueDecision.reasonCode,
+              decisionSource: "automatic",
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+          );
+          return false;
+        }
+
+        if (queueDecision.action !== "retry" && !manualEligible) {
           return false;
         }
 
@@ -587,6 +633,12 @@ export async function runVerificationAnalysis(
           {
             automaticCheckStatus:
               "processing",
+            automaticCheckAttemptCount:
+              manualEligible ?
+                Math.max(1, attemptCount + 1) :
+                queueDecision.nextAttemptCount,
+            automaticCheckStartedAt:
+              FieldValue.serverTimestamp(),
             updatedAt:
               FieldValue.serverTimestamp(),
           },
@@ -885,6 +937,7 @@ export const analyzeVerification =
 
       await runVerificationAnalysis(
         requestId,
+        true,
       );
 
       return {

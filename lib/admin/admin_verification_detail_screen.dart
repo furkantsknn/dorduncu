@@ -368,8 +368,81 @@ class _AdminVerificationDetailScreenState
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _SectionCard(
+            title: 'Kontrol sonuçları',
+            icon: Icons.fact_check_outlined,
+            children: <Widget>[
+              _InformationRow(
+                icon: Icons.badge_outlined,
+                label: 'Kimlik ön yüz (OCR)',
+                value: _formatCheckValue(data['identityFrontCheck']),
+              ),
+              const Divider(height: 20),
+              _InformationRow(
+                icon: Icons.face_outlined,
+                label: 'Selfie yüz tespiti',
+                value: _formatCheckValue(data['selfieCheck']),
+              ),
+              const Divider(height: 20),
+              _InformationRow(
+                icon: Icons.fingerprint_outlined,
+                label: 'Kimlik tekilliği (TCKN HMAC)',
+                value: _formatCheckValue(data['identityUniquenessCheck']),
+              ),
+              const Divider(height: 20),
+              _InformationRow(
+                icon: Icons.compare_outlined,
+                label: 'Kimlik-selfie yüz eşleştirme',
+                value: _formatCheckValue(
+                  data['faceMatchCheck'],
+                  fallback: 'Sağlayıcı bağlı değil — manuel kontrol gerekli',
+                ),
+              ),
+              const Divider(height: 20),
+              _InformationRow(
+                icon: Icons.videocam_outlined,
+                label: 'Canlılık (Liveness)',
+                value: _formatCheckValue(
+                  data['selfieLivenessCheck'],
+                  fallback: 'Sağlayıcı bağlı değil — manuel kontrol gerekli',
+                ),
+              ),
+              const Divider(height: 20),
+              _InformationRow(
+                icon: Icons.verified_outlined,
+                label: 'Belge gerçekliği',
+                value: _formatCheckValue(
+                  data['documentAuthenticityCheck'],
+                  fallback: 'Sağlayıcı bağlı değil — manuel kontrol gerekli',
+                ),
+              ),
+              const Divider(height: 20),
+              _InformationRow(
+                icon: Icons.nfc_outlined,
+                label: 'NFC kimlik doğrulama (isteğe bağlı)',
+                value: _formatCheckValue(
+                  data['nfcVerificationCheck'],
+                  fallback: 'İsteğe bağlı / kullanılmadı',
+                ),
+              ),
+              if (normalizedStatus == 'pending') ...<Widget>[
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _processing ? null : _rerunAnalysis,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Otomatik analizi yeniden çalıştır'),
+                  ),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: 12),
           _StatusInformationCard(status: status),
+          const SizedBox(height: 14),
+          _VerificationAuditHistoryCard(uid: uid, formatDate: _formatDate),
 
           const SizedBox(height: 16),
 
@@ -586,10 +659,77 @@ class _AdminVerificationDetailScreenState
     }
   }
 
+  String _formatCheckValue(
+    dynamic raw, {
+    String fallback = 'Kayıtlı değil',
+  }) {
+    if (raw is! Map) {
+      return fallback;
+    }
+    final String status = raw['status']?.toString().trim().toLowerCase() ?? '';
+    final String reason = raw['reason']?.toString().trim() ?? '';
+    final String code = raw['reasonCode']?.toString().trim() ?? '';
+    final String statusLabel = switch (status) {
+      'passed' => 'Geçti',
+      'failed' => 'Başarısız',
+      'unavailable' => 'Belirsiz / erişilemedi',
+      'pending' => 'Bekliyor',
+      'processing' => 'İşleniyor',
+      _ => status.isEmpty ? fallback : status,
+    };
+    if (reason.isNotEmpty) {
+      return '$statusLabel — $reason';
+    }
+    if (code.isNotEmpty) {
+      return '$statusLabel ($code)';
+    }
+    return statusLabel;
+  }
+
+  Future<void> _rerunAnalysis() async {
+    if (_processing) {
+      return;
+    }
+    setState(() {
+      _processing = true;
+    });
+    try {
+      final HttpsCallable callable = FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('analyzeVerification');
+      await callable.call(<String, dynamic>{'requestId': widget.requestId});
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Otomatik analiz yeniden çalıştırıldı.')),
+        );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Analiz çalıştırılamadı: $error')),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
   String _confirmationMessage(String status) {
     switch (status) {
       case 'approved':
-        return 'Başvuru onaylanacak ve kullanıcıya oyuncu rozeti verilecek.';
+        return 'Kimlik ile selfie arasında otomatik yüz eşleşmesi yapılmadı. '
+            'İki fotoğrafı kendin karşılaştırdığından ve belgeden emin '
+            'olduğundan sonra onayla. Kullanıcıya oyuncu rozeti verilecek.';
       case 'revision':
         return 'Başvuru revizyona gönderilecek. Yazdığın admin notu kullanıcıya düzeltme nedeni olarak iletilebilecek.';
       case 'rejected':
@@ -1350,5 +1490,127 @@ Color _verificationStatusColor(String status) {
     case 'pending':
     default:
       return Colors.orange;
+  }
+}
+
+class _VerificationAuditHistoryCard extends StatelessWidget {
+  const _VerificationAuditHistoryCard({
+    required this.uid,
+    required this.formatDate,
+  });
+
+  final String uid;
+  final String Function(DateTime date, {bool includeTime}) formatDate;
+
+  @override
+  Widget build(BuildContext context) {
+    if (uid.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('audit_logs')
+          .where('targetUid', isEqualTo: uid)
+          .limit(20)
+          .snapshots(),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+          ) {
+            if (snapshot.hasError) {
+              return const _SectionCard(
+                title: 'Denetim geçmişi',
+                icon: Icons.history_outlined,
+                children: <Widget>[
+                  Text(
+                    'Denetim kayıtları yalnızca yönetici rolüyle görüntülenebilir.',
+                  ),
+                ],
+              );
+            }
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const _SectionCard(
+                title: 'Denetim geçmişi',
+                icon: Icons.history_outlined,
+                children: <Widget>[
+                  Center(child: CircularProgressIndicator()),
+                ],
+              );
+            }
+            final List<Map<String, dynamic>> entries =
+                (snapshot.data?.docs ??
+                        const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                    .map((doc) => doc.data())
+                    .where((item) {
+                      final String action =
+                          item['action']?.toString().toLowerCase() ?? '';
+                      return action.contains('verification') ||
+                          action.contains('identity');
+                    })
+                    .toList()
+                  ..sort((a, b) {
+                    final DateTime aTime = _auditTimestamp(a['createdAt']);
+                    final DateTime bTime = _auditTimestamp(b['createdAt']);
+                    return bTime.compareTo(aTime);
+                  });
+
+            if (entries.isEmpty) {
+              return const _SectionCard(
+                title: 'Denetim geçmişi',
+                icon: Icons.history_outlined,
+                children: <Widget>[
+                  Text('Bu başvuru için henüz denetim kaydı bulunmuyor.'),
+                ],
+              );
+            }
+
+            final List<Map<String, dynamic>> visible = entries.take(8).toList();
+            return _SectionCard(
+              title: 'Denetim geçmişi',
+              icon: Icons.history_outlined,
+              children: <Widget>[
+                for (int i = 0; i < visible.length; i++) ...<Widget>[
+                  if (i > 0) const Divider(height: 18),
+                  _InformationRow(
+                    icon: Icons.receipt_long_outlined,
+                    label:
+                        '${visible[i]['action'] ?? '-'} • ${formatDate(_auditTimestamp(visible[i]['createdAt']))}',
+                    value: _auditSummary(visible[i]),
+                  ),
+                ],
+              ],
+            );
+          },
+    );
+  }
+
+  static DateTime _auditTimestamp(dynamic raw) {
+    if (raw is Timestamp) {
+      return raw.toDate();
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  static String _auditSummary(Map<String, dynamic> entry) {
+    final String actor = entry['performedBy']?.toString().trim() ?? '';
+    final dynamic metadata = entry['metadata'];
+    final List<String> parts = <String>[];
+    if (actor.isNotEmpty) {
+      parts.add('İşleyen: $actor');
+    }
+    if (metadata is Map) {
+      final String status = metadata['status']?.toString().trim() ?? '';
+      final String reason = metadata['decisionReason']?.toString().trim() ?? '';
+      final String outcome = metadata['outcome']?.toString().trim() ?? '';
+      if (status.isNotEmpty) parts.add('Durum: $status');
+      if (outcome.isNotEmpty) parts.add('Sonuç: $outcome');
+      if (reason.isNotEmpty) parts.add('Not: $reason');
+    }
+    return parts.isEmpty ? 'Kayıt mevcut' : parts.join(' · ');
   }
 }

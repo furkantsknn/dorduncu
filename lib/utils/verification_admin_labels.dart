@@ -23,6 +23,9 @@ bool verificationReasonIsTechnical(String reasonCode) {
     case 'tckn_unreadable':
     case 'selfie_analysis_unavailable':
     case 'analysis_unavailable':
+    case 'analysis_retries_exhausted':
+    case 'trusted_provider_evidence_missing':
+    case 'identity_evidence_incomplete':
       return true;
     default:
       return false;
@@ -42,12 +45,32 @@ String verificationAdminReasonLabel(String reasonCode) {
     case 'analysis_unavailable':
     case 'selfie_analysis_unavailable':
       return 'Otomatik analiz tamamlanamadı ($reasonCode)';
+    case 'analysis_retries_exhausted':
+      return 'Otomatik analiz tekrar limiti doldu; manuel inceleme gerekli ($reasonCode)';
     case 'selfie_no_face':
     case 'selfie_multiple_faces':
     case 'selfie_unsuitable':
       return 'Uygun selfie ile yeniden başvuru ($reasonCode)';
+    case 'selfie_liveness_retry':
+      return 'Canlılık kontrolü başarısız; yeniden çekim gerekli ($reasonCode)';
+    case 'photo_quality_retry':
+      return 'Fotoğraf kalitesi yetersiz; yeniden çekim gerekli ($reasonCode)';
+    case 'face_mismatch_requires_review':
+      return 'Yüz eşleşmesi uyuşmadı; insan incelemesi ve itiraz yolu gerekli ($reasonCode)';
+    case 'document_authenticity_requires_review':
+      return 'Belge gerçekliği doğrulanamadı; insan incelemesi gerekli ($reasonCode)';
+    case 'nfc_mismatch_requires_review':
+      return 'İsteğe bağlı NFC verisi uyuşmadı; insan incelemesi gerekli ($reasonCode)';
     case 'identity_already_used':
-      return 'Kimlik başka bir hesapta kayıtlı ($reasonCode)';
+    case 'identity_duplicate_requires_review':
+      return 'Kimlik başka bir hesapta kayıtlı; inceleme gerekli ($reasonCode)';
+    case 'biometric_processing_not_authorized':
+      return 'Biyometrik işleme izni yok; manuel inceleme ($reasonCode)';
+    case 'trusted_provider_evidence_missing':
+    case 'identity_evidence_incomplete':
+      return 'Doğrulanmış sağlayıcı kanıtı eksik; manuel inceleme ($reasonCode)';
+    case 'automatic_approval_disabled':
+      return 'Otomatik onay kapalı; manuel inceleme ($reasonCode)';
     case 'admin_decision':
       return 'Yönetici kararı ($reasonCode)';
     case 'revision_requested':
@@ -112,7 +135,8 @@ VerificationAdminLabels presentVerificationAdmin({
   final String analysisStatus;
   switch (analysis) {
     case 'passed':
-      analysisStatus = 'Otomatik kontroller geçti';
+      analysisStatus =
+          'Temel kontroller geçti; kimlik-selfie yüz eşleşmesi yapılmadı';
     case 'needs_review':
       analysisStatus = 'Otomatik sonuç belirsiz';
     case 'failed':

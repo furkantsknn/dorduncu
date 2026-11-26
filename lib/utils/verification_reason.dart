@@ -111,6 +111,28 @@ String verificationReasonText({
         en: 'Apply again with a suitable selfie.',
         de: 'Stelle den Antrag mit einem passenden Selfie erneut.',
       );
+    case 'liveness_failed':
+    case 'photo_quality_failed':
+      return _text(
+        languageCode: languageCode,
+        tr: 'Aydınlık bir ortamda net belge ve canlı selfie ile yeniden başvur.',
+        en: 'Apply again with a clear document and live selfie in good lighting.',
+        de: 'Stelle den Antrag bei gutem Licht mit klarem Dokument und Live-Selfie erneut.',
+      );
+    case 'face_mismatch':
+      return _text(
+        languageCode: languageCode,
+        tr: 'Kimlik fotoğrafı ile selfie eşleşemedi. Net fotoğraflarla yeniden başvurabilir veya inceleme talep edebilirsin.',
+        en: 'The ID photo and selfie could not be matched. You can apply again with clearer photos or request a review.',
+        de: 'Ausweisfoto und Selfie konnten nicht zugeordnet werden. Du kannst den Antrag mit klareren Fotos erneut stellen oder eine Prüfung anfordern.',
+      );
+    case 'document_authenticity_failed':
+      return _text(
+        languageCode: languageCode,
+        tr: 'Kimlik belgesi doğrulanamadı. Orijinal ve net bir belge fotoğrafıyla yeniden başvurabilirsin.',
+        en: 'The identity document could not be verified. You can apply again with a clear photo of the original document.',
+        de: 'Das Ausweisdokument konnte nicht bestätigt werden. Du kannst den Antrag mit einem klaren Foto des Originaldokuments erneut stellen.',
+      );
     case 'identity_already_used':
       return _text(
         languageCode: languageCode,

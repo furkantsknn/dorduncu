@@ -266,6 +266,8 @@ export async function commitVerificationSubmission(
       status: "pending",
       submissionId: input.submissionId,
       automaticCheckStatus: "pending",
+      automaticCheckAttemptCount: 0,
+      automaticCheckStartedAt: FieldValue.delete(),
       reasonCode: FieldValue.delete(),
       decisionSource: FieldValue.delete(),
       decidedAt: FieldValue.delete(),
