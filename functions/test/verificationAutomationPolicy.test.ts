@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
+import type {
   IdentityAutomationEvidence,
+} from "../src/users/verificationAutomationPolicy.ts";
+import {
   routeIdentityEvidence,
 } from "../src/users/verificationAutomationPolicy.ts";
 
