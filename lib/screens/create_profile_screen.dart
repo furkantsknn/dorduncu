@@ -10,9 +10,13 @@ import 'package:intl/intl.dart';
 
 import '../widgets/birth_date_picker_screen.dart';
 import '../widgets/game_catalog_icon.dart';
+import '../widgets/game_level_selector.dart';
+import 'account_status_screen.dart';
 import 'avatar_picker_sheet.dart';
+import 'home_screen.dart';
+import 'legal_acceptance_screen.dart';
+import 'login_screen.dart';
 import '../utils/game_catalog.dart';
-import '../utils/game_experience.dart';
 import '../utils/turkey_location_service.dart';
 import '../services/language_controller.dart';
 import '../services/session_service.dart';
@@ -34,35 +38,49 @@ class ProfileCreationCoordinator {
     required Future<void> Function() saveSessionMetadata,
     required Future<void> Function()? submitVerification,
     required Future<AuthDestination> Function() resolveDestination,
+    void Function(String stage, int elapsedMs)? onStageTiming,
   }) async {
+    Future<T> measure<T>(String stage, Future<T> Function() run) async {
+      final Stopwatch watch = Stopwatch()..start();
+      try {
+        return await run();
+      } finally {
+        watch.stop();
+        onStageTiming?.call(stage, watch.elapsedMilliseconds);
+      }
+    }
+
     Future<bool> current() async => await isSessionCurrent(binding);
     if (!await current()) return null;
     final ProfileCreationServerState state = readProfileState == null
         ? ProfileCreationServerState.missing
-        : await readProfileState();
+        : await measure('read_state', readProfileState);
     if (!await current()) return null;
     if (state == ProfileCreationServerState.restricted) {
       throw StateError('Account is not eligible for profile creation.');
     }
     if (state != ProfileCreationServerState.active) {
-      await writeProfile();
+      await measure('write_profile', writeProfile);
       if (!await current()) return null;
       if (uploadAssets != null) {
-        await uploadAssets();
+        await measure('upload_assets', uploadAssets);
         if (!await current()) return null;
       }
       if (finalizeProfile != null) {
-        await finalizeProfile();
+        await measure('finalize_profile', finalizeProfile);
         if (!await current()) return null;
       }
     }
-    await saveSessionMetadata();
+    await measure('save_session', saveSessionMetadata);
     if (!await current()) return null;
     if (submitVerification != null) {
-      await submitVerification();
+      await measure('submit_verification', submitVerification);
       if (!await current()) return null;
     }
-    final AuthDestination destination = await resolveDestination();
+    final AuthDestination destination = await measure(
+      'resolve_destination',
+      resolveDestination,
+    );
     if (!await current()) return null;
     return destination;
   }
@@ -277,9 +295,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                       Icons.camera_alt_outlined,
                       color: Colors.orange,
                     ),
-                    title: const Text(
-                      'Kameradan çek',
-                      style: TextStyle(color: Colors.white),
+                    title: Text(
+                      text.takeFromCamera,
+                      style: const TextStyle(color: Colors.white),
                     ),
                     onTap: () {
                       Navigator.pop(sheetContext, ImageSource.camera);
@@ -290,9 +308,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                       Icons.photo_library_outlined,
                       color: Colors.orange,
                     ),
-                    title: const Text(
-                      'Galeriden seç',
-                      style: TextStyle(color: Colors.white),
+                    title: Text(
+                      text.pickFromGallery,
+                      style: const TextStyle(color: Colors.white),
                     ),
                     onTap: () {
                       Navigator.pop(sheetContext, ImageSource.gallery);
@@ -501,6 +519,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       loading = true;
     });
 
+    final Stopwatch totalWatch = Stopwatch()..start();
+    final Map<String, int> stageTimingsMs = <String, int>{};
+
     try {
       final String name = nameController.text.trim();
 
@@ -510,12 +531,16 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
       final bool verificationRequested =
           verificationUploaded && identityFront != null && selfiePhoto != null;
+      final bool hasUploads = profilePhoto != null || verificationRequested;
 
       final SessionInfo session =
           await SessionService.getOrCreateCurrentSession();
       if (!await SessionService.isAuthSessionCurrent(authBinding)) return;
 
+      final Stopwatch tokenWatch = Stopwatch()..start();
       await user.getIdToken(true);
+      tokenWatch.stop();
+      stageTimingsMs['id_token_refresh'] = tokenWatch.elapsedMilliseconds;
       if (!await SessionService.isAuthSessionCurrent(authBinding)) return;
       final String verifiedPhone = user.phoneNumber?.trim() ?? '';
 
@@ -537,7 +562,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         "longitude": 0.0,
         "puan": 0.0,
         "plus": false,
-        "accountStatus": "pendingProfile",
+        "accountStatus": hasUploads ? "pendingProfile" : "active",
         "lastLoginAt": FieldValue.serverTimestamp(),
         "lastLoginPlatform": session.platform,
         "lastLoginAppVersion": session.appVersion,
@@ -548,7 +573,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         "oyunlar": selectedGameNames,
         "gameIds": selectedGameLevels.keys.toList(),
         "gameSkills": selectedGameSkillsMap,
-        "onboardingCompleted": false,
+        "onboardingCompleted": !hasUploads,
         "olusturmaTarihi": FieldValue.serverTimestamp(),
         "guncellemeTarihi": FieldValue.serverTimestamp(),
       };
@@ -560,6 +585,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       destination = await ProfileCreationCoordinator.complete(
         binding: authBinding,
         isSessionCurrent: SessionService.isAuthSessionCurrent,
+        onStageTiming: (String stage, int elapsedMs) {
+          stageTimingsMs[stage] = elapsedMs;
+        },
         readProfileState: () async {
           final DocumentSnapshot<Map<String, dynamic>> snapshot =
               await profileReference.get(
@@ -575,47 +603,59 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
           return ProfileCreationServerState.restricted;
         },
         writeProfile: () => profileReference.set(profileData),
-        uploadAssets: () async {
-          final String timestamp = DateTime.now().millisecondsSinceEpoch
-              .toString();
-          if (profilePhoto != null) {
-            profilePhotoUrl = await uploadFile(
-              file: File(profilePhoto!.path),
-              storagePath: "profile_photos/${user.uid}/profile_$timestamp.jpg",
-            );
-            if (!await SessionService.isAuthSessionCurrent(authBinding)) {
-              return;
-            }
-          }
+        uploadAssets: hasUploads
+            ? () async {
+                final String timestamp = DateTime.now().millisecondsSinceEpoch
+                    .toString();
+                final List<Future<void>> uploads = <Future<void>>[];
 
-          if (verificationRequested) {
-            final String basePath = "verification_documents/${user.uid}";
-            identityFrontPath = await uploadPrivateVerificationFile(
-              file: File(identityFront!.path!),
-              storagePath:
-                  "$basePath/identity_front_$timestamp.${getFileExtension(identityFront!.name)}",
-            );
-            if (!await SessionService.isAuthSessionCurrent(authBinding)) {
-              return;
-            }
-            selfiePath = await uploadPrivateVerificationFile(
-              file: File(selfiePhoto!.path),
-              storagePath: "$basePath/selfie_$timestamp.jpg",
-            );
-            if (!await SessionService.isAuthSessionCurrent(authBinding)) {
-              return;
-            }
-          }
-        },
-        finalizeProfile: () => profileReference.update(<String, dynamic>{
-          "profilFotografi": profilePhotoUrl,
-          "avatarUrl": profilePhotoUrl.isEmpty ? selectedAvatarUrl : "",
-          "accountStatus": "active",
-          "onboardingCompleted": true,
-          "verificationStatus": "none",
-          "verificationSkipped": true,
-          "guncellemeTarihi": FieldValue.serverTimestamp(),
-        }),
+                if (profilePhoto != null) {
+                  uploads.add(
+                    uploadFile(
+                      file: File(profilePhoto!.path),
+                      storagePath:
+                          "profile_photos/${user.uid}/profile_$timestamp.jpg",
+                    ).then((String url) {
+                      profilePhotoUrl = url;
+                    }),
+                  );
+                }
+
+                if (verificationRequested) {
+                  final String basePath = "verification_documents/${user.uid}";
+                  uploads.add(
+                    uploadPrivateVerificationFile(
+                      file: File(identityFront!.path!),
+                      storagePath:
+                          "$basePath/identity_front_$timestamp.${getFileExtension(identityFront!.name)}",
+                    ).then((String path) {
+                      identityFrontPath = path;
+                    }),
+                  );
+                  uploads.add(
+                    uploadPrivateVerificationFile(
+                      file: File(selfiePhoto!.path),
+                      storagePath: "$basePath/selfie_$timestamp.jpg",
+                    ).then((String path) {
+                      selfiePath = path;
+                    }),
+                  );
+                }
+
+                await Future.wait(uploads);
+              }
+            : null,
+        finalizeProfile: hasUploads
+            ? () => profileReference.update(<String, dynamic>{
+                "profilFotografi": profilePhotoUrl,
+                "avatarUrl": profilePhotoUrl.isEmpty ? selectedAvatarUrl : "",
+                "accountStatus": "active",
+                "onboardingCompleted": true,
+                "verificationStatus": "none",
+                "verificationSkipped": true,
+                "guncellemeTarihi": FieldValue.serverTimestamp(),
+              })
+            : null,
         saveSessionMetadata: () => SessionService.saveSessionMetadata(session),
         submitVerification: verificationRequested
             ? () async {
@@ -628,7 +668,15 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 });
               }
             : null,
-        resolveDestination: () => UserService.getAuthDestination(user: user),
+        resolveDestination: () => UserService.getAuthDestination(
+          user: user,
+          skipTokenRefresh: true,
+          skipPostAuthDelay: true,
+        ),
+      );
+      totalWatch.stop();
+      debugPrint(
+        'profileCreate timings (ms): $stageTimingsMs total=${totalWatch.elapsedMilliseconds}',
       );
       if (destination == null) return;
 
@@ -636,7 +684,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         return;
       }
 
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => _destinationScreen(destination),
+        ),
+        (_) => false,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -664,6 +717,49 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
             ? text.profileCreatedFollowUpError(error)
             : text.profileCreationError(error),
       );
+    }
+  }
+
+  Widget _destinationScreen(AuthDestination destination) {
+    switch (destination.type) {
+      case AuthDestinationType.login:
+        return const LoginScreen();
+      case AuthDestinationType.createProfile:
+        return const CreateProfileScreen();
+      case AuthDestinationType.legalAcceptanceRequired:
+        return const LegalAcceptanceScreen();
+      case AuthDestinationType.home:
+        return HomeScreen(userName: destination.profileName);
+      case AuthDestinationType.suspended:
+        return AccountStatusScreen(
+          title: text.accountSuspended,
+          message: text.accountSuspendedMessage,
+          icon: Icons.pause_circle_outline,
+        );
+      case AuthDestinationType.sessionExpired:
+        return AccountStatusScreen(
+          title: text.sessionEnded,
+          message: text.sessionEndedMessage,
+          icon: Icons.phonelink_erase_outlined,
+        );
+      case AuthDestinationType.banned:
+        return AccountStatusScreen(
+          title: text.accountBanned,
+          message: text.accountBannedMessage,
+          icon: Icons.block,
+        );
+      case AuthDestinationType.deletionRequested:
+        return AccountStatusScreen(
+          title: text.deletionPending,
+          message: text.deletionPendingMessage,
+          icon: Icons.hourglass_top,
+        );
+      case AuthDestinationType.deleted:
+        return AccountStatusScreen(
+          title: text.accountDeleted,
+          message: text.accountDeletedMessage,
+          icon: Icons.person_off_outlined,
+        );
     }
   }
 
@@ -877,10 +973,10 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                       const SizedBox(height: 12),
                       Expanded(
                         child: filtered.isEmpty
-                            ? const Center(
+                            ? Center(
                                 child: Text(
-                                  'Sonuç bulunamadı',
-                                  style: TextStyle(color: Colors.white54),
+                                  text.noResultsFound,
+                                  style: const TextStyle(color: Colors.white54),
                                 ),
                               )
                             : ListView.separated(
@@ -1381,12 +1477,14 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
             children: <Widget>[
               GameCatalogIcon(categoryId: category.id, color: Colors.orange),
               const SizedBox(width: 9),
-              Text(
-                category.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  text.categoryName(category),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -1437,7 +1535,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 const SizedBox(width: 11),
                 Expanded(
                   child: Text(
-                    game.name,
+                    text.gameName(game),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -1456,50 +1554,16 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
             const SizedBox(height: 13),
             const Divider(color: Colors.white12, height: 1),
             const SizedBox(height: 12),
-            Row(
-              children: GameCatalog.skillLevels.map((skill) {
-                final bool active = selectedLevel == skill.value;
-                return Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      right: skill == GameCatalog.skillLevels.last ? 0 : 7,
-                    ),
-                    child: ChoiceChip(
-                      selected: active,
-                      showCheckmark: false,
-                      label: SizedBox(
-                        width: double.infinity,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              gameExperienceLabel(context, skill.value),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                      selectedColor: Colors.orange,
-                      backgroundColor: Colors.white10,
-                      side: BorderSide(
-                        color: active ? Colors.orange : Colors.white12,
-                      ),
-                      labelStyle: TextStyle(
-                        color: active ? Colors.black : Colors.white70,
-                      ),
-                      onSelected: loading
-                          ? null
-                          : (_) {
-                              setState(() {
-                                selectedGameLevels[game.id] = skill.value;
-                              });
-                            },
-                    ),
-                  ),
-                );
-              }).toList(),
+            GameLevelSelector(
+              gameId: game.id,
+              selectedLevel: selectedLevel,
+              enabled: !loading,
+              darkSurface: true,
+              onSelected: (SkillLevelDefinition skill) {
+                setState(() {
+                  selectedGameLevels[game.id] = skill.value;
+                });
+              },
             ),
             const SizedBox(height: 10),
             ClipRRect(
@@ -1957,4 +2021,145 @@ class _CreateProfileText {
     en: 'You must be at least 18 years old to register.',
     de: 'Du musst mindestens 18 Jahre alt sein, um dich zu registrieren.',
   );
+
+  String get takeFromCamera => _value(
+    tr: 'Kameradan çek',
+    en: 'Take from camera',
+    de: 'Mit Kamera aufnehmen',
+  );
+  String get pickFromGallery => _value(
+    tr: 'Galeriden seç',
+    en: 'Choose from gallery',
+    de: 'Aus Galerie auswählen',
+  );
+  String get noResultsFound => _value(
+    tr: 'Sonuç bulunamadı',
+    en: 'No results found',
+    de: 'Keine Ergebnisse gefunden',
+  );
+
+  String get accountSuspended => _value(
+    tr: 'Hesap Askıya Alındı',
+    en: 'Account Suspended',
+    de: 'Konto gesperrt',
+  );
+  String get accountSuspendedMessage => _value(
+    tr: 'Hesabın geçici olarak askıya alındı. İnceleme tamamlanana kadar uygulamayı kullanamazsın.',
+    en: 'Your account has been temporarily suspended. You cannot use the app until the review is complete.',
+    de: 'Dein Konto wurde vorübergehend gesperrt. Du kannst die App bis zum Abschluss der Prüfung nicht verwenden.',
+  );
+  String get sessionEnded => _value(
+    tr: 'Oturum Sonlandı',
+    en: 'Session Ended',
+    de: 'Sitzung beendet',
+  );
+  String get sessionEndedMessage => _value(
+    tr: 'Oturumun başka bir cihazda açıldığı için sonlandırıldı.',
+    en: 'Your session was ended because your account was opened on another device.',
+    de: 'Deine Sitzung wurde beendet, weil dein Konto auf einem anderen Gerät geöffnet wurde.',
+  );
+  String get accountBanned => _value(
+    tr: 'Hesap Engellendi',
+    en: 'Account Banned',
+    de: 'Konto dauerhaft gesperrt',
+  );
+  String get accountBannedMessage => _value(
+    tr: 'Hesabın kullanım kurallarının ihlali nedeniyle engellendi.',
+    en: 'Your account has been banned for violating the terms of use.',
+    de: 'Dein Konto wurde wegen eines Verstoßes gegen die Nutzungsregeln gesperrt.',
+  );
+  String get deletionPending => _value(
+    tr: 'Hesap Silme İşlemi Bekliyor',
+    en: 'Account Deletion Pending',
+    de: 'Kontolöschung ausstehend',
+  );
+  String get deletionPendingMessage => _value(
+    tr: 'Hesabın için silme talebi oluşturulmuş. İşlem tamamlanana kadar uygulamayı kullanamazsın.',
+    en: 'A deletion request has been created for your account. You cannot use the app until the process is complete.',
+    de: 'Für dein Konto wurde eine Löschanfrage erstellt. Du kannst die App bis zum Abschluss der Prüfung nicht verwenden.',
+  );
+  String get accountDeleted =>
+      _value(tr: 'Hesap Silindi', en: 'Account Deleted', de: 'Konto gelöscht');
+  String get accountDeletedMessage => _value(
+    tr: 'Bu hesap silinmiş ve artık kullanılamaz.',
+    en: 'This account has been deleted and can no longer be used.',
+    de: 'Dieses Konto wurde gelöscht und kann nicht mehr verwendet werden.',
+  );
+
+  String categoryName(GameCategoryDefinition category) {
+    switch (category.id) {
+      case 'masa_oyunlari':
+        return _value(
+          tr: 'Masa Oyunları',
+          en: 'Board Games',
+          de: 'Brettspiele',
+        );
+      case 'konsol_oyunlari':
+        return _value(
+          tr: 'Konsol Oyunları',
+          en: 'Console Games',
+          de: 'Konsolenspiele',
+        );
+      case 'raket_sporlari':
+        return _value(
+          tr: 'Raket Sporları',
+          en: 'Racket Sports',
+          de: 'Schlägersportarten',
+        );
+      case 'takim_sporlari':
+        return _value(
+          tr: 'Takım Sporları',
+          en: 'Team Sports',
+          de: 'Mannschaftssportarten',
+        );
+      case 'premium_sporlar':
+        return _value(
+          tr: 'Premium Sporlar',
+          en: 'Premium Sports',
+          de: 'Premium-Sportarten',
+        );
+      default:
+        return category.name;
+    }
+  }
+
+  String gameName(GameDefinition game) {
+    if (currentLanguage == AppLanguage.turkish) {
+      return game.name;
+    }
+    switch (game.id) {
+      case 'tavla':
+        return 'Backgammon';
+      case 'satranc':
+        return currentLanguage == AppLanguage.german ? 'Schach' : 'Chess';
+      case 'bric':
+        return 'Bridge';
+      case 'tombala':
+        return 'Bingo';
+      case 'tenis':
+        return 'Tennis';
+      case 'masa_tenisi':
+        return currentLanguage == AppLanguage.german
+            ? 'Tischtennis'
+            : 'Table Tennis';
+      case 'futbol':
+        return currentLanguage == AppLanguage.german ? 'Fußball' : 'Football';
+      case 'basketbol':
+        return 'Basketball';
+      case 'voleybol':
+        return 'Volleyball';
+      case 'hentbol':
+        return 'Handball';
+      case 'yelken':
+        return currentLanguage == AppLanguage.german ? 'Segeln' : 'Sailing';
+      case 'kurek':
+        return currentLanguage == AppLanguage.german ? 'Rudern' : 'Rowing';
+      case 'binicilik':
+        return currentLanguage == AppLanguage.german ? 'Reiten' : 'Horse Riding';
+      case 'kayak':
+        return currentLanguage == AppLanguage.german ? 'Skifahren' : 'Skiing';
+      default:
+        return game.name;
+    }
+  }
 }

@@ -60,6 +60,8 @@ class UserService {
   static Future<AuthDestination> getAuthDestination({
     User? user,
     bool allowStatusRefresh = true,
+    bool skipTokenRefresh = false,
+    bool skipPostAuthDelay = false,
   }) async {
     final currentUser = user ?? FirebaseAuth.instance.currentUser;
 
@@ -79,14 +81,18 @@ class UserService {
       return sessionChanged();
     }
 
-    await currentUser.getIdToken(true);
-    if (!await SessionService.isAuthSessionCurrent(authBinding)) {
-      return sessionChanged();
+    if (!skipTokenRefresh) {
+      await currentUser.getIdToken(true);
+      if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+        return sessionChanged();
+      }
     }
 
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!await SessionService.isAuthSessionCurrent(authBinding)) {
-      return sessionChanged();
+    if (!skipPostAuthDelay) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!await SessionService.isAuthSessionCurrent(authBinding)) {
+        return sessionChanged();
+      }
     }
 
     final doc = await FirebaseFirestore.instance

@@ -12,6 +12,7 @@ import '../utils/game_catalog.dart';
 import '../utils/profile_completion.dart';
 import '../utils/turkey_location_service.dart';
 import '../widgets/game_catalog_icon.dart';
+import '../widgets/game_level_selector.dart';
 import 'avatar_picker_sheet.dart';
 
 String _editProfileText(
@@ -822,30 +823,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               borderRadius: BorderRadius.circular(99),
             ),
             const SizedBox(height: 12),
-            SegmentedButton<int>(
-              segments: [
-                for (final level in GameCatalog.skillLevels)
-                  ButtonSegment<int>(
-                    value: level.value,
-                    label: Text(
-                      gameExperienceLabel(context, level.value),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-              ],
-              selected: <int>{skill.level},
-              onSelectionChanged: (selection) {
-                if (selection.isEmpty) {
-                  return;
-                }
-
-                final selectedLevel = GameCatalog.skillLevelForValue(
-                  selection.first,
-                );
-
+            GameLevelSelector(
+              gameId: game.id,
+              selectedLevel: skill.level,
+              enabled: !saving,
+              darkSurface: false,
+              onSelected: (SkillLevelDefinition selectedLevel) {
                 _setSkillLevel(game, selectedLevel);
               },
-              showSelectedIcon: false,
             ),
           ],
         ],
