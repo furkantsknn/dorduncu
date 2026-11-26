@@ -589,7 +589,9 @@ class _AdminVerificationDetailScreenState
   String _confirmationMessage(String status) {
     switch (status) {
       case 'approved':
-        return 'Başvuru onaylanacak ve kullanıcıya oyuncu rozeti verilecek.';
+        return 'Kimlik ile selfie arasında otomatik yüz eşleşmesi yapılmadı. '
+            'İki fotoğrafı kendin karşılaştırdığından ve belgeden emin '
+            'olduğundan sonra onayla. Kullanıcıya oyuncu rozeti verilecek.';
       case 'revision':
         return 'Başvuru revizyona gönderilecek. Yazdığın admin notu kullanıcıya düzeltme nedeni olarak iletilebilecek.';
       case 'rejected':
