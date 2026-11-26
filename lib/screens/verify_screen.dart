@@ -12,6 +12,7 @@ import 'home_screen.dart';
 import '../legal/legal_service.dart';
 import '../services/language_controller.dart';
 import '../services/phone_verification_session.dart';
+import '../services/security_check_diagnostics.dart';
 import '../services/user_service.dart';
 import 'legal_acceptance_screen.dart';
 
@@ -283,6 +284,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
   Future<void> _routeAfterSignIn(User user, int attempt) async {
     if (!widget.session.claimNavigation(attempt)) return;
+    String activeCallable = 'checkDeletedPhone';
     try {
       final HttpsCallable callable = FirebaseFunctions.instanceFor(
         region: 'europe-west1',
@@ -331,6 +333,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
         debugPrint('legal acceptance record failed: $error');
       }
 
+      activeCallable = 'refreshAccountStatus';
       final AuthDestination destination = acceptanceFailed
           ? const AuthDestination(
               type: AuthDestinationType.legalAcceptanceRequired,
@@ -353,7 +356,15 @@ class _VerifyScreenState extends State<VerifyScreen> {
         (route) => false,
       );
       widget.session.releaseCodeGate();
-    } on FirebaseFunctionsException {
+    } on FirebaseFunctionsException catch (error) {
+      final SecurityCheckFailureDiagnostic diagnostic =
+          buildSecurityCheckFailureDiagnostic(
+            error,
+            language: LanguageController.language.value,
+            callableName: activeCallable,
+          );
+      debugPrint(diagnostic.logLine);
+
       widget.session.releaseNavigationClaim(attempt);
       await FirebaseAuth.instance.signOut();
       widget.session.releaseCodeGate();
@@ -364,7 +375,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
         loading = false;
       });
 
-      _showMessage('Güvenlik kontrolü tamamlanamadı. Lütfen tekrar deneyin.');
+      _showMessage(diagnostic.userMessage);
     }
   }
 
