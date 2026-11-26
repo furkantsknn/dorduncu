@@ -422,4 +422,35 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'bulunamayan veya yüklenmiş mağaza ürünleri tekrar fiyat sorgusu başlatmaz',
+    () {
+      expect(
+        pendingStorePriceIds(
+          rawIds: const <String>[
+            ' dort_badge_okey ',
+            'dort_badge_tavla',
+            'dort_badge_satranc',
+            'dort_badge_tenis',
+            '',
+            '   ',
+          ],
+          loadedIds: const <String>{'dort_badge_okey'},
+          failedIds: const <String>{'dort_badge_tavla'},
+          notFoundIds: const <String>{'dort_badge_satranc'},
+        ),
+        const <String>{'dort_badge_tenis'},
+      );
+      expect(
+        pendingStorePriceIds(
+          rawIds: const <String>['dort_badge_satranc'],
+          loadedIds: const <String>{},
+          failedIds: const <String>{},
+          notFoundIds: const <String>{'dort_badge_satranc'},
+        ),
+        isEmpty,
+      );
+    },
+  );
 }

@@ -716,15 +716,12 @@ class _MarketScreenState extends State<MarketScreen> {
   }
 
   void _requestPlayPrices(Iterable<String> rawIds) {
-    final Set<String> ids = rawIds
-        .map((String id) => id.trim())
-        .where(
-          (String id) =>
-              id.isNotEmpty &&
-              !_playPrices.containsKey(id) &&
-              !_unavailablePlayPriceIds.contains(id),
-        )
-        .toSet();
+    final Set<String> ids = pendingStorePriceIds(
+      rawIds: rawIds,
+      loadedIds: _playPrices.keys.toSet(),
+      failedIds: _unavailablePlayPriceIds,
+      notFoundIds: _notFoundPlayPriceIds,
+    );
 
     if (ids.isEmpty || _playPriceRequestInFlight) {
       return;
@@ -939,6 +936,14 @@ class _MarketScreenState extends State<MarketScreen> {
                           .collection('badge_products')
                           .limit(1)
                           .get(const GetOptions(source: Source.server));
+                      if (!mounted) {
+                        return;
+                      }
+                      setState(() {
+                        _unavailablePlayPriceIds.clear();
+                        _notFoundPlayPriceIds.clear();
+                        _plusQuoteErrors.clear();
+                      });
                     },
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),

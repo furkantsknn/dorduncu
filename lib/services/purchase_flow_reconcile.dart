@@ -287,6 +287,29 @@ bool canRetryPlayPriceQuery({
   return !inFlight && presentation == PlayPricePresentation.failed;
 }
 
+/// Returns the store product IDs that still need a price query.
+///
+/// IDs that already resolved, failed, or were explicitly reported as not found
+/// by the store are excluded so widgets never loop `queryProductDetails` on
+/// every rebuild. Pull-to-refresh or explicit retry clears those sets first.
+Set<String> pendingStorePriceIds({
+  required Iterable<String> rawIds,
+  required Set<String> loadedIds,
+  required Set<String> failedIds,
+  required Set<String> notFoundIds,
+}) {
+  return rawIds
+      .map((String id) => id.trim())
+      .where(
+        (String id) =>
+            id.isNotEmpty &&
+            !loadedIds.contains(id) &&
+            !failedIds.contains(id) &&
+            !notFoundIds.contains(id),
+      )
+      .toSet();
+}
+
 enum PlusOfferBlock { none, missingMapping, loading, priceFailed }
 
 PlusOfferBlock plusOfferBlock({
