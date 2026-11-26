@@ -112,7 +112,7 @@ VerificationAdminLabels presentVerificationAdmin({
   final String analysisStatus;
   switch (analysis) {
     case 'passed':
-      analysisStatus = 'Otomatik kontroller geçti';
+      analysisStatus = 'Temel kontroller geçti; kimlik-selfie yüz eşleşmesi yapılmadı';
     case 'needs_review':
       analysisStatus = 'Otomatik sonuç belirsiz';
     case 'failed':
