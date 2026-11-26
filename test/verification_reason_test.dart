@@ -113,4 +113,16 @@ void main() {
     expect(display.showRejected, isTrue);
     expect(display.reason, 'Belge okunmuyor');
   });
+  test('passed basic checks never imply selfie identity matching', () {
+    final VerificationAdminLabels labels = presentVerificationAdmin(
+      status: 'pending',
+      automaticCheckStatus: 'passed',
+      reasonCode: '',
+      decisionSource: 'automatic',
+    );
+
+    expect(labels.applicationStatus, 'İnceleme bekliyor');
+    expect(labels.analysisStatus, contains('yüz eşleşmesi yapılmadı'));
+    expect(labels.identityRejection, isFalse);
+  });
 }
